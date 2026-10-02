@@ -1,0 +1,1 @@
+Read the three baseline PDFs already present in this repository before substantial implementation. Keep clinical approval and clinic isolation enforced by backend code. Preserve user changes and report verification limits accurately.
