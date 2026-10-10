@@ -1,0 +1,125 @@
+name: CI
+
+# Part 1 gate: server tests (MongoDB), client tests + lint + build, dependency
+# audit and a Git tree/history secret scan. The server integration suite needs a
+# real MongoDB, provided here as a service container.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: Server tests
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: test
+      MONGODB_URI: mongodb://127.0.0.1:27017/velora_test
+      MONGODB_TEST_URI: mongodb://127.0.0.1:27017/velora_test
+      CLIENT_ORIGIN: http://localhost:5173
+      SESSION_PEPPER: ci_test_session_pepper_0123456789
+      MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      SESSION_TTL_HOURS: "12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Server tests
+        run: npm test -w server
+
+  client:
+    name: Client tests, lint and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Unit tests
+        run: npm test -w client
+      - name: Lint
+        run: npm run lint -w client
+      - name: Production build
+        run: npm run build -w client
+
+  e2e:
+    name: Browser journeys
+    runs-on: ubuntu-latest
+    needs: [server, client]
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: test
+      PORT: "4100"
+      MONGODB_URI: mongodb://127.0.0.1:27017/velora_e2e
+      CLIENT_ORIGIN: http://localhost:5173
+      SESSION_PEPPER: ci_test_session_pepper_0123456789
+      MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      SESSION_TTL_HOURS: "12"
+      VITE_API_PROXY: http://localhost:4100
+      E2E_BASE_URL: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Seed synthetic clinic
+        run: npm run seed -w server
+      - name: Start API
+        run: npm run start -w server &
+      - name: Start client
+        run: npm run dev -w client &
+      - name: Wait for stack
+        run: npx wait-on http://localhost:4100/api/health http://localhost:5173
+      - name: Browser journeys
+        run: npx playwright test
+
+  security:
+    name: Dependency audit and secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Secret scan (tree)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
