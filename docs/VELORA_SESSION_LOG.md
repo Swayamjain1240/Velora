@@ -5,6 +5,43 @@ Evidence classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, 
 
 ---
 
+## Session - 10 October 2026 - Part 3 Duck review (BLOCKED on Part 2)
+
+### Duck review (start of session)
+
+**Files read:** `docs/VELORA_MERN_{MASTER,ARCHITECTURE,DUCK_LOG}.pdf` (owner authority),
+`VELORA_MERN_10_BUILD_PROMPTS.md`, `README.md`, `docs/VELORA_*.md`, the server/client/e2e trees.
+
+**Observed repository state:** branch `main` (clean), 18 commits, `origin/main` up to date at
+`86ef6f1`. Local branches are `main` and `part1/foundation`; the remote has only `main`; there are
+no stashes. Ten models exist (`User`, `Clinic`, `ClinicMembership`, `MembershipRole`, `Invitation`,
+`Session`, `MfaRecoveryCode`, `PasswordReset`, `RateLimitBucket`, `AuditEvent`). Routes are
+`auth/`, `staff/`, `clinic/` only. No `RecoveryEpisode`, `CareTeamAssignment`, `EpisodeCorrection`,
+patient, consent or caregiver-grant model, route, service or screen exists anywhere in the tree.
+
+### Findings
+
+| Requirement set | State | Evidence |
+|---|---|---|
+| Part 1 (repository, auth, clinic permissions) | **VERIFIED** | 37 server + 6 client + 16 browser tests pass; pushed to `main` |
+| Part 2 (patient onboarding, consent history, caregiver access) | **NOT IMPLEMENTED** | no models/routes/services/UI; `git grep` finds the names only in the prompts document |
+| Part 3 (recovery episodes, care-team assignment) | **BLOCKED** | depends on Part 2 |
+
+### Why Part 3 cannot be built on Part 1 alone
+
+Prompt 3 requires that "Parts 1-2 are VERIFIED" before extension, and its own test gate requires
+"intake-assignment versus episode-assignment separation". Part 2 supplies precisely that intake
+assignment and patient ownership. Building Part 3 now would mean inventing Part 2's patient/consent
+model inside the episode work, duplicating it later and breaking the roadmap order - a deliberate
+drift, not a fix. Per the Duck contract the correct action is to build Part 2 first, then Part 3.
+
+### Decision required from the owner
+
+Build Part 2 and then Part 3 in order (recommended), or knowingly build Part 3 against the Part 1
+baseline with Part 2's data model deferred (not recommended). No Part 3 code was written.
+
+---
+
 ## Session - 10 October 2026 - Part 1 implementation
 
 ### Duck review (start of session)
