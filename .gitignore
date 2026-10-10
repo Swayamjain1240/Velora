@@ -37,6 +37,7 @@ logs/
 .cache/
 .tmp/
 tmp/
+.mongodb-test/
 
 # Editor and operating-system files
 .DS_Store

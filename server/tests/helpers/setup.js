@@ -5,8 +5,12 @@
 // factories that mirror real signup/invite flows.
 process.env.NODE_ENV = 'test';
 process.env.PORT = '4199';
+// Integration tests need a replica set so transactions are available (the
+// Part 2+ invariants depend on them). Start one with:
+//   npm run mongo:test-rs -w server
 process.env.MONGODB_TEST_URI =
-  process.env.MONGODB_TEST_URI || 'mongodb://127.0.0.1:27017/velora_test';
+  process.env.MONGODB_TEST_URI ||
+  'mongodb://127.0.0.1:27019/velora_test?replicaSet=rs0';
 process.env.MONGODB_URI = process.env.MONGODB_TEST_URI;
 process.env.CLIENT_ORIGIN = 'http://localhost:5173';
 process.env.SESSION_PEPPER = 'test_pepper_0123456789abcdef';
@@ -41,6 +45,20 @@ function uniq(prefix) {
 async function init() {
   loadEnv();
   await connectDb(process.env.MONGODB_TEST_URI);
+  // Fail closed with an actionable message rather than a cryptic driver error
+  // in whichever test first needs a transaction.
+  try {
+    const session = await mongoose.startSession();
+    await session.withTransaction(async () => {
+      await mongoose.connection.db.collection('velora_tx_probe').insertOne({ ok: 1 }, { session });
+    });
+    await session.endSession();
+  } catch (err) {
+    throw new Error(
+      `Integration tests require a replica-set MongoDB (transactions unavailable: ${err.message}). ` +
+        'Start one with `npm run mongo:test-rs -w server` and set MONGODB_TEST_URI accordingly.'
+    );
+  }
   return buildApp();
 }
 

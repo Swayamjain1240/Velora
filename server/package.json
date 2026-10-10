@@ -8,7 +8,8 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\"",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "mongo:test-rs": "node scripts/mongo-test-rs.js"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
