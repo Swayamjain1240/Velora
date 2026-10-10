@@ -16,6 +16,10 @@ export default function MfaEnroll() {
   const [recoveryCodes, setRecoveryCodes] = useState(null);
 
   useEffect(() => {
+    // Once enrollment succeeds the server promotes the session, so the context
+    // stops reporting mfaPending. Do NOT redirect while the one-time recovery
+    // codes are on screen - the user must acknowledge them first.
+    if (recoveryCodes) return;
     if (!mfaPending) {
       navigate('/app', { replace: true });
       return;
@@ -25,7 +29,7 @@ export default function MfaEnroll() {
       .then((data) => { if (!cancelled) setSetup(data); })
       .catch((err) => { if (!cancelled) setError(err.message); });
     return () => { cancelled = true; };
-  }, [mfaPending, enrollSetup, navigate]);
+  }, [mfaPending, recoveryCodes, enrollSetup, navigate]);
 
   async function onSubmit(event) {
     event.preventDefault();

@@ -19,6 +19,8 @@
 
 * { box-sizing: border-box; }
 
+html, body, #root { height: 100%; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -118,9 +120,15 @@ input, select {
 
 /* ---------- Authenticated shell: fixed viewport ---------- */
 .shell {
-  height: 100vh;
+  /* Pin the shell to the viewport. A fixed shell cannot grow the document, so
+   * page-level scrolling is impossible; long content scrolls in the inner
+   * regions instead (control #25). */
+  position: fixed;
+  inset: 0;
   display: grid;
-  grid-template-rows: auto 1fr;
+  /* minmax(0, 1fr) lets the content row shrink below its min-content height
+   * so a tall card scrolls INSIDE the row instead of growing the document. */
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden; /* shell bounds the viewport; inner regions scroll */
 }
 .shell__header {
@@ -153,7 +161,10 @@ input, select {
 }
 .shell__main {
   padding: 1rem;
+  min-height: 0; /* allow the grid track to shrink (see .shell) */
   overflow: auto; /* the ONLY vertical scroll region on app screens */
+  display: flex;
+  flex-direction: column;
 }
 
 .card {
@@ -163,6 +174,11 @@ input, select {
   padding: 1.25rem 1.5rem;
   max-width: 1100px;
   margin: 0 auto;
+  /* Flex column so a long inner list scrolls rather than stretching the page. */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .card h1 { margin-top: 0; font-size: 1.35rem; }
 .card h2 { font-size: 1.05rem; margin-bottom: .35rem; }
@@ -179,7 +195,13 @@ input, select {
 }
 .tab--active { background: var(--primary); color: #fff; border-color: var(--primary); }
 
-.panel-scroll { overflow: auto; max-height: calc(100vh - 320px); }
+.panel-scroll {
+  overflow: auto;
+  /* Fills the space left by the card's fixed rows (title, tabs, pager) and
+   * scrolls internally - no brittle viewport-height arithmetic. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .table th, .table td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
 .table__actions { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
@@ -203,7 +225,6 @@ input, select {
   .shell__header { flex-direction: column; align-items: stretch; }
   .shell__nav { justify-content: space-between; }
   .shell__user { justify-content: space-between; }
-  .panel-scroll { max-height: calc(100vh - 380px); }
   .recovery-codes { grid-template-columns: 1fr; }
   .table { font-size: .85rem; }
 }
