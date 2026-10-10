@@ -1,0 +1,31 @@
+{
+  "name": "velora-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Velora API - authentication, clinic permissions and workflow services",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "node --test --test-concurrency=1 tests/",
+    "seed": "node scripts/seed.js"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "mongoose": "^8.8.0",
+    "otpauth": "^9.3.6",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

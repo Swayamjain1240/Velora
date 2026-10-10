@@ -44,3 +44,9 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+# Freebuff workspace metadata
+.freebuff/
+
+# Playwright
+playwright-report/
+test-results/

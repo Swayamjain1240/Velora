@@ -1,0 +1,23 @@
+{
+  "name": "velora",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Velora - AI-assisted post-discharge recovery coordination (clinician-approved plans only)",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w server & npm run dev -w client",
+    "test": "npm run test -w server && npm run test -w client",
+    "e2e": "playwright test",
+    "gen:env": "node scripts/gen-env-values.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.2"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
