@@ -13,6 +13,7 @@ node_modules/
 .npm/
 .pnpm-store/
 .yarn/
+.vite/
 
 # Build, coverage and test output
 dist/
