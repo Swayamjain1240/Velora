@@ -11,7 +11,7 @@ const {
   PASSWORD_RESET_TTL_MINUTES,
 } = require('../config/constants');
 const { errors } = require('./errors');
-const { randomToken, hmac } = require('./crypto');
+const { randomToken, hmac, openSecret } = require('./crypto');
 const { hashPassword, verifyPassword } = require('./passwordService');
 const sessionService = require('./sessionService');
 const mfaService = require('./mfaService');
@@ -166,9 +166,22 @@ async function verifyMfa({ session, code, recoveryCode, ip, userAgent }) {
   return { token, user: publicUser(user) };
 }
 
-// Step 1 of enrollment: generate a secret, store it encrypted but NOT enabled.
+// Step 1 of enrollment: reuse an existing unconfirmed secret, or generate one.
+// The secret is stored encrypted but MFA stays disabled until step 2 confirms
+// a matching code. Reusing makes this idempotent under double-fired effects.
 async function startMfaEnrollment({ user }) {
-  const fresh = mfaService.createEnrollment(user);
+  const freshUser = await User.findById(user.id).select('+mfa.secretEnc');
+  const stored = freshUser && freshUser.mfa && freshUser.mfa.secretEnc;
+  const alreadyConfirmed = Boolean(freshUser && freshUser.mfa && freshUser.mfa.enabled);
+  let secretBase32;
+  if (stored && !alreadyConfirmed) {
+    try {
+      secretBase32 = openSecret(stored);
+    } catch {
+      secretBase32 = undefined;
+    }
+  }
+  const fresh = mfaService.createEnrollment(user, { secretBase32 });
   user.mfa = {
     ...(user.mfa && user.mfa.toObject ? user.mfa.toObject() : user.mfa || {}),
     secretEnc: fresh.secretEnc,

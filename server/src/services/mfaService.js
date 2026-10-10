@@ -24,8 +24,13 @@ function buildTotp({ secretBase32, account }) {
   });
 }
 
-function createEnrollment(user) {
-  const secret = new otpauth.Secret({ size: 20 });
+function createEnrollment(user, { secretBase32 } = {}) {
+  // Reusing an existing unconfirmed secret keeps enrollment idempotent: a
+  // double-fired setup call (StrictMode) or a page refresh must always show
+  // the SAME secret that is actually stored, never a divergent one.
+  const secret = secretBase32
+    ? otpauth.Secret.fromBase32(secretBase32)
+    : new otpauth.Secret({ size: 20 });
   const totp = buildTotp({ secretBase32: secret.base32, account: user.email });
   return {
     secretEnc: sealSecret(secret.base32),

@@ -87,6 +87,31 @@ test('full login -> status -> MFA-gated /me -> logout lifecycle', async () => {
   assert.strictEqual(meOut.status, 401);
 });
 
+test('MFA enrollment setup is idempotent: repeated setup returns the same secret', async () => {
+  // Guards the StrictMode double-fire race: the client mounts twice in dev and
+  // calls setup twice. Both calls must yield the SAME secret so the code the
+  // user scans always matches the secret the server will verify against.
+  const { admin } = await seedAdmin();
+  const a = harness.agent(app);
+  const login = await a.post('/api/auth/login').send({ email: admin.user.email, password: PASSWORD });
+  const csrf = harness.csrfFrom(login);
+
+  const s1 = await a.post('/api/auth/mfa/enroll/setup').set('X-CSRF-Token', csrf);
+  const s2 = await a.post('/api/auth/mfa/enroll/setup').set('X-CSRF-Token', csrf);
+  assert.strictEqual(s1.status, 200);
+  assert.strictEqual(s2.status, 200);
+  assert.strictEqual(s1.body.secretBase32, s2.body.secretBase32, 'setup must be idempotent');
+
+  // A code from the (stable) secret must now verify.
+  const code = harness.totpCode(s1.body.secretBase32, admin.user.email);
+  const verify = await a
+    .post('/api/auth/mfa/enroll/verify')
+    .set('X-CSRF-Token', csrf)
+    .send({ code });
+  assert.strictEqual(verify.status, 200);
+  assert.strictEqual((await a.get('/api/auth/me')).status, 200);
+});
+
 test('MFA promotion rotates the session token (fixation defense)', async () => {
   const { admin } = await seedAdmin();
   const a = harness.agent(app);
