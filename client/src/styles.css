@@ -1,0 +1,209 @@
+/* Velora base styles.
+ * Authenticated screens use a fixed-viewport grid: the page itself never
+ * scrolls (control #25); only .panel-scroll/.shell__main inner regions scroll
+ * when content exceeds the space. Never clip required content with
+ * overflow:hidden alone - scroll containers keep everything reachable. */
+
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --border: #d7dee8;
+  --text: #1c2733;
+  --muted: #5b6b7c;
+  --primary: #14532d;
+  --primary-contrast: #ffffff;
+  --danger: #a4262c;
+  --focus: #1a73e8;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.centered {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  color: var(--muted);
+}
+
+/* ---------- Landing (may scroll) ---------- */
+.landing { max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+.landing__hero { text-align: center; padding: 3rem 0 2rem; }
+.landing__hero h1 { font-size: 2.5rem; margin: 0 0 .5rem; }
+.tagline { color: var(--muted); font-size: 1.15rem; }
+.landing__section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1rem 0; }
+.landing__footer { color: var(--muted); text-align: center; margin-top: 2rem; font-size: .9rem; }
+
+/* ---------- Panels / forms ---------- */
+.panel-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.panel h1 { margin: 0 0 .5rem; font-size: 1.35rem; }
+.panel__links { margin: .5rem 0 0; font-size: .9rem; }
+
+label { font-weight: 600; font-size: .9rem; margin-top: .35rem; }
+input, select {
+  font: inherit;
+  padding: .55rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  width: 100%;
+}
+.mfa-details { background: var(--bg); border-radius: 8px; padding: .75rem; margin: 0; }
+.mfa-details dt { font-weight: 600; font-size: .85rem; }
+.mfa-details dd { margin: .25rem 0 0; word-break: break-all; }
+.recovery-codes {
+  list-style: none;
+  padding: 0;
+  margin: .5rem 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: .35rem;
+}
+.recovery-codes code { background: var(--bg); padding: .2rem .4rem; border-radius: 6px; }
+
+.btn {
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .55rem .9rem;
+  background: #fff;
+  cursor: pointer;
+  min-height: 40px;
+}
+.btn--primary { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); }
+.btn--ghost { background: transparent; }
+.btn--danger { background: var(--danger); color: #fff; border-color: var(--danger); align-self: flex-start; margin-top: .75rem; }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+
+.error { color: var(--danger); margin: .25rem 0; }
+.notice { color: var(--primary); margin: .25rem 0; }
+
+/* ---------- Authenticated shell: fixed viewport ---------- */
+.shell {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden; /* shell bounds the viewport; inner regions scroll */
+}
+.shell__header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .6rem 1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.shell__brand { font-weight: 700; color: var(--primary); }
+.shell__nav { display: flex; gap: .5rem; flex: 1; }
+.shell__nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: .35rem .6rem;
+  border-radius: 8px;
+}
+.shell__nav a.active { background: var(--primary); color: var(--primary-contrast); }
+.shell__user { display: flex; align-items: center; gap: .75rem; }
+.shell__who { font-size: .9rem; display: flex; align-items: center; gap: .5rem; }
+.role-badge {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .05rem .5rem;
+  font-size: .75rem;
+  text-transform: capitalize;
+}
+.shell__main {
+  padding: 1rem;
+  overflow: auto; /* the ONLY vertical scroll region on app screens */
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.card h1 { margin-top: 0; font-size: 1.35rem; }
+.card h2 { font-size: 1.05rem; margin-bottom: .35rem; }
+
+/* ---------- Tabs, tables, pagination ---------- */
+.tabs { display: flex; gap: .5rem; margin: .75rem 0; }
+.tab {
+  font: inherit;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  padding: .4rem .9rem;
+  cursor: pointer;
+}
+.tab--active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.panel-scroll { overflow: auto; max-height: calc(100vh - 320px); }
+.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.table th, .table td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
+.table__actions { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+.table__actions select { width: auto; }
+.truncate { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.inline-form {
+  display: flex;
+  gap: .5rem;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: .75rem;
+}
+.inline-form label { margin: 0; }
+.inline-form input, .inline-form select { width: auto; }
+
+.pager { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; color: var(--muted); }
+
+/* ---------- Small screens: one primary panel ---------- */
+@media (max-width: 640px) {
+  .shell__header { flex-direction: column; align-items: stretch; }
+  .shell__nav { justify-content: space-between; }
+  .shell__user { justify-content: space-between; }
+  .panel-scroll { max-height: calc(100vh - 380px); }
+  .recovery-codes { grid-template-columns: 1fr; }
+  .table { font-size: .85rem; }
+}
