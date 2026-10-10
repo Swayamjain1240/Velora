@@ -30,7 +30,15 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const data = await api('/auth/login', { method: 'POST', body: { email, password } });
-    setState({ loading: false, authenticated: false, ...data });
+    // Mirror the server's next-step contract so the router sends the user to
+    // the MFA screens instead of bouncing them back to /login.
+    setState({
+      loading: false,
+      authenticated: false,
+      ...data,
+      mfaPending: data.next === 'mfa_verify' || data.next === 'mfa_enroll',
+      mfaEnrollmentRequired: data.next === 'mfa_enroll',
+    });
     return data;
   }, []);
 

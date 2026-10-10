@@ -11,7 +11,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        // Overridable so dev/e2e can point at whichever API port is running.
+        target: process.env.VITE_API_PROXY || 'http://localhost:4000',
         changeOrigin: false,
       },
     },
