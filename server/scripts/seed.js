@@ -14,6 +14,7 @@ const User = require('../src/models/User');
 const Clinic = require('../src/models/Clinic');
 const ClinicMembership = require('../src/models/ClinicMembership');
 const MembershipRole = require('../src/models/MembershipRole');
+const RateLimitBucket = require('../src/models/RateLimitBucket');
 
 const SEED_PASSWORD = 'SyntheticDevPass!24';
 
@@ -26,6 +27,9 @@ const STAFF = [
 async function run() {
   loadEnv();
   await connectDb(getEnv().MONGODB_URI);
+
+  // Clear throttling so a fresh development/e2e session starts unblocked.
+  await RateLimitBucket.deleteMany({});
 
   let clinic = await Clinic.findOne({ code: 'SYNTHCLINIC' });
   if (!clinic) {
@@ -53,6 +57,19 @@ async function run() {
         passwordHash,
       });
     }
+    // Reset each synthetic account to a known state so the documented journey
+    // (sign in -> forced MFA enrollment) is always reproducible. This seed is
+    // development-only and resets MFA deliberately.
+    user.name = member.name;
+    user.passwordHash = passwordHash;
+    user.status = 'active';
+    user.mfa = { enabled: false };
+    await user.save();
+
+    const eligibility =
+      member.roleKey === 'clinical_reviewer'
+        ? { status: 'verified', verifiedAt: new Date() }
+        : { status: 'not_applicable' };
     const existing = await ClinicMembership.findOne({ clinic: clinic.id, user: user.id });
     if (!existing) {
       await ClinicMembership.create({
@@ -60,13 +77,15 @@ async function run() {
         user: user.id,
         roleKey: member.roleKey,
         status: 'active',
-        reviewerEligibility:
-          member.roleKey === 'clinical_reviewer'
-            ? { status: 'verified', verifiedAt: new Date() }
-            : { status: 'not_applicable' },
+        reviewerEligibility: eligibility,
       });
       // eslint-disable-next-line no-console
       console.log(`Seeded ${member.roleKey}: ${member.email}`);
+    } else {
+      existing.roleKey = member.roleKey;
+      existing.status = 'active';
+      existing.reviewerEligibility = eligibility;
+      await existing.save();
     }
   }
 
