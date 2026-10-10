@@ -6,7 +6,7 @@ Velora is a planned JavaScript MERN application that helps clinics convert priva
 
 Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
 
-> **Current status - 10 October 2026:** documentation and architecture baseline. The MERN implementation has not started in this repository. Part 1 is the next authorized engineering stage.
+> **Current status - 10 October 2026:** **Part 1 is implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite) and clinic permissions. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
 
 ## Project authority
 
@@ -47,7 +47,7 @@ The rebuild uses **JavaScript only**:
 - **React.js + Vite** for accessible role-specific interfaces
 - **Playwright** for browser journeys and viewport verification
 
-The intended repository shape will be created in Part 1:
+The repository shape:
 
 ```text
 Velora/
@@ -60,13 +60,13 @@ Velora/
   README.md
 ```
 
-Exact dependency versions will be selected and pinned only after compatibility and security review. No storage, AI/OCR, notification, queue, hosting or managed database provider has been selected.
+Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no production advisories at Part 1 close). No storage, AI/OCR, notification, queue, hosting or managed database provider has been selected; AI/OCR and any vendor remain deferred and must be disclosed before use (control #22).
 
 ## Ten-part delivery plan
 
 | Part | Deliverable | State |
 |---:|---|---|
-| 1 | Repository, authentication and clinic permissions | Planned - next stage |
+| 1 | Repository, authentication and clinic permissions | Implemented / verified locally |
 | 2 | Patient onboarding, consent and caregiver access | Planned |
 | 3 | Recovery episodes and care-team assignment | Planned |
 | 4 | Private discharge-document intake | Planned |
@@ -133,7 +133,41 @@ Passing tests do not establish zero bugs, clinical validation, regulatory compli
 
 ## Development and Git discipline
 
-Part 1 will add verified setup commands after the actual package manifests exist. Until then, do not invent installation or execution instructions.
+### Setup (verified)
+
+Requirements: Node.js >= 20.11 and a local MongoDB (a single node is enough for Part 1; later parts need replica-set transactions).
+
+```bash
+npm install                      # installs server + client + e2e workspaces
+cp .env.example .env             # then fill in values (see below)
+npm run gen:env                  # generates safe local values for the two secrets
+npm run seed -w server           # synthetic clinic + one user per role
+npm run dev                      # API on :4000, client on :5173
+```
+
+Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGIN`, `SESSION_PEPPER`, `MFA_ENCRYPTION_KEY`. The browser receives only `VITE_API_BASE_URL`.
+
+### Commands (verified)
+
+```bash
+npm test -w server               # 37 unit + integration tests (MongoDB test DB)
+npm test -w client               # 6 client unit tests (Vitest)
+npm run lint -w client           # ESLint
+npm run build -w client          # production build
+npx playwright test              # 16 browser journeys at six viewport sizes
+npm audit --omit=dev             # production dependency audit
+```
+
+Synthetic development accounts share the password `SyntheticDevPass!24` and use only `.invalid` addresses.
+
+### Running the browser journeys
+
+The Playwright suite needs the stack running and reseeds the synthetic clinic itself before it starts:
+
+```bash
+npm run dev                      # in one terminal
+npx playwright test              # in another (Chromium is installed via npx playwright install chromium)
+```
 
 During implementation:
 
