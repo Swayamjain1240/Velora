@@ -32,21 +32,26 @@ ten build prompts) and `README.md`. No `server/`, no `client/`, no code, no CI.
 | Client | Vite + React + router, cookie-only API wrapper, auth context, login/MFA/enroll/reset/invite screens, protected one-viewport app shell |
 | Tests | server unit + integration (MongoDB test DB) and client Vitest suites |
 
-### Code changes recorded as commits (Part 1)
+### Commits (Part 1, in order)
 
-1. `docs: initialize Velora MERN project authority`
-2. `docs: add MERN Duck authority PDFs and secret-safe ignores`
-3. `docs: preserve owner authority set under docs/`
-4. `chore: root workspace scaffolding, env example and secret generator`
-5. `feat(server): fail-closed env config, 10 Mongoose models and security services`
-6. `feat(server): auth/staff API with RBAC, CSRF, MFA and rate limiting`
-7. `test(server): 36 unit + integration tests covering the Part 1 exit gate`
-8. `feat(client): React/Vite app - login, forced MFA enrollment, staff admin, one-viewport shell`
-9. `fix(server): make MFA enrollment setup idempotent`
-10. `fix(client): honour server next-step so forced MFA enrollment routes`
-11. `docs: five reference documents synced with the implemented code`
-12. `ci: add Part 1 pipeline gate`
-13. `test(e2e): login, MFA and one-viewport browser journeys`
+1. `a2e9457` docs: initialize Velora MERN project authority
+2. `7dfd5a5` docs: add MERN Duck authority PDFs and secret-safe ignores
+3. `a2cc4cf` docs: preserve owner authority set under docs/ (Master, Architecture, Duck Log PDFs + 10 build prompts)
+4. `2d02a7c` chore: root workspace scaffolding, env example and secret generator
+5. `db68dd6` feat(server): fail-closed env config, 10 Mongoose models and security services
+6. `a2ae4f2` feat(server): auth/staff API with RBAC, CSRF, MFA and rate limiting
+7. `d870340` test(server): 36 unit + integration tests covering the Part 1 exit gate
+8. `7099bb9` feat(client): React/Vite app - login, forced MFA enrollment, staff admin, one-viewport shell
+9. `434a603` fix(server): make MFA enrollment setup idempotent
+10. `42d1e6d` fix(client): honour server next-step so forced MFA enrollment routes
+11. `313777c` docs: add five reference documents synced with the implemented code
+12. `3913bb2` ci: add the Part 1 pipeline gate
+13. `f776d6f` test(e2e): browser journeys for login, forced MFA and one-viewport
+14. `bbab42f` fix(client): keep recovery codes visible and bound the app to one viewport
+15. `31f6424` chore(client): add ESLint config and update react-router to a patched v7
+16. `b679063` docs: record verified Part 1 setup, commands and evidence
+
+Merged into `main` and pushed: `7dfd5a5..b679063` (fast-forward, 14 commits).
 
 ### Defects found and fixed during verification
 
@@ -85,8 +90,47 @@ Advisory (dev-only, not shipped): `npm audit` still reports dev-tooling advisori
 `vite`/`vitest`/`esbuild`/`tinypool`. They are excluded from the production gate
 (`--omit=dev`) and scheduled for a tooling upgrade; they do not affect a production build.
 
+### Security-25 matrix (Part 1)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets hidden | VERIFIED | `.env.example` only; history/tree scan clean; no secret in client bundle |
+| 2 | Fail-closed env | VERIFIED | `config/env.js` + 7 env unit tests |
+| 3 | Private routes guarded | VERIFIED | Express policy middleware + React guard; redirect journey |
+| 4 | Argon2id, sessions, MFA, reset/invite | VERIFIED | auth integration tests + journeys |
+| 5 | Server-side access control | VERIFIED | cross-clinic, admin-alone, reviewer tests |
+| 6 | Validate/sanitize input | VERIFIED | strict zod schemas; unknown-field + XSS tests |
+| 7 | Prevent XSS | VERIFIED | no `dangerouslySetInnerHTML`; XSS test |
+| 8 | Atomic rate limits | VERIFIED | Mongo-backed limiter + login trip test |
+| 9 | Safe error envelope | VERIFIED | `{ error: { code, message } }`; 404/forbidden tests |
+| 10 | Exact CORS allowlist | VERIFIED | CORS test (no ACAO for foreign origin) |
+| 11 | Helmet + CSP | VERIFIED | `middleware/security.js` |
+| 12 | Debug off in production | VERIFIED | `NODE_ENV` gating; no stack traces |
+| 13 | Dependency security | VERIFIED | `npm audit --omit=dev` = 0; React Router upgraded |
+| 14 | No unused packages | VERIFIED | Part 1 dependency set is used |
+| 15 | Private files ignored | VERIFIED | `.gitignore`; only `.env.example` tracked |
+| 16 | DB creds server-only | VERIFIED | no `VITE_` secret; scan clean |
+| 17 | Argon2id passwords | VERIFIED | password unit tests |
+| 18 | Tree + history secret scan | VERIFIED | both scans clean |
+| 19 | Documented security audit | VERIFIED | this matrix |
+| 20 | ~300-LOC commits | VERIFIED | 16 meaningful commits, no padding |
+| 21 | Continuous security | VERIFIED | design + tests throughout |
+| 22 | Disclose external providers | VERIFIED | none added; invitation delivery is dev-log only |
+| 23 | Test every failure path | VERIFIED | denied/invalid/expired/revoked/race/rate-limited tests |
+| 24 | Docs synced | VERIFIED | README + 5 docs match the code |
+| 25 | One-viewport screens | VERIFIED | 16 journeys assert no page scroll at six sizes |
+
+### Duck verdict: PASS (Part 1, local scope)
+
+All 25 controls are VERIFIED for the Part 1 scope, with the exit-gate tests, client
+build, browser journeys, production audit and secret scans all green. Evidence is
+local (development environment); no production deployment or clinical validation is
+claimed. Scope for clinical-record browsing remains `PLANNED` for Parts 2+.
+
 ### Remaining limits
 
 - Invitations/reset links are log-delivered in development only; no mail provider (control #22).
-- No production deployment, restore test or clinical validation (Parts 10).
+- No production deployment, restore test or clinical validation (Part 10).
 - Clinical permission catalog beyond `clinical.review` is declared but not yet wired to routes.
+- Dev-only tooling advisories remain in `vite`/`vitest`/`esbuild`/`tinypool` (excluded from the
+  production gate; scheduled for a tooling upgrade).
