@@ -125,8 +125,10 @@ module.exports = async () => {
     stdio: 'inherit',
   });
 
-  // 127.0.0.1 avoids a localhost -> ::1 resolution miss on some hosts.
-  const apiBase = process.env.E2E_API_URL || 'http://127.0.0.1:4000';
+  // Derive the API base from the same PORT the server was started with (CI
+  // uses 4100), and prefer 127.0.0.1 to avoid a localhost -> ::1 miss.
+  const apiPort = process.env.PORT && process.env.PORT !== '0' ? process.env.PORT : '4000';
+  const apiBase = process.env.E2E_API_URL || `http://127.0.0.1:${apiPort}`;
   await waitForApi(apiBase);
   fs.mkdirSync(AUTH_DIR, { recursive: true });
   for (const s of SESSIONS) {

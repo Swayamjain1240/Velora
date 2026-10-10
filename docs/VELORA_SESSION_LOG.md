@@ -134,3 +134,6 @@ claimed. Scope for clinical-record browsing remains `PLANNED` for Parts 2+.
 - Clinical permission catalog beyond `clinical.review` is declared but not yet wired to routes.
 - Dev-only tooling advisories remain in `vite`/`vitest`/`esbuild`/`tinypool` (excluded from the
   production gate; scheduled for a tooling upgrade).
+- A stale Vite dependency-optimizer cache after a dependency upgrade can surface a spurious
+  `React is not defined` dev error. Clear `client/.vite` and `client/node_modules/.vite` and restart
+  the dev server; CI installs fresh so it is unaffected. Both paths are gitignored.
