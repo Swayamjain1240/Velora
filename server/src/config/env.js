@@ -55,6 +55,7 @@ const envSchema = z
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
+        path: ['CLIENT_ORIGIN'],
         message: 'CLIENT_ORIGIN must use https in production',
       });
     }
