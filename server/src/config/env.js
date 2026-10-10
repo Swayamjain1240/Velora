@@ -64,7 +64,14 @@ let cached = null;
 
 function loadEnv(overrides) {
   loadDotenvFiles();
-  const parsed = envSchema.safeParse(overrides || process.env);
+  // Many shells/CI systems export variables as empty strings. Treat an empty
+  // value as absent so a required field reports as missing (fail closed with a
+  // clear message) instead of coercing '' to 0 and failing a range check.
+  const source = {};
+  for (const [key, value] of Object.entries(overrides || process.env)) {
+    if (value !== '') source[key] = value;
+  }
+  const parsed = envSchema.safeParse(source);
   if (!parsed.success) {
     const fields = parsed.error.issues
       .map((issue) => issue.path.join('.'))
