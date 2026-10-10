@@ -1,0 +1,46 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Dependencies and package-manager caches
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+
+# Build, coverage and test output
+dist/
+build/
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Private runtime data
+uploads/
+private-storage/
+exports/
+backups/
+*.log
+logs/
+
+# Local databases, caches and temporary files
+*.sqlite
+*.sqlite3
+.cache/
+.tmp/
+tmp/
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
