@@ -12,8 +12,15 @@ const PERMISSIONS = Object.freeze({
   STAFF_INVITE: 'staff.invite',
   STAFF_MANAGE: 'staff.manage',
   AUDIT_READ: 'audit.read',
-  // Declared for later parts (not yet enforced by any route):
+  // Part 2 - patient onboarding, consent and caregiver access.
+  PATIENT_CREATE: 'patient.create',
+  PATIENT_READ: 'patient.read',
   PATIENT_MANAGE: 'patient.manage',
+  CONSENT_MANAGE: 'consent.manage',
+  CAREGIVER_MANAGE: 'caregiver.manage',
+  // Patient role: access to their OWN profile and grants only (never staff data).
+  PATIENT_SELF: 'patient.self',
+  // Declared for later parts (not yet enforced by any route):
   EPISODE_MANAGE: 'episode.manage',
   PLAN_DRAFT: 'plan.draft',
   CLINICAL_REVIEW: 'clinical.review',
@@ -23,7 +30,29 @@ const ROLES = Object.freeze({
   ADMIN: 'admin',
   CARE_COORDINATOR: 'care_coordinator',
   CLINICAL_REVIEWER: 'clinical_reviewer',
+  PATIENT: 'patient',
+  CAREGIVER: 'caregiver',
 });
+
+// Granular caregiver scopes. Only `view_profile` is honoured in Part 2; the
+// rest are declared so later parts extend the catalog rather than inventing
+// ad-hoc checks. Granting a caregiver view_profile must NEVER silently confer
+// episode, document, plan or task access (control #5).
+const CAREGIVER_SCOPES = Object.freeze([
+  'view_profile',
+  'view_episodes',
+  'view_documents',
+  'view_plan',
+  'view_tasks',
+]);
+const PART2_HONOURED_SCOPES = Object.freeze(['view_profile']);
+
+// Consent categories recorded in the append-only consent history.
+const CONSENT_CATEGORIES = Object.freeze([
+  'care_coordination',
+  'caregiver_access',
+  'future_ai_assistance',
+]);
 
 // System role definitions seeded into every clinic. Note that `admin` holds
 // only administrative permissions; `clinical.review` is reachable solely for
@@ -32,6 +61,8 @@ const SYSTEM_ROLES = Object.freeze([
   {
     key: ROLES.ADMIN,
     name: 'Clinic Admin',
+    // Administrative ONLY. An admin holds no patient/clinical read permission:
+    // admin status can never be used to browse patient or clinical metadata.
     permissions: [
       PERMISSIONS.CLINIC_UPDATE,
       PERMISSIONS.STAFF_INVITE,
@@ -43,7 +74,11 @@ const SYSTEM_ROLES = Object.freeze([
     key: ROLES.CARE_COORDINATOR,
     name: 'Care Coordinator',
     permissions: [
+      PERMISSIONS.PATIENT_CREATE,
+      PERMISSIONS.PATIENT_READ,
       PERMISSIONS.PATIENT_MANAGE,
+      PERMISSIONS.CONSENT_MANAGE,
+      PERMISSIONS.CAREGIVER_MANAGE,
       PERMISSIONS.EPISODE_MANAGE,
       PERMISSIONS.PLAN_DRAFT,
     ],
@@ -51,11 +86,28 @@ const SYSTEM_ROLES = Object.freeze([
   {
     key: ROLES.CLINICAL_REVIEWER,
     name: 'Clinical Reviewer',
-    permissions: [PERMISSIONS.CLINICAL_REVIEW],
+    // Reads patient context for review; cannot create or administer patients.
+    permissions: [PERMISSIONS.PATIENT_READ, PERMISSIONS.CLINICAL_REVIEW],
+  },
+  {
+    key: ROLES.PATIENT,
+    name: 'Patient',
+    // Own profile and own caregiver grants only - enforced by ownership, not by
+    // a clinic-wide permission.
+    permissions: [PERMISSIONS.PATIENT_SELF],
+  },
+  {
+    key: ROLES.CAREGIVER,
+    name: 'Caregiver',
+    // No clinic-wide permissions at all: every caregiver read is authorised by
+    // an explicit, active, scoped grant on a specific patient.
+    permissions: [],
   },
 ]);
 
 const INVITATION_TTL_DAYS = 7;
+const CAREGIVER_INVITATION_TTL_DAYS = 7;
+const PATIENT_ACTIVATION_TTL_DAYS = 14;
 const PASSWORD_RESET_TTL_MINUTES = 30;
 const SESSION_COOKIE = 'velora_session';
 const CSRF_COOKIE = 'velora_csrf';
@@ -68,6 +120,11 @@ module.exports = {
   PERMISSIONS,
   ROLES,
   SYSTEM_ROLES,
+  CAREGIVER_SCOPES,
+  PART2_HONOURED_SCOPES,
+  CONSENT_CATEGORIES,
+  CAREGIVER_INVITATION_TTL_DAYS,
+  PATIENT_ACTIVATION_TTL_DAYS,
   INVITATION_TTL_DAYS,
   PASSWORD_RESET_TTL_MINUTES,
   SESSION_COOKIE,

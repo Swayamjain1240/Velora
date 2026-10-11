@@ -16,7 +16,7 @@ const membershipRoleSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      enum: ['admin', 'care_coordinator', 'clinical_reviewer'],
+      enum: ['admin', 'care_coordinator', 'clinical_reviewer', 'patient', 'caregiver'],
     },
     name: { type: String, required: true, maxlength: 120 },
     permissions: { type: [String], required: true },

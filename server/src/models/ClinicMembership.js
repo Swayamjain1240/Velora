@@ -17,7 +17,7 @@ const clinicMembershipSchema = new mongoose.Schema(
     roleKey: {
       type: String,
       required: true,
-      enum: ['admin', 'care_coordinator', 'clinical_reviewer'],
+      enum: ['admin', 'care_coordinator', 'clinical_reviewer', 'patient', 'caregiver'],
     },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     reviewerEligibility: {

@@ -35,6 +35,11 @@ const Session = require('../../src/models/Session');
 const AuditEvent = require('../../src/models/AuditEvent');
 const MfaRecoveryCode = require('../../src/models/MfaRecoveryCode');
 const RateLimitBucket = require('../../src/models/RateLimitBucket');
+const PatientProfile = require('../../src/models/PatientProfile');
+const PatientAssignment = require('../../src/models/PatientAssignment');
+const PatientConsent = require('../../src/models/PatientConsent');
+const CaregiverGrant = require('../../src/models/CaregiverGrant');
+const AccessInvitation = require('../../src/models/AccessInvitation');
 
 let counter = 0;
 function uniq(prefix) {
@@ -66,9 +71,12 @@ async function resetDb() {
   const collections = [
     User, Clinic, ClinicMembership, MembershipRole, Invitation,
     PasswordReset, Session, AuditEvent, MfaRecoveryCode, RateLimitBucket,
+    PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
   ];
+  // Delete through the raw driver so model-level invariants (for example the
+  // append-only consent guard) do not block the harness's own reset.
   for (const model of collections) {
-    await model.deleteMany({});
+    await model.collection.deleteMany({});
   }
 }
 
@@ -175,6 +183,25 @@ async function loginPendingMfa(app, email) {
   return { a, login, csrf: csrfFrom(login) };
 }
 
+// Full staff sign-in through the real HTTP stack, including forced MFA
+// enrollment for a freshly created member. Returns an authenticated agent.
+async function signInStaff(app, email, password) {
+  const a = agent(app);
+  const login = await a
+    .post('/api/auth/login')
+    .send({ email, password: password || 'SyntheticTestPass!24' });
+  const csrf = csrfFrom(login);
+  if (login.body.next === 'mfa_enroll') {
+    await enrollMfa(a, csrf, email);
+  }
+  return { a, csrf, login };
+}
+
+// Convenience factory: create a patient as an authenticated staff agent.
+async function createPatient(a, csrf, body) {
+  return a.post('/api/patients').set('X-CSRF-Token', csrf).send(body);
+}
+
 async function shutdown() {
   await disconnectDb();
   await mongoose.connection.close().catch(() => {});
@@ -191,11 +218,14 @@ module.exports = {
   totpCode,
   enrollMfa,
   loginPendingMfa,
+  signInStaff,
+  createPatient,
   shutdown,
   uniq,
   hmac,
   models: {
     User, Clinic, ClinicMembership, MembershipRole, Invitation,
     PasswordReset, Session, AuditEvent, MfaRecoveryCode, RateLimitBucket,
+    PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
   },
 };

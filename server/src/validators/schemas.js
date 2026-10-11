@@ -88,6 +88,85 @@ const updateClinicSchema = z
   .object({ name: nameSchema })
   .strict();
 
+// ---------- Part 2: patients, consent and caregiver access ----------
+
+const isoDateSchema = z
+  .string()
+  .trim()
+  .refine((v) => !Number.isNaN(new Date(v).getTime()), 'Enter a valid date');
+
+const createPatientSchema = z
+  .object({
+    fullName: nameSchema,
+    dateOfBirth: isoDateSchema.optional(),
+    contactEmail: emailSchema.optional(),
+    contactPhone: z.string().trim().max(40).optional(),
+    reference: z
+      .string()
+      .trim()
+      .min(3)
+      .max(40)
+      .regex(/^[A-Za-z0-9-]+$/, 'Reference may contain letters, digits and hyphens')
+      .optional(),
+  })
+  .strict();
+
+const updatePatientSchema = z
+  .object({
+    fullName: nameSchema.optional(),
+    dateOfBirth: isoDateSchema.optional(),
+    contactEmail: emailSchema.optional(),
+    contactPhone: z.string().trim().max(40).optional(),
+    status: z.enum(['inactive']).optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: 'Provide at least one field to update.' });
+
+const patientIdParam = z.object({ patientId: objectIdSchema }).strict();
+
+const assignmentParams = z
+  .object({ patientId: objectIdSchema, assignmentId: objectIdSchema })
+  .strict();
+
+const createAssignmentSchema = z.object({ memberUserId: objectIdSchema }).strict();
+
+const consentSchema = z
+  .object({
+    action: z.enum(['granted', 'updated', 'withdrawn']),
+    purpose: z.string().trim().min(3).max(200),
+    categories: z
+      .array(z.enum(['care_coordination', 'caregiver_access', 'future_ai_assistance']))
+      .max(8)
+      .optional(),
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+const inviteCaregiverSchema = z
+  .object({
+    email: emailSchema,
+    // Omitted scopes default to view_profile ONLY - never a silent widening.
+    scopes: z
+      .array(z.enum(['view_profile', 'view_episodes', 'view_documents', 'view_plan', 'view_tasks']))
+      .max(5)
+      .optional(),
+  })
+  .strict();
+
+const caregiverGrantParams = z
+  .object({ patientId: objectIdSchema, grantId: objectIdSchema })
+  .strict();
+
+const acceptAccessInvitationSchema = z
+  .object({
+    token: z.string().trim().min(16).max(200),
+    password: passwordSchema,
+    name: nameSchema.optional(),
+  })
+  .strict();
+
+const patientActivationSchema = z.object({ email: emailSchema }).strict();
+
 module.exports = {
   loginSchema,
   mfaVerifySchema,
@@ -103,4 +182,14 @@ module.exports = {
   invitationIdParam,
   reviewerEligibilitySchema,
   updateClinicSchema,
+  createPatientSchema,
+  updatePatientSchema,
+  patientIdParam,
+  assignmentParams,
+  createAssignmentSchema,
+  consentSchema,
+  inviteCaregiverSchema,
+  caregiverGrantParams,
+  acceptAccessInvitationSchema,
+  patientActivationSchema,
 };

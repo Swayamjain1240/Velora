@@ -22,6 +22,9 @@ const STAFF = [
   { email: 'admin@synthetic.invalid', name: 'Synthetic Admin', roleKey: 'admin' },
   { email: 'coordinator@synthetic.invalid', name: 'Synthetic Coordinator', roleKey: 'care_coordinator' },
   { email: 'reviewer@synthetic.invalid', name: 'Synthetic Reviewer', roleKey: 'clinical_reviewer' },
+  // Dedicated Part 2 journey account: the browser test enrols THIS one through
+  // the UI so it never collides with the one-time enrollment in auth.spec.
+  { email: 'flow@synthetic.invalid', name: 'Synthetic Flow Coordinator', roleKey: 'care_coordinator' },
 ];
 
 async function run() {
@@ -34,17 +37,23 @@ async function run() {
   let clinic = await Clinic.findOne({ code: 'SYNTHCLINIC' });
   if (!clinic) {
     clinic = await Clinic.create({ name: 'Synthetic Recovery Clinic', code: 'SYNTHCLINIC' });
-    await MembershipRole.insertMany(
-      SYSTEM_ROLES.map((r) => ({
-        clinic: clinic.id,
-        key: r.key,
-        name: r.name,
-        permissions: [...r.permissions],
-        isSystem: true,
-      }))
-    );
     // eslint-disable-next-line no-console
     console.log('Created synthetic clinic:', clinic.code);
+  }
+
+  // Refresh the role catalog on EVERY run. Role definitions evolve between
+  // parts (for example Part 2 adds consent/caregiver permissions), so a
+  // pre-existing clinic must be upgraded rather than left on a stale catalog -
+  // otherwise the seeded accounts hold the wrong permissions.
+  for (const r of SYSTEM_ROLES) {
+    await MembershipRole.updateOne(
+      { clinic: clinic.id, key: r.key },
+      {
+        $set: { name: r.name, permissions: [...r.permissions], isSystem: true },
+        $setOnInsert: { clinic: clinic.id, key: r.key },
+      },
+      { upsert: true }
+    );
   }
 
   const passwordHash = await hashPassword(SEED_PASSWORD);

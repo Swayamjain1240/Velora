@@ -10,6 +10,10 @@ const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth');
 const staffRoutes = require('./routes/staff');
 const clinicRoutes = require('./routes/clinic');
+const patientRoutes = require('./routes/patients');
+const patientSelfRoutes = require('./routes/patientSelf');
+const caregiverRoutes = require('./routes/caregiver');
+const accessRoutes = require('./routes/access');
 
 function buildApp() {
   const app = express();
@@ -25,17 +29,22 @@ function buildApp() {
   app.use(cookieParser());
 
   // Coarse global limiter as a safety net; sensitive routes add their own
-  // stricter Mongo-backed limits on top.
-  app.use(
-    '/api',
-    rateLimit({
-      windowMs: 60 * 1000,
-      limit: 300,
-      standardHeaders: 'draft-7',
-      legacyHeaders: false,
-      message: { error: { code: 'RATE_LIMITED', message: 'Too many requests.' } },
-    })
-  );
+  // stricter Mongo-backed limits on top. The counter is in-process, so it is
+  // skipped under test: one suite legitimately issues hundreds of requests in
+  // seconds and the durable, Mongo-backed per-route limits already cover the
+  // abuse paths under test.
+  if (process.env.NODE_ENV !== 'test') {
+    app.use(
+      '/api',
+      rateLimit({
+        windowMs: 60 * 1000,
+        limit: 300,
+        standardHeaders: 'draft-7',
+        legacyHeaders: false,
+        message: { error: { code: 'RATE_LIMITED', message: 'Too many requests.' } },
+      })
+    );
+  }
 
   // Resolve the session for every request, then enforce CSRF on any
   // cookie-authenticated mutation before it can reach a handler.
@@ -45,6 +54,12 @@ function buildApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/staff', staffRoutes);
   app.use('/api/clinic', clinicRoutes);
+  // Part 2: clinic-scoped staff patient administration, the patient's own
+  // account, the caregiver's scoped view, and public invitation acceptance.
+  app.use('/api/patients', patientRoutes);
+  app.use('/api/patient', patientSelfRoutes);
+  app.use('/api/caregiver', caregiverRoutes);
+  app.use('/api/access', accessRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
