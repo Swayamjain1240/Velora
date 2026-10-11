@@ -75,7 +75,7 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
   or demotion of the last admin is a conflict); entering the reviewer role starts as `pending`
   (never auto-verified) and leaving it clears eligibility.
 
-## 5. Data model (Part 1)
+## 5. Data model (Parts 1-2)
 
 | Model | Purpose | Notable indexes |
 |---|---|---|
@@ -89,10 +89,16 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
 | `PasswordReset` | reset token (hash only) | `tokenHash`; `expiresAt` |
 | `RateLimitBucket` | atomic fixed-window counters | unique `(key,windowStart)` |
 | `AuditEvent` | append-only actor-attributed audit trail | `(clinic,createdAt)` |
+| `PatientProfile` | clinic-scoped patient record (draft/active) | unique `(clinic,reference)`; `linkedUserId` |
+| `PatientAssignment` | intake assignment intervals (active/revoked) | partial unique `(clinic,patient,memberUser)` where `status='active'` |
+| `PatientConsent` | append-only consent history | `(clinic,patient,createdAt)` |
+| `CaregiverGrant` | scoped, revocable caregiver access | unique `(clinic,patient,granteeEmail)`; `caregiverUser` |
+| `AccessInvitation` | caregiver / patient-activation token (hash only) | `tokenHash`; partial unique outstanding `(clinic,email,kind)` |
 
 Timestamps are UTC. Compound unique indexes enforce clinic-scoped identifiers and active-grant
 invariants. Projections keep `tokenHash`, `csrfSecret`, internal audit payloads and unrelated PII
-out of API responses (`publicUser`, `publicMember`).
+out of API responses (`publicUser`, `publicMember`, `publicPatient`, `publicAssignment`,
+`publicGrant`).
 
 ## 6. Rate limiting
 
@@ -108,6 +114,9 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
 | forgot password | 5 / hour per ip+email |
 | reset / accept-invite / create-clinic | 10 / hour |
 | staff invite / mutations | 30 / 60 per hour per user |
+| patient create / read / mutate | 60 / 600 / 120 per hour per user |
+| caregiver invite | 30 / hour per user |
+| caregiver / activation acceptance | 10 / hour per ip |
 
 ## 7. Client architecture
 
@@ -116,6 +125,11 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   router sends users to the correct MFA screen; the router guard is UX only.
 - `lib/api.js` is a thin `fetch` wrapper using **cookie sessions only** - no tokens in
   `localStorage`. It reads the readable `velora_csrf` cookie and attaches it to every mutation.
+- Part 2 adds role-scoped feature areas under `/app`: the staff patient list/detail
+  (`features/patients`), the patient's own records (`features/patient`), and the caregiver's scoped
+  view (`features/caregiver`). The nav only links a role to the area it can reach.
+- A denied refresh or a lost authorization clears the loaded patient/consent/grant state before an
+  error is shown, so stale clinical data never remains on screen.
 - All server errors surface through a safe envelope; the client never renders unsanitized HTML.
 - Every authenticated screen uses the one-viewport pattern (see `VELORA_MASTER.md §7`).
 
@@ -135,6 +149,11 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   invariant, reviewer self-grant denial, validation/XSS, rate limits, safe errors and MFA enrollment
   idempotency.
 - **Client:** Vitest for the API wrapper (CSRF attach, error envelope) and auth flow routing.
-- **Browser:** Playwright journeys (login, forced MFA enrollment, staff screens) at all six
-  viewport sizes, asserting the authenticated pages do not exceed the viewport height.
+- **Integration (Part 2):** clinic isolation, unassigned-staff denial, intake-vs-episode separation,
+  inactive/ineligible staff, admin clinical-metadata denial, patient ownership, duplicate-reference
+  rejection, consent append-only history, caregiver single-use/expiry/scope/revocation, last-assignee
+  protection and scoped pagination totals.
+- **Browser:** Playwright journeys (login, forced MFA enrollment, staff screens, patient onboarding ->
+  consent -> activation -> caregiver invite) at all six viewport sizes, asserting the authenticated
+  pages do not exceed the viewport height.
 - **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.

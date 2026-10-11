@@ -6,7 +6,7 @@ Velora is a planned JavaScript MERN application that helps clinics convert priva
 
 Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
 
-> **Current status - 10 October 2026:** **Part 1 is implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite) and clinic permissions. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
+> **Current status - 11 October 2026:** **Parts 1-2 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, and patient onboarding with consent history and scoped caregiver access. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
 
 ## Project authority
 
@@ -67,7 +67,7 @@ Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no
 | Part | Deliverable | State |
 |---:|---|---|
 | 1 | Repository, authentication and clinic permissions | Implemented / verified locally |
-| 2 | Patient onboarding, consent and caregiver access | Planned |
+| 2 | Patient onboarding, consent and caregiver access | Implemented / verified locally |
 | 3 | Recovery episodes and care-team assignment | Planned |
 | 4 | Private discharge-document intake | Planned |
 | 5 | Manual care plans, review, approval and versioning | Planned - completes synthetic M1 |
@@ -135,26 +135,33 @@ Passing tests do not establish zero bugs, clinical validation, regulatory compli
 
 ### Setup (verified)
 
-Requirements: Node.js >= 20.11 and a local MongoDB (a single node is enough for Part 1; later parts need replica-set transactions).
+Requirements: Node.js >= 20.11 and a local MongoDB **replica set**. From Part 2 on, patient/consent/
+caregiver (and episode) writes run inside transactions, so the application database must be a replica
+set (or mongos).
 
 ```bash
-npm install                      # installs server + client + e2e workspaces
-cp .env.example .env             # then fill in values (see below)
-npm run gen:env                  # generates safe local values for the two secrets
-npm run seed -w server           # synthetic clinic + one user per role
-npm run dev                      # API on :4000, client on :5173
+npm install                                     # installs server + client + e2e workspaces
+npm run mongo:test-rs -w server                 # start the local single-node replica set (:27019)
+cp .env.example .env                            # then fill in values (see below)
+npm run gen:env                                 # generates safe local values for the two secrets
+npm run seed -w server                          # synthetic clinic + one user per role (refreshes roles)
+npm run dev                                     # API on :4000, client on :5173
 ```
+
+The example `MONGODB_URI` points at the local replica set (`mongodb://127.0.0.1:27019/velora?replicaSet=rs0`),
+which the `mongo:test-rs` script serves; the same instance hosts the `velora_test` database.
 
 Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGIN`, `SESSION_PEPPER`, `MFA_ENCRYPTION_KEY`. The browser receives only `VITE_API_BASE_URL`.
 
 ### Commands (verified)
 
 ```bash
-npm test -w server               # 37 unit + integration tests (MongoDB test DB)
-npm test -w client               # 6 client unit tests (Vitest)
+npm run mongo:test-rs -w server  # start the replica-set test/dev database once
+npm test -w server               # 55 unit + integration tests (replica-set MongoDB test DB)
+npm test -w client               # 9 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
-npx playwright test              # 16 browser journeys at six viewport sizes
+npx playwright test              # 17 browser journeys at six viewport sizes
 npm audit --omit=dev             # production dependency audit
 ```
 

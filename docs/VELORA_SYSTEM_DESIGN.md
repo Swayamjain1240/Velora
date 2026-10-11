@@ -62,7 +62,25 @@ Every error leaves through `{ error: { code, message } }`. Known application err
 never reveal whether a record exists in another clinic: operations resolve the caller's clinic first
 and return 404 for out-of-scope ids.
 
-## 9. Decision log (Part 1)
+## 8a. Patient access model (Part 2)
+
+A `PatientProfile` is reachable only by a party the record authorises, and whenever none hold the
+answer is a **uniform 404** so cross-tenant existence is never revealed:
+
+1. **Ownership** - the linked patient account (`linkedUserId`).
+2. **Staff intake assignment** - an ACTIVE `PatientAssignment` for that user. Holding a clinic role
+   is never sufficient; `listPatients` returns only the caller's own assigned set (scoped totals).
+3. **Caregiver grant** - an ACTIVE, unexpired `CaregiverGrant` holding the required scope. Part 2
+   honours only `view_profile`; other scopes are declared but inert, so a future scope cannot
+   silently widen today's access. A missing scope is a 404, not a 403.
+
+Consent is **append-only** (`PatientConsent`); activation requires recorded `care_coordination`
+consent AND at least one active assignee, so a profile can never be activated with nobody
+accountable. The last active assignee can never be revoked (409). A caregiver grant is created
+`pending` and only becomes `active` when its single-use invitation is accepted; revocation and
+expiry take effect on the very next request.
+
+## 9. Decision log (Parts 1-2)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -76,8 +94,14 @@ and return 404 for out-of-scope ids.
 | D8 | Playwright for viewport rule | manual checks | reproducible six-size evidence |
 | D9 | Synthetic-only seed data | real data | product invariant |
 | D10 | No external mail/SMS provider in Part 1 | vendor now | control #22; invitation links logged in dev only |
+| D11 | Uniform 404 for out-of-scope patients | 403 | never reveals cross-tenant existence |
+| D12 | Intake assignment required for every staff patient read/write | clinic role alone | default deny, control #5 |
+| D13 | Consent stored append-only | mutable flag | preserves history for audit and future re-consent |
+| D14 | Caregiver grant pending until acceptance | active-on-invite | a token that is never accepted grants nothing |
+| D15 | Activation gated on consent + assignee | activate freely | no unaccountable active record |
+| D16 | Partial unique index for active assignment | app-level check | parallel requests cannot both create an interval |
 
-## 10. Known limitations (Part 1)
+## 10. Known limitations (Parts 1-2)
 
 - Invitations and password-reset links are delivered by **server log only** in development; no mail
   provider is authorized yet. This is deliberate (control #22) and must be replaced before any pilot.
@@ -85,3 +109,8 @@ and return 404 for out-of-scope ids.
 - The clinical permission catalog is declared for later parts and is not yet enforced by any route
   beyond `clinical.review` eligibility; Parts 2+ wire the remaining permissions.
 - No production deployment, restore test or clinical validation yet (Parts 10).
+- Part 2 honours only the `view_profile` caregiver scope; `view_episodes`, `view_documents`,
+  `view_plan` and `view_tasks` are declared but deliberately inert until their parts land.
+- Patient/caregiver invitation links are still log/response-delivered in development (no mail
+  provider, control #22).
+- The application database must be a replica set from Part 2 on (transactions).

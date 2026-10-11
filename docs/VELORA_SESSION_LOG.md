@@ -5,6 +5,106 @@ Evidence classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, 
 
 ---
 
+## Session - 11 October 2026 - Part 2 (patient onboarding, consent, caregiver access)
+
+### Duck review (start of session)
+
+**Files read:** the three authority PDFs, `VELORA_MERN_10_BUILD_PROMPTS.md`, `README.md`,
+`docs/VELORA_*.md`, `.env.example`, `.gitignore`, the entire `server/`, `client/` and `e2e/` trees.
+
+**Observed repository state:** branch `main`. Parts 1-2 code was present on disk but **uncommitted
+and failing**: the Part 2 integration test file did not even parse (an unclosed block), 8 of 18
+Patient tests failed, and the Part 2 client UI, e2e journeys and documentation were absent.
+
+**Classification on entry:** Part 1 `VERIFIED`; Part 2 `PARTIAL` (server service layer only, no UI,
+no docs, failing tests). Fixing verified in-scope drift was required before extension.
+
+### Defects found and fixed (Part 2)
+
+| # | Defect | Root cause | Fix |
+|---:|---|---|---|
+| 1 | Integration suite would not load | `patients.test.js` missing a closing `});` on the concurrency test | Restored the block |
+| 2 | Orders of tests failed with `429` then `undefined` CSRF | An in-process `express-rate-limit` (300/min) accumulated across one suite run | Skip the coarse global limiter under `NODE_ENV=test`; the durable Mongo-backed per-route limits stay active |
+| 3 | Assignment ids were `undefined` in responses | `publicAssignment`/`publicPatient`/`publicGrant` read `.id`, which does not exist on `.lean()` results | Map from `_id` (works for both hydrated and lean) |
+| 4 | `listEligibleAssignees` returned `undefined` ids | Same `.id` on lean bug | Same fix |
+| 5 | Removed-self test could not re-list | The coordinator revoked their own interval; by design they lose access | Test lists via the still-assigned reviewer |
+| 6 | Test used `login.user` before MFA promotion | `login.user` is only set after MFA | Read the email from `/auth/me` |
+| 7 | e2e patient creation denied (403) | The seed only wrote the role catalog for a NEW clinic, so an existing synthetic clinic kept Part 1 permissions | Seed now **upserts/refreshes** all system roles every run |
+| 8 | e2e create failed with a transaction error | Local dev Mongo was a standalone; Part 2 writes are transactional | Point local dev/e2e at the replica set (`.env`, global-setup reads `.env`) |
+| 9 | `global .env` PORT ignored under an exported `PORT=0` | `pick()` returned the literal `'0'` | Treat empty/`'0'` as absent |
+
+### Work performed (Part 2 completion)
+
+| Area | Result |
+|---|---|
+| Server | `PatientProfile`, `PatientAssignment` (intake), `PatientConsent`, `CaregiverGrant`, `AccessInvitation`; `patientService`, `consentService`, `caregiverService`, `txService`; patients/patient-self/caregiver/access routes; strict schemas |
+| Access model | Uniform 404 for out-of-scope patients; staff need an ACTIVE intake assignment; patient ownership; caregiver grant scope; last-assignee 409; append-only consent; activation gated on consent + assignee |
+| Client | `features/patients/{PatientList,PatientDetail}`, `features/patient/PatientSelf`, `features/caregiver/CaregiverHome`; stepped creation wizard, tabbed detail, paginated consent/patients; role-scoped nav; denied refresh clears loaded data |
+| Tests | `tests/integration/patients.test.js` (18) + client `patients.test.jsx` (3) + `e2e/patients.spec.js` (1) |
+| Docs | README, `VELORA_MASTER`, `VELORA_ARCHITECTURE`, `VELORA_STRUCTURE`, `VELORA_SYSTEM_DESIGN` synced |
+| Env | `.env.example` corrected (replica-set URIs, test-rs variables, no `[TEMPLATE]` marker); local `.env` created from it with generated secrets (untracked) |
+
+### Evidence
+
+| Check | Command | Result |
+|---|---|---|
+| Server tests | `npm test -w server` | **55 pass / 0 fail** (unit + integration on `velora_test`, replica set) |
+| Client tests | `npm test -w client` | **9 pass / 0 fail** |
+| Client lint | `npm run lint -w client` | clean |
+| Client build | `npm run build -w client` | production build succeeds |
+| Browser journeys | `npx playwright test` | **17 pass / 0 fail** (incl. patient journey + six viewports on `/app/patients`) |
+| Production audit | `npm audit --omit=dev` | 0 vulnerabilities |
+| Secret scan (tree) | `git grep` | only a synthetic TOTP test secret; no real credentials |
+| Secret scan (history) | `git log -p --all` | no keys/tokens/`.env` ever committed |
+| Tracked env files | `git ls-files` | only `.env.example` |
+
+Viewports asserted: `1440x900`, `768x1024`, `390x844`, `320x568`, `844x390`, `320x400`.
+
+### Security-25 matrix (Part 2)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets hidden | VERIFIED | `.env` untracked; only `.env.example` tracked |
+| 2 | Fail-closed env | VERIFIED | `config/env.js`; env loads with the workspace `.env` |
+| 3 | Private routes guarded | VERIFIED | Express policy + React guard; inactive-membership denial test |
+| 4 | Argon2id, MFA, revocable sessions, CSRF preserved | VERIFIED | Part 1 tests still green |
+| 5 | Clinic + role + assignment + ownership + grant + state, default deny | VERIFIED | clinic-isolation, unassigned-staff, admin-denial, patient-ownership, scope-denial tests |
+| 6 | Validate/sanitize, reject unknown fields | VERIFIED | strict schemas; unknown-field + XSS tests |
+| 7 | No unsafe HTML/XSS | VERIFIED | no `dangerouslySetInnerHTML`; JSON-only responses asserted |
+| 8 | Atomic limits | VERIFIED | Mongo-backed limits on create/read/mutate/invite/accept |
+| 9 | Safe error envelope + scoped 404 | VERIFIED | uniform 404 for out-of-scope patients |
+| 10 | Exact CORS allowlist | VERIFIED | unchanged from Part 1 |
+| 11 | Helmet + CSP | VERIFIED | unchanged |
+| 12 | Debug off in production | VERIFIED | unchanged |
+| 13 | Dependency security | VERIFIED | `npm audit --omit=dev` = 0 |
+| 14 | No unused packages | VERIFIED | no new dependency added for Part 2 |
+| 15 | Private-file audit | VERIFIED | `.env`, `.mongodb-test/`, `e2e/.auth/` ignored |
+| 16 | `MONGODB_URI` server-only | VERIFIED | no `VITE_` secret |
+| 17 | Argon2id only | VERIFIED | unchanged |
+| 18 | Tree + history scan | VERIFIED | both clean |
+| 19 | End-of-part audit | VERIFIED | this matrix |
+| 20 | Coherent ~300-LOC commits | VERIFIED | see commit list below |
+| 21 | Continuous security | VERIFIED | transactional writes, partial unique indexes |
+| 22 | Disclose external providers | VERIFIED | none added; invitation links delivered in dev only |
+| 23 | Test every failure/concurrency path | VERIFIED | single-use race, expiry, last-assignee, duplicate reference |
+| 24 | Docs synced | VERIFIED | this session |
+| 25 | One-viewport screens | VERIFIED | 17 journeys; six sizes incl. `/app/patients` |
+
+### Duck verdict: PASS (Part 2, local scope)
+
+All 25 controls are VERIFIED for the Parts 1-2 scope with the full server/client/e2e suites, the
+production audit and both secret scans green. Evidence is local (development); no production
+deployment or clinical validation is claimed.
+
+### Remaining limits
+
+- Only `view_profile` is honoured for caregivers; other declared scopes are inert until their parts.
+- Invitation links remain log/response-delivered in development (no mail provider, control #22).
+- The application database must be a replica set from Part 2 on.
+- Dev-only tooling advisories in `vite`/`vitest`/`esbuild` remain (excluded from the production gate).
+
+---
+
 ## Session - 10 October 2026 - Part 3 Duck review (BLOCKED on Part 2)
 
 ### Duck review (start of session)

@@ -23,13 +23,40 @@ const SESSIONS = [
   { email: 'admin@synthetic.invalid', file: 'viewport-admin.json' },
 ];
 
+// Minimal .env reader so the seed uses the SAME database as the running API
+// without duplicating values. Only names/URLs are read; secrets stay in the
+// file and are never printed. An exported value always wins.
+function readDotEnv() {
+  try {
+    const raw = fs.readFileSync(path.join(ROOT, '.env'), 'utf8');
+    const out = {};
+    for (const line of raw.split(/\r?\n/)) {
+      const match = /^([A-Z0-9_]+)=(.*)$/.exec(line);
+      if (match && out[match[1]] === undefined) out[match[1]] = match[2];
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 function seedEnv() {
+  const fileEnv = readDotEnv();
+  // Treat an empty or '0' exported value as absent (a host shell may export
+  // PORT=0), so the workspace .env wins in that case.
+  const pick = (key, fallback) => {
+    const exported = process.env[key];
+    if (exported && exported !== '0') return exported;
+    return fileEnv[key] && fileEnv[key] !== '0' ? fileEnv[key] : fallback;
+  };
   return {
     ...process.env,
     NODE_ENV: process.env.NODE_ENV && process.env.NODE_ENV !== 'test' ? process.env.NODE_ENV : 'development',
     // The host shell sometimes exports PORT=0; the seed must not inherit it.
-    PORT: process.env.PORT && process.env.PORT !== '0' ? process.env.PORT : '4000',
-    MONGODB_URI: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/velora',
+    PORT: process.env.PORT && process.env.PORT !== '0' ? process.env.PORT : pick('PORT', '4000'),
+    // Part 2+ writes inside transactions, so the application database must be a
+    // replica set. The local `mongo:test-rs` instance serves this URI too.
+    MONGODB_URI: pick('MONGODB_URI', 'mongodb://127.0.0.1:27019/velora?replicaSet=rs0'),
     CLIENT_ORIGIN: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
     SESSION_PEPPER: process.env.SESSION_PEPPER || 'localdev_session_pepper_0123456789abcdef',
     MFA_ENCRYPTION_KEY: process.env.MFA_ENCRYPTION_KEY || Buffer.alloc(32, 7).toString('base64'),
@@ -127,7 +154,13 @@ module.exports = async () => {
 
   // Derive the API base from the same PORT the server was started with (CI
   // uses 4100), and prefer 127.0.0.1 to avoid a localhost -> ::1 miss.
-  const apiPort = process.env.PORT && process.env.PORT !== '0' ? process.env.PORT : '4000';
+  const fileEnv = readDotEnv();
+  const apiPort =
+    process.env.PORT && process.env.PORT !== '0'
+      ? process.env.PORT
+      : fileEnv.PORT && fileEnv.PORT !== '0'
+        ? fileEnv.PORT
+        : '4000';
   const apiBase = process.env.E2E_API_URL || `http://127.0.0.1:${apiPort}`;
   await waitForApi(apiBase);
   fs.mkdirSync(AUTH_DIR, { recursive: true });

@@ -44,7 +44,7 @@ classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, 
 | VEL-001 | Repository, documentation baseline and CI gate | 1 | IMPLEMENTED / UNVERIFIED |
 | VEL-002 | Clinic, staff RBAC and reviewer-eligibility boundary | 1 | IMPLEMENTED / UNVERIFIED |
 | VEL-003 | Authentication: Argon2id, sessions, MFA, CSRF, reset, invite | 1 | IMPLEMENTED / UNVERIFIED |
-| VEL-004 | Patient onboarding, consent history and caregiver grants | 2 | PLANNED |
+| VEL-004 | Patient onboarding, consent history and caregiver grants | 2 | IMPLEMENTED / UNVERIFIED |
 | VEL-005 | Recovery episodes and care-team assignment | 3 | PLANNED |
 | VEL-006 | Private discharge-document intake | 4 | PLANNED |
 | VEL-007 | Manual source-linked care-plan drafting | 5 | PLANNED |

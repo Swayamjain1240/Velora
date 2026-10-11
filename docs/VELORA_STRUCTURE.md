@@ -23,26 +23,31 @@ Velora/
     VELORA_SESSION_LOG.md
   e2e/
     auth.spec.js                  # login / MFA / staff journeys
+    patients.spec.js              # Part 2 onboarding / consent / activation / caregiver journey
     viewports.spec.js             # six-size one-viewport assertions
+    global-setup.js               # seeds the synthetic clinic; enrols viewport sessions
   server/
     package.json
-    scripts/seed.js               # synthetic clinic + one user per role
+    scripts/{seed.js,mongo-test-rs.js}   # synthetic clinic + one user per role; local replica set
     src/
       app.js                      # express app assembly
       index.js                    # fail-closed startup, listen, graceful shutdown
       config/{env,db,constants}.js
       middleware/{auth,csrf,errorHandler,rateLimit,security,validate}.js
       models/{User,Clinic,ClinicMembership,MembershipRole,Invitation,
-              Session,MfaRecoveryCode,PasswordReset,RateLimitBucket,AuditEvent}.js
+              Session,MfaRecoveryCode,PasswordReset,RateLimitBucket,AuditEvent,
+              PatientProfile,PatientAssignment,PatientConsent,CaregiverGrant,
+              AccessInvitation}.js
       validators/schemas.js
-      controllers/{authController,staffController}.js
+      controllers/{authController,staffController,patientController,caregiverController}.js
       services/{authService,sessionService,mfaService,passwordService,
-                crypto,staffService,rateLimitService,auditService,errors}.js
-      routes/{auth,staff,clinic}.js
+                crypto,staffService,rateLimitService,auditService,errors,txService,
+                patientService,consentService,caregiverService}.js
+      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access}.js
     tests/
       helpers/setup.js            # harness: env, db, factories, agents
       unit/{env,crypto-password}.test.js
-      integration/{auth,staff}.test.js
+      integration/{auth,staff,patients}.test.js
   client/
     package.json
     vite.config.js                # dev proxy /api -> API (overridable)
@@ -56,8 +61,11 @@ Velora/
         auth/{AuthContext,Login,MfaVerify,MfaEnroll,ForgotPassword,
               ResetPassword,AcceptInvite}.jsx
         app/{AppShell,Dashboard,ClinicSettings,Profile}.jsx
+        patients/{PatientList,PatientDetail}.jsx
+        patient/PatientSelf.jsx
+        caregiver/CaregiverHome.jsx
       styles.css
-      test/{setup,api.test}.js, auth-flows.test.jsx
+      test/{setup,api.test}.js, auth-flows.test.jsx, patients.test.jsx
 ```
 
 ## Conventions
