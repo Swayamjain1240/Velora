@@ -110,7 +110,46 @@ Access:
 | Clinic administrator | **deny (403)** - admin status must not read clinical metadata | allow (no clinical fields returned) |
 | Other same-clinic staff | uniform 404 | 403 |
 
-## 9. Decision log (Parts 1-3)
+## 8c. Document privacy and storage model (Part 4)
+
+`EpisodeDocument` holds **metadata only**: immutable clinic/patient/episode, an opaque UUID
+`storageKey`, the original display filename, an allowlisted media type, byte size, SHA-256, a
+technical `status`, a stable `rejectionCode` and non-clinical structural facts (page count / pixel
+dimensions). No public URL, filesystem path or object-store bucket is ever stored or returned.
+
+Bytes live behind a **provider-neutral interface** (`put`/`get`/`stat`/`remove`/`listKeys`), whose
+shipped implementation is a private local provider: objects addressed by UUID keys that are
+re-validated against a strict pattern before a path is built, encrypted with AES-256-GCM under a
+**separate** `DOCUMENT_ENCRYPTION_KEY`, written exclusively (`wx`), stored `0600` inside `0700`
+directories under a root that must be **outside the repository**. No provider is selected yet
+(control #22); a future S3/Cloudinary/Firebase provider implements the same interface and callers do
+not change.
+
+Validation is isolated and bounded: the raw body is capped while streaming, and the bytes are parsed
+inside a `worker_threads` worker with a wall-clock time limit, a V8 heap cap, a concurrency limit, a
+bounded queue and an environment containing **no application secrets**. It answers with one of a
+fixed set of stable codes; parser internals, paths and stacks never leave the process. Encrypted
+PDFs, PDF scripts/actions/attachments/forms/external references, malformed or truncated PDFs,
+page/object/stream excesses, image pixel bombs and multi-frame images are **refused**; an
+inconclusive verdict **quarantines** the bytes instead of marking them ready.
+
+Write order is `insert metadata (uploading) -> write encrypted object -> set ready`. MongoDB and the
+object store are not one transaction, so the three drift states (row without object, object without
+final status, checksum mismatch) are documented and reported by the reconciliation command rather
+than served. `ready` means technically accepted for later review, **never** clinically approved, and
+the subsystem claims no antivirus certification.
+
+Access:
+
+| Caller | Upload | List / metadata | Download (`ready` only) |
+|---|---|---|---|
+| Active care-team member, `draft` episode | allow | allow | allow |
+| Active care-team member, non-draft episode | deny (409) | allow | allow |
+| Patient owner | deny (403) | allow (own record) | allow |
+| Clinic administrator | deny (403) | deny (403) | deny (403) |
+| Revoked assignment / other clinic / caregiver without a scope | deny | uniform 404 | uniform 404 |
+
+## 9. Decision log (Parts 1-4)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -135,8 +174,18 @@ Access:
 | D19 | No-op corrections record nothing | always append | repeat requests must not duplicate history |
 | D20 | Calendar discharge date + explicit IANA timezone | datetime-only | a discharge date is never offset-ambiguous |
 | D21 | Team assignment of a reviewer requires current verified eligibility | role alone | mirrors the Part 1 eligibility boundary |
+| D22 | Provider-neutral storage interface with a local encrypted provider | pick S3/Cloudinary now | control #22; no vendor may be selected silently |
+| D23 | AES-256-GCM per object under a separate document key | reuse the MFA key | blast-radius isolation; a leaked MFA key must not open documents |
+| D24 | Storage root must be absolute and outside the repository | configurable in-repo root | a web root or a committed directory would expose ciphertext (or worse) |
+| D25 | Raw bytes in the body, filename in a header | filename in the URL/query | filenames must never reach logs, history or proxies |
+| D26 | Bounded worker-threads parser with reduced env | in-process parsing | no secret exposure, hard time/memory caps, crash isolation |
+| D27 | Structural refusal vs quarantine | fail every inconclusive file | a timeout is not evidence of malice, but it is also not `ready` |
+| D28 | Record a `rejected` row but store no bytes | store then refuse | keeps a refusal trail without retaining refused content |
+| D29 | Metadata row first, then the object, then `ready` | object first | a crash leaves a visible `uploading` row rather than an invisible orphan |
+| D30 | Exclusive object writes (never overwrite) | overwrite on retry | a retry can never clobber evidence; reconciliation removes true orphans |
+| D31 | `--apply` requires explicit `--operator` and audits every repair | unattended repair | recovery actions must be attributable |
 
-## 10. Known limitations (Parts 1-2)
+## 10. Known limitations (Parts 1-4)
 
 - Invitations and password-reset links are delivered by **server log only** in development; no mail
   provider is authorized yet. This is deliberate (control #22) and must be replaced before any pilot.
@@ -149,6 +198,12 @@ Access:
 - Patient/caregiver invitation links are still log/response-delivered in development (no mail
   provider, control #22).
 - The application database must be a replica set from Part 2 on (transactions).
+- Document validation is structural only: it is **not** antivirus and no malware-scanning provider is
+  authorized yet. A quarantined document has no operator review screen, only its status plus the
+  reconciliation command.
+- A live parser timeout/crash is not deterministically reproducible from file content on a healthy
+  host; the integration suite drives those paths with the test-only stall hook and the memory cap.
+- Documents are never deleted by a retention policy; privacy requests and retention arrive in Part 9.
 - Part 3 episodes stay `draft`; activation/closure and downstream plan workflows arrive in later
   parts. There is no caregiver episode view yet (the `view_episodes` scope remains inert).
 - Discharge dates are corrected one episode at a time; there is no bulk import.

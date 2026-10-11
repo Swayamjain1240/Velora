@@ -9,6 +9,7 @@
 // and means a Playwright worker restart cannot re-run a one-time enrollment.
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const otpauth = require('otpauth');
 
@@ -17,10 +18,15 @@ const AUTH_DIR = path.join(__dirname, '.auth');
 const PASSWORD = 'SyntheticDevPass!24';
 
 // One enrolled session per role that has screens to measure. The admin session
-// additionally reaches the admin-only clinic/staff screen.
+// additionally reaches the admin-only clinic/staff screen, and the Part 4
+// sessions drive the document screens (assigned coordinator) and the read-only
+// patient view. Each session is saved here so a spec never has to re-enroll an
+// account through the UI (which is a one-time journey in auth.spec).
 const SESSIONS = [
   { email: 'reviewer@synthetic.invalid', file: 'viewport-reviewer.json' },
   { email: 'admin@synthetic.invalid', file: 'viewport-admin.json' },
+  { email: 'docsview@synthetic.invalid', file: 'docs-coordinator.json' },
+  { email: 'patient.docs@synthetic.invalid', file: 'docs-patient.json' },
 ];
 
 // Minimal .env reader so the seed uses the SAME database as the running API
@@ -57,6 +63,11 @@ function seedEnv() {
     // Part 2+ writes inside transactions, so the application database must be a
     // replica set. The local `mongo:test-rs` instance serves this URI too.
     MONGODB_URI: pick('MONGODB_URI', 'mongodb://127.0.0.1:27019/velora?replicaSet=rs0'),
+    // Part 4: the seed now validates the document environment too, so pass the
+    // same root/key the API uses (a fallback OUTSIDE the repo is used if the
+    // workspace .env has none).
+    DOCUMENT_STORAGE_ROOT: pick('DOCUMENT_STORAGE_ROOT', path.join(os.tmpdir(), 'velora-documents-e2e')),
+    DOCUMENT_ENCRYPTION_KEY: pick('DOCUMENT_ENCRYPTION_KEY', Buffer.alloc(32, 5).toString('base64')),
     CLIENT_ORIGIN: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
     SESSION_PEPPER: process.env.SESSION_PEPPER || 'localdev_session_pepper_0123456789abcdef',
     MFA_ENCRYPTION_KEY: process.env.MFA_ENCRYPTION_KEY || Buffer.alloc(32, 7).toString('base64'),

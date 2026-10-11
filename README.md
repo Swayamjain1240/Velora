@@ -60,7 +60,7 @@ Velora/
   README.md
 ```
 
-Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no production advisories at Part 1 close). No storage, AI/OCR, notification, queue, hosting or managed database provider has been selected; AI/OCR and any vendor remain deferred and must be disclosed before use (control #22).
+Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no production advisories at Part 4 close). No external storage, AI/OCR, antivirus, notification, queue, hosting or managed database provider has been selected; Part 4 stores documents through a provider-neutral interface with an encrypted local provider, and any vendor remains deferred and must be disclosed before use (control #22).
 
 ## Ten-part delivery plan
 
@@ -69,7 +69,7 @@ Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no
 | 1 | Repository, authentication and clinic permissions | Implemented / verified locally |
 | 2 | Patient onboarding, consent and caregiver access | Implemented / verified locally |
 | 3 | Recovery episodes and care-team assignment | Implemented / verified locally |
-| 4 | Private discharge-document intake | Planned |
+| 4 | Private discharge-document intake | Implemented / verified locally |
 | 5 | Manual care plans, review, approval and versioning | Planned - completes synthetic M1 |
 | 6 | AI extraction, source citations and reviewed language | Planned |
 | 7 | Medication schedules, daily tasks and actor-attributed logs | Planned |
@@ -148,6 +148,12 @@ npm run seed -w server                          # synthetic clinic + one user pe
 npm run dev                                     # API on :4000, client on :5173
 ```
 
+Part 4 adds private encrypted document storage. `DOCUMENT_STORAGE_ROOT` must be an **absolute path
+outside the repository** and `DOCUMENT_ENCRYPTION_KEY` a separate 32-byte base64 key; a relative or
+in-repo root fails startup, and the root without its key is refused (it would store plaintext).
+Provider-neutral interface, encryption format, HTTP contract and the recovery runbook are documented
+in [docs/VELORA_DOCUMENT_STORAGE.md](docs/VELORA_DOCUMENT_STORAGE.md).
+
 The example `MONGODB_URI` points at the local replica set (`mongodb://127.0.0.1:27019/velora?replicaSet=rs0`),
 which the `mongo:test-rs` script serves; the same instance hosts the `velora_test` database.
 
@@ -157,11 +163,12 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 73 unit + integration tests (replica-set MongoDB test DB)
-npm test -w client               # 12 client unit tests (Vitest)
+npm test -w server               # 100 unit + integration tests (replica-set MongoDB test DB)
+npm test -w client               # 18 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
-npx playwright test              # 17 browser journeys at six viewport sizes
+npx playwright test              # 36 browser journeys at six viewport sizes
+npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
 npm audit --omit=dev             # production dependency audit
 ```
 
@@ -176,6 +183,12 @@ npm run dev                      # in one terminal
 npx playwright test              # in another (Chromium is installed via npx playwright install chromium)
 ```
 
+The suite makes many requests in a minute, so the API is started the way CI starts it for browser
+journeys: `NODE_ENV=test PORT=4100 node server/src/index.js`. That switches off only the in-process
+blanket limiter; the durable Mongo-backed per-route limits stay active. The journeys upload synthetic
+PDFs byte-for-byte, compare the downloaded bytes with the original, and assert the document screens
+at all six viewport sizes.
+
 During implementation:
 
 1. Work on a focused feature branch.
@@ -187,7 +200,10 @@ During implementation:
 
 ## Data and readiness boundary
 
-Development uses synthetic identities and documents only. Before any real-patient pilot, Velora requires clinical workflow review, privacy/provider decisions, retention and incident processes, verified staff onboarding, secure deployment, backup plus isolated restore testing, representative extraction/language evaluation and explicit owner authorization.
+Development uses synthetic identities and synthetic documents only; no real patient data or real
+clinical files are used. A document status of `ready` means the upload passed **technical** validation
+and is queued for later human review - it never means clinically approved, and no antivirus
+certification is claimed. Before any real-patient pilot, Velora requires clinical workflow review, privacy/provider decisions, retention and incident processes, verified staff onboarding, secure deployment, backup plus isolated restore testing, representative extraction/language evaluation and explicit owner authorization.
 
 ## Owner
 

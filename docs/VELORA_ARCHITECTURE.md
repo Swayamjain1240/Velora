@@ -12,6 +12,9 @@ the access policy and the verification strategy for the code in `server/` and `c
 | Tenant -> tenant | any clinic id supplied by a client | caller's own membership only | `loadClinicContext`, `loadSession` |
 | Secrets -> bundle | anything reaching the browser | server env only | `config/env.js`, `.env.example`, Vite (no server var import) |
 | Admin -> clinical | admin role | verified clinical reviewer | `requireVerifiedReviewer`, `staffService.setReviewerEligibility` |
+| Uploaded bytes -> app | any uploaded file (parser input) | the validating process | isolated `worker_threads` parser with a reduced env, time/memory caps (`documentValidator`, `workers/documentParser`) |
+| App -> object store | caller-supplied key or path | opaque UUID keys only | `documentStorage.objectPath` regex + exclusive writes |
+| Metadata -> bytes | MongoDB document row | encrypted object under a separate key | `documentService` verify-on-download (size + SHA-256) |
 
 Key principle: **the server is the only authorization boundary.** React route guards improve UX and
 must never be relied on for security.
@@ -36,6 +39,37 @@ request
   -> service               (business rules, audit, models)
   -> errorHandler          (safe envelope `{ error: { code, message } }`)    [errorHandler.js]
 ```
+
+### 2a. Document upload and download (Part 4)
+
+```
+upload
+  -> requireAuth, loadClinicContext
+  -> validate(params) + upload rate limit
+  -> requireDocumentUploadAccess  (session, clinic, ACTIVE team assignment,
+                                  draft episode)  <-- BEFORE any body byte
+  -> boundedBody                  (hard 10 MiB cap; longer body destroyed)
+  -> documentService.uploadDocument
+       -> sha256 + isolated validation worker (time/memory/concurrency/queue caps)
+       -> duplicate check on unique {episode, sha256}
+       -> insert metadata `uploading` (or reuse a rejected/failed row)
+       -> exclusive encrypted object write -> status `ready`
+       -> audit `document.uploaded` / `document.rejected` / `document.quarantined`
+
+download
+  -> validate(params) + SEPARATE download rate limit
+  -> documentService.downloadDocument
+       -> fresh access resolution (assignment or patient ownership)
+       -> status must be `ready`
+       -> decrypt, verify byte size AND SHA-256, else mark `failed` and refuse
+       -> audit `document.downloaded`
+  -> no-store + nosniff + restrictive CSP + attachment disposition
+```
+
+The raw bytes travel in the request body with the declared type in `Content-Type` and the display
+filename percent-encoded in `X-Document-Filename`; no filename ever appears in a URL, a query string
+or a routine log line. Responses only ever carry the `publicDocument` projection (never the storage
+key, a path or a URL).
 
 `loadSession` never throws on a missing/invalid cookie: it simply leaves the request
 unauthenticated, and each protected route decides. `csrfProtection` is a no-op for
@@ -83,7 +117,7 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
   reviewer's eligibility to be currently `verified`; the last active assignment can never be
   revoked.
 
-## 5. Data model (Parts 1-2)
+## 5. Data model (Parts 1-4)
 
 | Model | Purpose | Notable indexes |
 |---|---|---|
@@ -105,6 +139,7 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
 | `RecoveryEpisode` | one hospitalization; immutable identity + revision | unique `(clinic,reference)`; `(clinic,patient,createdAt)` |
 | `CareTeamAssignment` | episode team intervals (active/revoked) | partial unique `(clinic,episode,memberUser)` where `status='active'` |
 | `EpisodeCorrection` | append-only discharge-date correction history | `(clinic,episode,correctedAt)` |
+| `EpisodeDocument` | private document **metadata** (opaque key, display filename, allowlisted type, size, SHA-256, technical status) | unique `storageKey`; unique `(episode,sha256)`; `(clinic,episode,createdAt)` |
 
 Timestamps are UTC. Compound unique indexes enforce clinic-scoped identifiers and active-grant
 invariants. Projections keep `tokenHash`, `csrfSecret`, internal audit payloads and unrelated PII
@@ -129,6 +164,9 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
 | caregiver invite | 30 / hour per user |
 | caregiver / activation acceptance | 10 / hour per ip |
 | episode create / read / mutate | 60 / 600 / 120 per hour per user |
+| document upload | 20 / hour per user |
+| document download | 120 / hour per user |
+| document metadata read | 600 / hour per user |
 
 ## 7. Client architecture
 
@@ -141,6 +179,12 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   (`features/patients`), the patient's own records (`features/patient`), and the caregiver's scoped
   view (`features/caregiver`). Part 3 adds the staff episode list/detail (`features/episodes`) and
   the patient's own episode view. The nav only links a role to the area it can reach.
+- Part 4 adds `features/documents` (`DocumentsPanel`, `DocumentUpload`, `documentRules`) inside the
+  episode detail: a `choose -> review -> upload -> result` wizard, a paginated list with a technical
+  status summary and per-document notes, and an authenticated **blob** download
+  (`lib/api.downloadDocument`) whose object URL is revoked after the download starts. `uploadDocument`
+  posts raw bytes with the filename in a header. A denied read clears the list and shows a safe
+  sentence; nothing in the UI ever presents `ready` as clinical approval.
 - A denied refresh or a lost authorization clears the loaded patient/consent/grant state before an
   error is shown, so stale clinical data never remains on screen.
 - All server errors surface through a safe envelope; the client never renders unsanitized HTML.
@@ -170,7 +214,19 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   admin clinical-metadata denial with narrow team administration, reviewer eligibility, last-assignee
   protection, duplicate references, future dates, timezone boundaries, stale revision, concurrent
   corrections and parallel assignment.
+- **Integration (Part 4):** wrong MIME, wrong extension, traversal filename, empty file, oversize
+  file, encrypted PDF, active PDF, PDF attachment/form, page and object limits, malformed PDF, image
+  pixel bomb, parser timeout, worker saturation, duplicate concurrency, storage-write failure,
+  ciphertext tampering, symlink/path attacks, missing object, revoked assignment, other clinic,
+  admin-only denial, caregiver-profile-only denial and closed/read-only episodes - plus a
+  downloaded-bytes-equal-uploaded-bytes assertion.
 - **Browser:** Playwright journeys (login, forced MFA enrollment, staff screens, patient onboarding ->
   consent -> activation -> caregiver invite -> episode creation -> discharge correction) at all six
   viewport sizes, asserting the authenticated pages do not exceed the viewport height.
+- **Browser (Part 4):** one document journey per viewport size - upload a synthetic PDF through
+  `choose -> review -> upload -> result`, download it and compare the bytes with the uploaded
+  original - plus a refusal journey (active PDF), a closed-episode read-only check and a patient
+  read-only check.
+- **Recovery:** `scripts/reconcile-documents.js` dry run is part of the part gate; `--apply` requires
+  an explicit operator and audits every repair.
 - **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.

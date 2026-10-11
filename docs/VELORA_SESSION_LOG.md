@@ -5,6 +5,134 @@ Evidence classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, 
 
 ---
 
+## Session - 11 October 2026 - Part 4 (private discharge-document intake)
+
+### Duck review (start of session)
+
+**Files read:** the three authority PDFs, `VELORA_MERN_10_BUILD_PROMPTS.md`, `README.md`, the `docs/`
+set, `.env.example`, `.gitignore`, the CI workflow, and the full `server/`/`client/`/`e2e/` trees.
+
+**Observed repository state:** on `main` at HEAD `6b5ca2a` ("test+docs: Part 3 episode journey and
+synced documentation") with a clean tree; Parts 1-3 committed and green (73 server, 12 client, 17
+browser journeys). No document model, worker, storage provider, route or screen existed.
+**Classification on entry:** Parts 1-3 `VERIFIED`; Part 4 `PLANNED`.
+
+**Drift found and fixed before adding document functionality:**
+
+| Drift | Fix |
+|---|---|
+| No document environment contract | `env.js` validates `DOCUMENT_STORAGE_ROOT` (absolute, outside the repo) **paired** with `DOCUMENT_ENCRYPTION_KEY` (32-byte base64), plus the bounded-worker limits; `.env.example` documents each one |
+| Errors had no saturation code | added `503 SERVICE_BUSY` to the safe error envelope |
+| CORS allowlist could not carry an upload filename | added only `X-Document-Filename`, the single header the client sends |
+| Seed had no care team for a document journey | synthetic draft/closed/patient-linked episodes with an active assignment |
+| Browser sessions were enrolled for two roles only | global-setup enrols the document coordinator and patient accounts as well |
+
+### External service gate (control #22)
+
+**No external provider was selected or called.** AWS S3, Cloudinary, Firebase, an antivirus provider,
+an OCR provider and a queue provider are **DISCLOSED / NOT SELECTED**. Storage is a provider-neutral
+interface (`put`/`get`/`stat`/`remove`/`listKeys`/`newStorageKey`) whose shipped implementation is a
+private encrypted filesystem provider outside the repository. Metadata lives in MongoDB; no public
+URL is ever stored or returned.
+
+### Work performed (Part 4)
+
+| Area | Result |
+|---|---|
+| Model | `EpisodeDocument`: immutable clinic/patient/episode, opaque storage key, display filename, allowlisted media type, byte size, SHA-256, status, safe rejection code, non-clinical technical facts, uploading actor, timestamps |
+| Indexes | unique `storageKey`; unique `{episode, sha256}`; list index `{clinic, episode, createdAt}`; `status` |
+| Storage | `documentStorage`: opaque UUID keys re-validated against a strict pattern, AES-256-GCM envelope `VD1`, exclusive `wx` writes, `0600`/`0700` permissions, `lstat` before read, no symlinks; root outside the repo |
+| Validation | `documentValidator` + `workers/documentParser`: wall-clock timer, heap cap, concurrency + queue limits, environment reduced to `NODE_ENV`, stable codes only; `documentInspector` is dependency-free and secret-free |
+| Service | `documentService`: authorize-before-read, bounded body, validation, duplicate short-circuit, metadata-then-object-then-`ready`, quarantine path, failed path, scoped list/detail, download with fresh authorization + decryption + size + SHA-256 verification |
+| Access | write = active team member on a `draft` episode; read/download = team member or patient owner; admin 403; everything else uniform 404 |
+| Routes | staff `/episodes/:id/documents[...]` (upload/read/download limits) and read-only patient mirrors under `/patient/me/episodes/:id/documents` |
+| Client | `features/documents/{DocumentsPanel,DocumentUpload,documentRules}`: `choose -> review -> upload -> result`, paginated list, technical-status summary and notes, authenticated blob download with object-URL cleanup, denied states; wired into the staff episode detail and the patient's own episode |
+| Recovery | `scripts/reconcile-documents.js` (dry run by default; `--apply` requires `--operator` and audits every repair) |
+| Tests | `tests/integration/documents.test.js` (24, including every adversarial file, the failure paths and the patient-owned mirror) + client `documents.test.jsx` (6) + `e2e/documents.spec.js` (7 journeys) |
+| Docs | README plus new [VELORA_DOCUMENT_STORAGE.md](VELORA_DOCUMENT_STORAGE.md) (API contract, storage setup, recovery), and synced architecture/system-design/structure docs |
+
+### Key invariants enforced
+
+- Authorization happens **before** the request body is read, and is re-checked immediately before
+  persistence; an unauthenticated or unauthorized caller's bytes are never buffered.
+- The body is capped at 10 MiB while streaming: a longer body is destroyed mid-stream and answered
+  with `413`, never buffered to completion.
+- The validator runs in an isolated worker with a time limit, a memory limit, a concurrency limit, a
+  bounded queue and **no application secrets**; only stable codes leave it.
+- Encrypted PDFs, PDF scripts/actions/attachments/forms/external references, malformed or truncated
+  PDFs, page/object/stream excesses, image pixel bombs and multi-frame images are refused; the
+  inconclusive cases are quarantined, never marked ready.
+- `ready` means technically accepted for later review and is never presented as clinical approval.
+- MongoDB metadata and the encrypted object are not one transaction; the drift window is documented
+  and every drift state is reported by the reconciliation command rather than served to a user.
+- Reconciliation never repairs anything without an explicit operator attribution, and each repair is
+  audited.
+
+### Evidence
+
+| Check | Command | Result |
+|---|---|---|
+| Server tests | `npm test -w server` | **100 pass / 0 fail** (unit + integration on the replica set) |
+| Client tests | `npm test -w client` | **18 pass / 0 fail** |
+| Client lint | `npm run lint -w client` | clean |
+| Client build | `npm run build -w client` | production build succeeds (63 modules) |
+| Browser journeys | `npx playwright test` | **36 pass / 0 fail** (upload/refusal/download journeys plus the six-viewport suite) |
+| Document reconciliation | `npm run documents:reconcile -w server` | dry run on the live store: 24 live rows / 24 objects, 0 missing, 0 unreadable, 0 integrity mismatches, 0 orphans. Removing one object of a `ready` row was reported as `missing: <id> key <uuid>`, and an unreferenced object as `orphan: <uuid>`; both were restored afterwards, and `--apply` without `--operator` was refused with exit code 2 |
+| Production audit | `npm audit --omit=dev` | 0 vulnerabilities |
+| Secret scan (tree) | `git grep` for key patterns | no credentials; only `.env.example` tracked |
+| Secret scan (history) | `git log -p --all` for key patterns | clean |
+
+Downloaded `ready` bytes were compared with the uploaded original in the browser journeys
+(`Buffer.compare` = 0) and in the integration suite (SHA-256 equality).
+
+### Security-25 matrix (Part 4)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets hidden | VERIFIED | document key server-only; `.env`/objects untracked and outside the repo |
+| 2 | Fail-closed env | VERIFIED | root/key pairing, absolute-and-outside-repo root, worker limits validated at startup |
+| 3 | Private routes guarded | VERIFIED | every document route behind session + clinic context + service-side access resolution |
+| 4 | Argon2id, MFA, sessions, CSRF | VERIFIED | unchanged; upload requires the CSRF header |
+| 5 | Clinic + assignment + episode state, default deny | VERIFIED | authorize-before-read, revoked assignment, other clinic, admin denial, caregiver denial, closed episode |
+| 6 | Validate metadata, headers and bytes | VERIFIED | filename/extension/declared type/magic bytes/parsed type/trailing data plus structural rules |
+| 7 | No unsafe rendering, attachment handling | VERIFIED | forced `attachment`, `nosniff`, restrictive CSP, no inline rendering |
+| 8 | Rate, worker, memory, time, body limits | VERIFIED | separate upload/read/download limits; bounded body; worker time/memory/concurrency/queue caps |
+| 9 | Safe errors, no parser diagnostics | VERIFIED | stable codes and a uniform envelope; internal paths never leave the process |
+| 10 | Exact CORS allowlist | VERIFIED | only `X-Document-Filename` added |
+| 11 | Security and download headers | VERIFIED | helmet + `no-store`, `nosniff`, sandbox CSP, same-origin resource policy |
+| 12 | Production debug off | VERIFIED | unchanged; documents expose no parser detail in any environment |
+| 13 | Dependency review before install | VERIFIED | no new dependency; `npm audit --omit=dev` = 0 |
+| 14 | No unused packages | VERIFIED | dependency set unchanged |
+| 15 | Ignore `.env`, uploads, objects, keys | VERIFIED | `.gitignore` covers env files, `*.key`, `uploads/`, private document directories |
+| 16 | `MONGODB_URI` server-only | VERIFIED | unchanged |
+| 17 | Argon2id/bcrypt preserved | VERIFIED | unchanged |
+| 18 | Tree and history scan | VERIFIED | both clean |
+| 19 | Document-security audit | VERIFIED | this matrix plus the dedicated storage/recovery doc |
+| 20 | Test, diff, meaningful commit | VERIFIED | suites run before the commits |
+| 21 | Continuous security | VERIFIED | exclusive writes, unique indexes, verify-on-download, audit on mutation |
+| 22 | Disclose external providers first | VERIFIED | none selected; gate documented in README and the storage doc |
+| 23 | Happy, denied and adversarial files | VERIFIED | 24 integration cases + 6 client cases + 7 browser journeys |
+| 24 | Documentation synchronised | VERIFIED | README, storage/recovery doc, architecture, system design, structure, this log |
+| 25 | One-viewport screens | VERIFIED | document screens asserted at all six sizes inside the journeys |
+
+### Duck verdict: PASS (Part 4, local scope)
+
+All 25 controls are VERIFIED for the Parts 1-4 scope with the full suites, the production audit and
+both secret scans green. Evidence is local (development) with synthetic files only; no production
+deployment, antivirus certification or clinical validation is claimed. Part 5 was not started.
+
+### Remaining limits
+
+- Quarantined documents need an operator decision; no review UI exists for them yet, only the
+  metadata status and the reconciliation command.
+- A live parser timeout or crash cannot be triggered deterministically from file content on a healthy
+  host; those paths are driven by the test-only stall hook and the memory cap in the integration
+  suite, and the browser journeys cover the refused/quarantined *presentation* instead.
+- No malware scanning: structural validation is not antivirus.
+- Documents are never deleted automatically; retention and privacy-request workflows arrive in Part 9.
+
+---
+
 ## Session - 11 October 2026 - Part 3 (recovery episodes and care-team assignment)
 
 ### Duck review (start of session)
