@@ -1,8 +1,9 @@
 'use strict';
 
-// Part 2 browser journey: a coordinator onboards a patient through the stepped
-// wizard, records consent, activates the record and invites a caregiver - all
-// through the real UI against the real API. Synthetic data only.
+// Part 2-3 browser journey: a coordinator onboards a patient through the
+// stepped wizard, records consent, activates the record, invites a caregiver,
+// then creates a recovery episode and corrects its discharge date - all through
+// the real UI against the real API. Synthetic data only.
 //
 // This uses the dedicated `flow@synthetic.invalid` coordinator so it never
 // collides with auth.spec's one-time MFA enrollment (global-setup resets MFA
@@ -49,6 +50,25 @@ test('a coordinator onboards, consents, activates a patient and invites a caregi
   await page.getByLabel('Caregiver email').fill('caregiver.flow@synthetic.invalid');
   await page.getByRole('button', { name: 'Invite caregiver' }).click();
   await expect(page.getByText(/Invitation link:/)).toBeVisible();
+
+  // ---- Part 3: create a recovery episode and correct its discharge date ----
+  await page.getByRole('link', { name: 'Episodes' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Recovery episodes' })).toBeVisible();
+  await page.getByRole('button', { name: 'New episode' }).click();
+  await page.locator('#ep-patient').selectOption({ index: 1 });
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.locator('#ep-date').fill('2026-09-20');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Review' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create episode' }).click();
+
+  // Detail opened on the new episode; correct the draft discharge date.
+  await expect(page.getByRole('heading', { level: 1, name: /^EP-/ })).toBeVisible();
+  await page.locator('#ep-date').fill('2026-09-19');
+  await page.getByRole('button', { name: 'Correct discharge' }).click();
+  await expect(page.getByText('Discharge details corrected.')).toBeVisible();
+  await page.getByRole('tab', { name: 'Corrections' }).click();
+  await expect(page.getByText('2026-09-20')).toBeVisible();
 
   // Control #25: the detail screen still fits one viewport with no page scroll.
   const overflow = await page.evaluate(() => {

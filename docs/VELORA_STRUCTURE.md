@@ -23,7 +23,7 @@ Velora/
     VELORA_SESSION_LOG.md
   e2e/
     auth.spec.js                  # login / MFA / staff journeys
-    patients.spec.js              # Part 2 onboarding / consent / activation / caregiver journey
+    patients.spec.js              # Part 2-3 onboarding / consent / activation / episode journey
     viewports.spec.js             # six-size one-viewport assertions
     global-setup.js               # seeds the synthetic clinic; enrols viewport sessions
   server/
@@ -37,17 +37,18 @@ Velora/
       models/{User,Clinic,ClinicMembership,MembershipRole,Invitation,
               Session,MfaRecoveryCode,PasswordReset,RateLimitBucket,AuditEvent,
               PatientProfile,PatientAssignment,PatientConsent,CaregiverGrant,
-              AccessInvitation}.js
+              AccessInvitation,RecoveryEpisode,CareTeamAssignment,EpisodeCorrection}.js
       validators/schemas.js
-      controllers/{authController,staffController,patientController,caregiverController}.js
+      controllers/{authController,staffController,patientController,caregiverController,
+                   episodeController}.js
       services/{authService,sessionService,mfaService,passwordService,
                 crypto,staffService,rateLimitService,auditService,errors,txService,
-                patientService,consentService,caregiverService}.js
-      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access}.js
+                patientService,consentService,caregiverService,episodeService}.js
+      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes}.js
     tests/
       helpers/setup.js            # harness: env, db, factories, agents
       unit/{env,crypto-password}.test.js
-      integration/{auth,staff,patients}.test.js
+      integration/{auth,staff,patients,episodes}.test.js
   client/
     package.json
     vite.config.js                # dev proxy /api -> API (overridable)
@@ -62,10 +63,11 @@ Velora/
               ResetPassword,AcceptInvite}.jsx
         app/{AppShell,Dashboard,ClinicSettings,Profile}.jsx
         patients/{PatientList,PatientDetail}.jsx
-        patient/PatientSelf.jsx
+        episodes/{EpisodeList,EpisodeDetail}.jsx
+        patient/{PatientSelf,PatientEpisodes}.jsx
         caregiver/CaregiverHome.jsx
       styles.css
-      test/{setup,api.test}.js, auth-flows.test.jsx, patients.test.jsx
+      test/{setup,api.test}.js, auth-flows.test.jsx, patients.test.jsx, episodes.test.jsx
 ```
 
 ## Conventions

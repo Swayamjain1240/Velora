@@ -5,6 +5,99 @@ Evidence classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, 
 
 ---
 
+## Session - 11 October 2026 - Part 3 (recovery episodes and care-team assignment)
+
+### Duck review (start of session)
+
+**Files read:** the authority PDFs, `VELORA_MERN_10_BUILD_PROMPTS.md`, `README.md`, the `docs/` set,
+`.env.example`, and the full `server/`/`client/`/`e2e/` trees.
+
+**Observed repository state:** Parts 1-2 committed and pushed (`dcc63d9`) with the full suite green.
+No `RecoveryEpisode`, `CareTeamAssignment` or `EpisodeCorrection` model, route, service or screen
+existed. **Classification on entry:** Parts 1-2 `VERIFIED`; Part 3 `PLANNED`.
+
+### Work performed (Part 3)
+
+| Area | Result |
+|---|---|
+| Models | `RecoveryEpisode` (immutable clinic/patient/reference, draft state, calendar discharge date + IANA timezone, `revision`), `CareTeamAssignment` (intervals, `care_coordinator`/`clinical_reviewer`), `EpisodeCorrection` (append-only) |
+| Indexes | unique `(clinic,reference)`; partial unique `(clinic,episode,memberUser)` where `status='active'` |
+| Service | `episodeService`: assigned-staff creation, scoped paginated list/detail, atomic draft correction, correction history, eligible candidates, team list/assign/revoke, patient-owned list/detail |
+| Access | clinical metadata for active team members or the patient owner; admin explicitly 403; other staff uniform 404; admin may administer the team without clinical fields |
+| Client | `features/episodes/{EpisodeList,EpisodeDetail}` (stepped wizard, correction with revision, paginated corrections, team panel) and `features/patient/PatientEpisodes`; staff/patient nav entries |
+| Tests | `tests/integration/episodes.test.js` (18) + client `episodes.test.jsx` (3) + the `patients.spec.js` journey extended with episode creation and correction |
+| Docs | README, `VELORA_MASTER`, `VELORA_ARCHITECTURE`, `VELORA_STRUCTURE`, `VELORA_SYSTEM_DESIGN` synced |
+
+### Key invariants enforced
+
+- Episode creation requires an ACTIVE **intake** assignment on the patient (clinic role alone is not
+  enough) and records the creator as the first care coordinator - there is never an unaccounted
+  episode.
+- Corrections use `{_id, revision, status:'draft'}`; a stale revision is a 409 and a no-op records no
+  history.
+- The last active team assignment can never be revoked (409); reassignment opens a new interval and
+  keeps every prior one.
+- A clinical reviewer can only be assigned while eligibility is currently `verified`.
+- Administrators can administer the team but can never read episode clinical metadata.
+
+### Evidence
+
+| Check | Command | Result |
+|---|---|---|
+| Server tests | `npm test -w server` | **73 pass / 0 fail** (unit + integration on the replica set) |
+| Client tests | `npm test -w client` | **12 pass / 0 fail** |
+| Client lint | `npm run lint -w client` | clean |
+| Client build | `npm run build -w client` | production build succeeds |
+| Browser journeys | `npx playwright test` | **17 pass / 0 fail** (episode journey + six viewports on `/app/episodes`) |
+| Production audit | `npm audit --omit=dev` | 0 vulnerabilities |
+| Secret scan (tree + history) | `git grep` / `git log -p --all` | no real credentials; only `.env.example` tracked |
+
+Viewports asserted: `1440x900`, `768x1024`, `390x844`, `320x568`, `844x390`, `320x400`.
+
+### Security-25 matrix (Part 3)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets hidden | VERIFIED | no new secret; `.env` untracked |
+| 2 | Fail-closed env | VERIFIED | unchanged; env loads locally |
+| 3 | Private routes guarded | VERIFIED | episode routes behind requireAuth + clinic context |
+| 4 | Argon2id, MFA, sessions, CSRF preserved | VERIFIED | Parts 1-2 tests green |
+| 5 | Clinic + role + ownership + episode assignment + state, default deny | VERIFIED | clinic-isolation, unassigned-staff, intake-vs-episode, admin-denial tests |
+| 6 | Validate/sanitize, reject unknown fields | VERIFIED | strict schemas; unknown-field test |
+| 7 | No unsafe HTML/XSS | VERIFIED | JSON-only responses; client escapes on render |
+| 8 | Atomic limits | VERIFIED | Mongo-backed episode create/read/mutate limits |
+| 9 | Safe error envelope + scoped 404 | VERIFIED | uniform 404 for non-team staff; 409 conflict envelope |
+| 10 | Exact CORS allowlist | VERIFIED | unchanged |
+| 11 | Helmet + CSP | VERIFIED | unchanged |
+| 12 | Debug off in production | VERIFIED | unchanged |
+| 13 | Dependency security | VERIFIED | `npm audit --omit=dev` = 0; no new dependency |
+| 14 | No unused packages | VERIFIED | no new dependency |
+| 15 | Private-file audit | VERIFIED | unchanged |
+| 16 | `MONGODB_URI` server-only | VERIFIED | unchanged |
+| 17 | Argon2id only | VERIFIED | unchanged |
+| 18 | Tree + history scan | VERIFIED | clean |
+| 19 | End-of-part audit | VERIFIED | this matrix |
+| 20 | Coherent ~300-LOC commits | VERIFIED | server / client / test+docs commits |
+| 21 | Continuous security | VERIFIED | immutable identity, partial unique index, atomic filter |
+| 22 | Disclose external providers | VERIFIED | none added |
+| 23 | Test every failure/concurrency path | VERIFIED | stale revision, concurrent corrections, parallel assignment, last-assignee |
+| 24 | Docs synced | VERIFIED | this session |
+| 25 | One-viewport screens | VERIFIED | 17 journeys incl. `/app/episodes` at six sizes |
+
+### Duck verdict: PASS (Part 3, local scope)
+
+All 25 controls are VERIFIED for the Parts 1-3 scope with the full suites, the production audit and
+both secret scans green. Evidence is local (development); no production deployment or clinical
+validation is claimed. Part 4 was not started.
+
+### Remaining limits
+
+- Episodes stay `draft`; activation/closure and downstream plan workflows arrive in later parts.
+- No caregiver episode view yet (`view_episodes` remains inert).
+- Discharge dates are corrected one episode at a time; no bulk import.
+
+---
+
 ## Session - 11 October 2026 - Part 2 (patient onboarding, consent, caregiver access)
 
 ### Duck review (start of session)

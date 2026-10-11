@@ -17,7 +17,7 @@ function session(file) {
 
 // Each session covers the authenticated screens its role can actually reach.
 const SESSIONS = [
-  { file: 'viewport-reviewer.json', routes: ['/app', '/app/patients', '/app/profile'] },
+  { file: 'viewport-reviewer.json', routes: ['/app', '/app/patients', '/app/episodes', '/app/profile'] },
   { file: 'viewport-admin.json', routes: ['/app', '/app/clinic', '/app/profile'] },
 ];
 

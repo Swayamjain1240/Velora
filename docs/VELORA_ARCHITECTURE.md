@@ -74,6 +74,14 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
 - Invariants enforced in `staffService`: a clinic can never lose its last active admin (deactivation
   or demotion of the last admin is a conflict); entering the reviewer role starts as `pending`
   (never auto-verified) and leaving it clears eligibility.
+- Part 2 patient access requires an ACTIVE intake assignment (staff), ownership (patient) or an
+  ACTIVE scoped grant (caregiver); otherwise a uniform 404.
+- Part 3 episode clinical metadata requires an ACTIVE care-team assignment or patient ownership. An
+  administrator is EXPLICITLY denied (403) episode clinical metadata, but may perform narrowly
+  defined team administration (roster/candidates/assign/revoke) that returns no clinical fields.
+  A non-member staff user gets a uniform 404. Team assignment of a clinical reviewer requires the
+  reviewer's eligibility to be currently `verified`; the last active assignment can never be
+  revoked.
 
 ## 5. Data model (Parts 1-2)
 
@@ -94,11 +102,14 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
 | `PatientConsent` | append-only consent history | `(clinic,patient,createdAt)` |
 | `CaregiverGrant` | scoped, revocable caregiver access | unique `(clinic,patient,granteeEmail)`; `caregiverUser` |
 | `AccessInvitation` | caregiver / patient-activation token (hash only) | `tokenHash`; partial unique outstanding `(clinic,email,kind)` |
+| `RecoveryEpisode` | one hospitalization; immutable identity + revision | unique `(clinic,reference)`; `(clinic,patient,createdAt)` |
+| `CareTeamAssignment` | episode team intervals (active/revoked) | partial unique `(clinic,episode,memberUser)` where `status='active'` |
+| `EpisodeCorrection` | append-only discharge-date correction history | `(clinic,episode,correctedAt)` |
 
 Timestamps are UTC. Compound unique indexes enforce clinic-scoped identifiers and active-grant
 invariants. Projections keep `tokenHash`, `csrfSecret`, internal audit payloads and unrelated PII
 out of API responses (`publicUser`, `publicMember`, `publicPatient`, `publicAssignment`,
-`publicGrant`).
+`publicGrant`, `publicEpisode`, `publicTeam`, `publicCorrection`).
 
 ## 6. Rate limiting
 
@@ -117,6 +128,7 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
 | patient create / read / mutate | 60 / 600 / 120 per hour per user |
 | caregiver invite | 30 / hour per user |
 | caregiver / activation acceptance | 10 / hour per ip |
+| episode create / read / mutate | 60 / 600 / 120 per hour per user |
 
 ## 7. Client architecture
 
@@ -127,7 +139,8 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   `localStorage`. It reads the readable `velora_csrf` cookie and attaches it to every mutation.
 - Part 2 adds role-scoped feature areas under `/app`: the staff patient list/detail
   (`features/patients`), the patient's own records (`features/patient`), and the caregiver's scoped
-  view (`features/caregiver`). The nav only links a role to the area it can reach.
+  view (`features/caregiver`). Part 3 adds the staff episode list/detail (`features/episodes`) and
+  the patient's own episode view. The nav only links a role to the area it can reach.
 - A denied refresh or a lost authorization clears the loaded patient/consent/grant state before an
   error is shown, so stale clinical data never remains on screen.
 - All server errors surface through a safe envelope; the client never renders unsanitized HTML.
@@ -153,7 +166,11 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   inactive/ineligible staff, admin clinical-metadata denial, patient ownership, duplicate-reference
   rejection, consent append-only history, caregiver single-use/expiry/scope/revocation, last-assignee
   protection and scoped pagination totals.
+- **Integration (Part 3):** clinic isolation, unassigned-staff denial, intake-vs-episode separation,
+  admin clinical-metadata denial with narrow team administration, reviewer eligibility, last-assignee
+  protection, duplicate references, future dates, timezone boundaries, stale revision, concurrent
+  corrections and parallel assignment.
 - **Browser:** Playwright journeys (login, forced MFA enrollment, staff screens, patient onboarding ->
-  consent -> activation -> caregiver invite) at all six viewport sizes, asserting the authenticated
-  pages do not exceed the viewport height.
+  consent -> activation -> caregiver invite -> episode creation -> discharge correction) at all six
+  viewport sizes, asserting the authenticated pages do not exceed the viewport height.
 - **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.

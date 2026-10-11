@@ -80,7 +80,37 @@ accountable. The last active assignee can never be revoked (409). A caregiver gr
 `pending` and only becomes `active` when its single-use invitation is accepted; revocation and
 expiry take effect on the very next request.
 
-## 9. Decision log (Parts 1-2)
+## 8b. Episode and care-team model (Part 3)
+
+A `RecoveryEpisode` is one hospitalization. Its `clinic`, `patient` and clinic-scoped `reference`
+are immutable, so an episode can never be moved between clinics or patients. Episodes begin as
+`draft` (activation is tied to Part 5 approval), store a calendar `dischargeDate` plus an explicit
+IANA `dischargeTimezone`, and carry a monotonic `revision`.
+
+Draft discharge corrections are **atomic**: the update is filtered on
+`{_id, revision, status:'draft'}` and increments `revision`, so two parallel corrections against the
+same revision cannot both succeed - the loser gets a 409 and reloads. A no-op (same value) is not
+recorded, so a repeated request never creates duplicate history. Every real correction appends an
+`EpisodeCorrection` row (previous/new value, revision before/after) - rows are never updated or
+deleted.
+
+`CareTeamAssignment` records intervals, never deletions: responsibilities are `care_coordinator` and
+`clinical_reviewer`; revoking ends an interval and re-assigning opens a new one. A **partial unique
+index** on `(clinic, episode, memberUser)` where `status='active'` makes parallel duplicate
+assignment impossible at the database level, so a repeat request is an idempotent no-op. The last
+active assignment can never be revoked (409). A `clinical_reviewer` can only be assigned while their
+eligibility is currently `verified`.
+
+Access:
+
+| Caller | Episode clinical metadata | Team administration (roster/candidates/assign/revoke) |
+|---|---|---|
+| Active care-team member | allow | allow |
+| Patient owner | allow (own record) | deny |
+| Clinic administrator | **deny (403)** - admin status must not read clinical metadata | allow (no clinical fields returned) |
+| Other same-clinic staff | uniform 404 | 403 |
+
+## 9. Decision log (Parts 1-3)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -100,6 +130,11 @@ expiry take effect on the very next request.
 | D14 | Caregiver grant pending until acceptance | active-on-invite | a token that is never accepted grants nothing |
 | D15 | Activation gated on consent + assignee | activate freely | no unaccountable active record |
 | D16 | Partial unique index for active assignment | app-level check | parallel requests cannot both create an interval |
+| D17 | Episode clinical metadata denied to admins | admin read | admin must not browse clinical records (VEL-002 boundary) |
+| D18 | `{_id, revision, status}` atomic correction filter | read-then-write | parallel corrections cannot both win |
+| D19 | No-op corrections record nothing | always append | repeat requests must not duplicate history |
+| D20 | Calendar discharge date + explicit IANA timezone | datetime-only | a discharge date is never offset-ambiguous |
+| D21 | Team assignment of a reviewer requires current verified eligibility | role alone | mirrors the Part 1 eligibility boundary |
 
 ## 10. Known limitations (Parts 1-2)
 
@@ -114,3 +149,6 @@ expiry take effect on the very next request.
 - Patient/caregiver invitation links are still log/response-delivered in development (no mail
   provider, control #22).
 - The application database must be a replica set from Part 2 on (transactions).
+- Part 3 episodes stay `draft`; activation/closure and downstream plan workflows arrive in later
+  parts. There is no caregiver episode view yet (the `view_episodes` scope remains inert).
+- Discharge dates are corrected one episode at a time; there is no bulk import.

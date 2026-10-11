@@ -6,7 +6,7 @@ Velora is a planned JavaScript MERN application that helps clinics convert priva
 
 Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
 
-> **Current status - 11 October 2026:** **Parts 1-2 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, and patient onboarding with consent history and scoped caregiver access. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
+> **Current status - 11 October 2026:** **Parts 1-3 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, and recovery episodes with care-team assignment and atomic draft discharge corrections. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
 
 ## Project authority
 
@@ -68,7 +68,7 @@ Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no
 |---:|---|---|
 | 1 | Repository, authentication and clinic permissions | Implemented / verified locally |
 | 2 | Patient onboarding, consent and caregiver access | Implemented / verified locally |
-| 3 | Recovery episodes and care-team assignment | Planned |
+| 3 | Recovery episodes and care-team assignment | Implemented / verified locally |
 | 4 | Private discharge-document intake | Planned |
 | 5 | Manual care plans, review, approval and versioning | Planned - completes synthetic M1 |
 | 6 | AI extraction, source citations and reviewed language | Planned |
@@ -157,8 +157,8 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 55 unit + integration tests (replica-set MongoDB test DB)
-npm test -w client               # 9 client unit tests (Vitest)
+npm test -w server               # 73 unit + integration tests (replica-set MongoDB test DB)
+npm test -w client               # 12 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
 npx playwright test              # 17 browser journeys at six viewport sizes
