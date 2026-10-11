@@ -32,7 +32,9 @@ function corsPolicy() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
+    // Only the required headers: JSON bodies, the CSRF double-submit value and
+    // the Part 4 upload filename header.
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Document-Filename'],
     maxAge: 600,
   });
 }

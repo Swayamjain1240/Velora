@@ -10,15 +10,22 @@ const { execFileSync } = require('node:child_process');
 const SCRIPT = `
   process.env.NODE_ENV='test';
   const { loadEnv } = require(${JSON.stringify(require.resolve('../../src/config/env'))});
+  const os = require('node:os');
+  const path = require('node:path');
   const base = {
     MONGODB_URI: 'mongodb://127.0.0.1:27017/x',
     CLIENT_ORIGIN: 'http://localhost:5173',
     SESSION_PEPPER: 'a'.repeat(32),
     MFA_ENCRYPTION_KEY: Buffer.alloc(32,1).toString('base64'),
+    DOCUMENT_STORAGE_ROOT: path.join(os.tmpdir(), 'velora-env-test-docs'),
+    DOCUMENT_ENCRYPTION_KEY: Buffer.alloc(32,2).toString('base64'),
   };
   const mode = process.argv[1];
   const env = { ...base };
   if (mode === 'missing-uri') delete env.MONGODB_URI;
+  if (mode === 'missing-doc-root') delete env.DOCUMENT_STORAGE_ROOT;
+  if (mode === 'bad-doc-key') env.DOCUMENT_ENCRYPTION_KEY = 'not-32-bytes';
+  if (mode === 'in-repo-root') env.DOCUMENT_STORAGE_ROOT = path.resolve(process.cwd(), 'inside-repo');
   if (mode === 'empty-port') env.PORT = '';
   if (mode === 'zero-port') env.PORT = '0';
   if (mode === 'bad-key') env.MFA_ENCRYPTION_KEY = 'not-base64-32-bytes';
@@ -85,4 +92,22 @@ test('production requires https CLIENT_ORIGIN', () => {
 test('failure messages never echo secret values', () => {
   const out = run('bad-key');
   assert.ok(!out.includes('not-base64'), 'must not echo the bad key value');
+});
+
+test('a missing document storage root fails closed', () => {
+  const out = run('missing-doc-root');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /DOCUMENT_STORAGE_ROOT/);
+});
+
+test('a malformed document key is rejected', () => {
+  const out = run('bad-doc-key');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /DOCUMENT_ENCRYPTION_KEY/);
+});
+
+test('a document storage root inside the repository is rejected', () => {
+  const out = run('in-repo-root');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /DOCUMENT_STORAGE_ROOT/);
 });

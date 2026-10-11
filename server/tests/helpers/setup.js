@@ -16,6 +16,16 @@ process.env.CLIENT_ORIGIN = 'http://localhost:5173';
 process.env.SESSION_PEPPER = 'test_pepper_0123456789abcdef';
 process.env.MFA_ENCRYPTION_KEY = Buffer.alloc(32, 3).toString('base64');
 process.env.SESSION_TTL_HOURS = '12';
+// Part 4 document storage: a disposable root OUTSIDE the repository (the env
+// validator rejects an in-repo root) plus a dedicated document key.
+const os = require('node:os');
+const path = require('node:path');
+const fs = require('node:fs');
+process.env.DOCUMENT_STORAGE_ROOT =
+  process.env.DOCUMENT_STORAGE_ROOT ||
+  path.join(os.tmpdir(), 'velora-documents-test');
+process.env.DOCUMENT_ENCRYPTION_KEY =
+  process.env.DOCUMENT_ENCRYPTION_KEY || Buffer.alloc(32, 9).toString('base64');
 
 const mongoose = require('mongoose');
 const { loadEnv } = require('../../src/config/env');
@@ -41,6 +51,7 @@ const PatientConsent = require('../../src/models/PatientConsent');
 const CaregiverGrant = require('../../src/models/CaregiverGrant');
 const AccessInvitation = require('../../src/models/AccessInvitation');
 const RecoveryEpisode = require('../../src/models/RecoveryEpisode');
+const EpisodeDocument = require('../../src/models/EpisodeDocument');
 const CareTeamAssignment = require('../../src/models/CareTeamAssignment');
 const EpisodeCorrection = require('../../src/models/EpisodeCorrection');
 
@@ -67,6 +78,12 @@ async function init() {
         'Start one with `npm run mongo:test-rs -w server` and set MONGODB_TEST_URI accordingly.'
     );
   }
+  // Build every model's indexes BEFORE any test runs. Mongoose builds indexes
+  // lazily, so a parallel-insert race could otherwise slip past a unique index
+  // that has not been created yet.
+  await Promise.all(
+    Object.values(mongoose.models).map((model) => model.init())
+  );
   return buildApp();
 }
 
@@ -75,8 +92,11 @@ async function resetDb() {
     User, Clinic, ClinicMembership, MembershipRole, Invitation,
     PasswordReset, Session, AuditEvent, MfaRecoveryCode, RateLimitBucket,
     PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
-    RecoveryEpisode, CareTeamAssignment, EpisodeCorrection,
+    RecoveryEpisode, CareTeamAssignment, EpisodeCorrection, EpisodeDocument,
   ];
+  // Remove every stored object so a test can never observe a prior test's bytes.
+  const objectsDir = path.join(process.env.DOCUMENT_STORAGE_ROOT, 'objects');
+  fs.rmSync(objectsDir, { recursive: true, force: true });
   // Delete through the raw driver so model-level invariants (for example the
   // append-only consent guard) do not block the harness's own reset.
   for (const model of collections) {
@@ -231,6 +251,6 @@ module.exports = {
     User, Clinic, ClinicMembership, MembershipRole, Invitation,
     PasswordReset, Session, AuditEvent, MfaRecoveryCode, RateLimitBucket,
     PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
-    RecoveryEpisode, CareTeamAssignment, EpisodeCorrection,
+    RecoveryEpisode, CareTeamAssignment, EpisodeCorrection, EpisodeDocument,
   },
 };

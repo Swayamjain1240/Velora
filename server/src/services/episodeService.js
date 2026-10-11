@@ -191,6 +191,20 @@ async function resolveTeamAdminAccess({ clinicId, user, episodeId, roleKey }) {
   throw errors.forbidden('You are not assigned to this episode.');
 }
 
+// Part 4: document writes need an ACTIVE care-team assignment AND a draft
+// episode. A patient owner, an administrator, a non-member or a closed episode
+// can never add a document.
+async function assertEpisodeTeamWrite({ clinicId, user, episodeId, roleKey }) {
+  const resolved = await resolveClinicalAccess({ clinicId, user, episodeId, roleKey });
+  if (resolved.access !== 'team') {
+    throw errors.forbidden('Only assigned care-team staff may manage episode documents.');
+  }
+  if (resolved.episode.status !== 'draft') {
+    throw errors.conflict('Documents can only be added while the episode is a draft.');
+  }
+  return resolved;
+}
+
 async function activeTeamCount(clinicId, episodeId) {
   return CareTeamAssignment.countDocuments({ clinic: clinicId, episode: episodeId, status: 'active' });
 }
@@ -599,6 +613,7 @@ module.exports = {
   publicCorrection,
   resolveClinicalAccess,
   resolveTeamAdminAccess,
+  assertEpisodeTeamWrite,
   createEpisode,
   listEpisodes,
   getEpisode,

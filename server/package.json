@@ -9,7 +9,8 @@
     "start": "node src/index.js",
     "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\"",
     "seed": "node scripts/seed.js",
-    "mongo:test-rs": "node scripts/mongo-test-rs.js"
+    "mongo:test-rs": "node scripts/mongo-test-rs.js",
+    "documents:reconcile": "node scripts/reconcile-documents.js"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",

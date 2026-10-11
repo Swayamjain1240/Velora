@@ -14,6 +14,9 @@ const User = require('../src/models/User');
 const Clinic = require('../src/models/Clinic');
 const ClinicMembership = require('../src/models/ClinicMembership');
 const MembershipRole = require('../src/models/MembershipRole');
+const PatientProfile = require('../src/models/PatientProfile');
+const RecoveryEpisode = require('../src/models/RecoveryEpisode');
+const CareTeamAssignment = require('../src/models/CareTeamAssignment');
 const RateLimitBucket = require('../src/models/RateLimitBucket');
 
 const SEED_PASSWORD = 'SyntheticDevPass!24';
@@ -25,7 +28,100 @@ const STAFF = [
   // Dedicated Part 2 journey account: the browser test enrols THIS one through
   // the UI so it never collides with the one-time enrollment in auth.spec.
   { email: 'flow@synthetic.invalid', name: 'Synthetic Flow Coordinator', roleKey: 'care_coordinator' },
+  // Part 4 documents journey: the assigned coordinator whose browser session is
+  // enrolled through the API by e2e/global-setup, plus the synthetic patient
+  // account that owns a linked profile (read-and-download only).
+  { email: 'docsview@synthetic.invalid', name: 'Synthetic Document Coordinator', roleKey: 'care_coordinator' },
+  { email: 'patient.docs@synthetic.invalid', name: 'Synthetic Document Patient', roleKey: 'patient' },
 ];
+
+// Part 4: one synthetic care team with a DRAFT episode (documents accepted) and
+// a CLOSED episode (documents refused), plus a patient-linked episode so the
+// read-only patient view has something real to render. Fabricated identities
+// only; re-runnable.
+async function seedDocumentJourney(clinic, passwordHash) {
+  const coordinator = await User.findOne({ email: 'docsview@synthetic.invalid' });
+  const patientUser = await User.findOne({ email: 'patient.docs@synthetic.invalid' });
+  if (!coordinator || !patientUser) throw new Error('document journey accounts were not seeded');
+
+  const membership = await ClinicMembership.findOne({ clinic: clinic.id, user: coordinator.id });
+
+  // Two synthetic patients: one unlinked (staff-only chart) and one linked to
+  // the synthetic patient account.
+  const profiles = await Promise.all([
+    upsertProfile(clinic, coordinator, { reference: 'PT-DOCS', fullName: 'Synthetic Document Patient' }),
+    upsertProfile(clinic, coordinator, {
+      reference: 'PT-DOCSPAT',
+      fullName: 'Synthetic Linked Document Patient',
+      linkedUserId: patientUser.id,
+    }),
+  ]);
+
+  const episodes = [
+    await upsertEpisode(clinic, coordinator, profiles[0], {
+      reference: 'EP-DOCSDRAFT',
+      status: 'draft',
+    }),
+    await upsertEpisode(clinic, coordinator, profiles[0], {
+      reference: 'EP-DOCCLOSED',
+      status: 'closed',
+    }),
+    await upsertEpisode(clinic, coordinator, profiles[1], {
+      reference: 'EP-DOCSPAT',
+      status: 'draft',
+    }),
+  ];
+
+  // The coordinator is an ACTIVE team member on every seeded episode: document
+  // write access requires that assignment, never a clinic role alone.
+  for (const episode of episodes) {
+    await CareTeamAssignment.updateOne(
+      { clinic: clinic.id, episode: episode.id, memberUser: coordinator.id, status: 'active' },
+      {
+        $setOnInsert: {
+          clinic: clinic.id,
+          patient: episode.patient,
+          episode: episode.id,
+          membership: membership ? membership.id : undefined,
+          memberUser: coordinator.id,
+          responsibility: 'care_coordinator',
+          status: 'active',
+          assignedBy: coordinator.id,
+          assignedByRole: 'staff',
+          assignedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+  }
+
+  // eslint-disable-next-line no-console
+  console.log(`Seeded ${episodes.length} synthetic document-journey episodes (draft, closed, patient-linked).`);
+}
+
+async function upsertProfile(clinic, creator, { reference, fullName, linkedUserId = null }) {
+  await PatientProfile.updateOne(
+    { clinic: clinic.id, reference },
+    {
+      $set: { fullName, status: 'active', linkedUserId, activatedAt: new Date() },
+      $setOnInsert: { clinic: clinic.id, reference, createdBy: creator.id },
+    },
+    { upsert: true }
+  );
+  return PatientProfile.findOne({ clinic: clinic.id, reference });
+}
+
+async function upsertEpisode(clinic, creator, profile, { reference, status }) {
+  await RecoveryEpisode.updateOne(
+    { clinic: clinic.id, reference },
+    {
+      $set: { status, dischargeDate: new Date('2026-09-18T00:00:00.000Z'), dischargeTimezone: 'Europe/London', revision: 1 },
+      $setOnInsert: { clinic: clinic.id, reference, patient: profile.id, createdBy: creator.id },
+    },
+    { upsert: true }
+  );
+  return RecoveryEpisode.findOne({ clinic: clinic.id, reference });
+}
 
 async function run() {
   loadEnv();
@@ -97,6 +193,8 @@ async function run() {
       await existing.save();
     }
   }
+
+  await seedDocumentJourney(clinic, passwordHash);
 
   // eslint-disable-next-line no-console
   console.log(`\nAll synthetic accounts share password: ${SEED_PASSWORD}`);

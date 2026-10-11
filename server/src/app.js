@@ -15,6 +15,7 @@ const patientSelfRoutes = require('./routes/patientSelf');
 const caregiverRoutes = require('./routes/caregiver');
 const accessRoutes = require('./routes/access');
 const episodeRoutes = require('./routes/episodes');
+const documentRoutes = require('./routes/documents');
 
 function buildApp() {
   const app = express();
@@ -63,6 +64,8 @@ function buildApp() {
   app.use('/api/access', accessRoutes);
   // Part 3: recovery episodes and care-team assignment.
   app.use('/api/episodes', episodeRoutes);
+  // Part 4: private discharge documents (metadata + encrypted object storage).
+  app.use('/api/episodes', documentRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

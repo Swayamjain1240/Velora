@@ -26,6 +26,8 @@ const errors = {
     new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', message),
   rateLimited: (message = 'Too many attempts. Please wait and try again.') =>
     new AppError(429, 'RATE_LIMITED', message),
+  busy: (message = 'The service is busy. Please retry shortly.') =>
+    new AppError(503, 'SERVICE_BUSY', message),
   internal: (message = 'Something went wrong. Please try again later.') =>
     new AppError(500, 'INTERNAL_ERROR', message),
 };

@@ -30,6 +30,10 @@ exports/
 backups/
 *.log
 logs/
+# Part 4 private document storage (kept OUTSIDE the repo, ignored defensively)
+private-documents/
+document-storage/
+*.vd1
 
 # Local databases, caches and temporary files
 *.sqlite

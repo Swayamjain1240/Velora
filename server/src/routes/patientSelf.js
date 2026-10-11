@@ -6,8 +6,10 @@
 const express = require('express');
 const caregiverController = require('../controllers/caregiverController');
 const episodeController = require('../controllers/episodeController');
+const documentController = require('../controllers/documentController');
 const { validate } = require('../middleware/validate');
 const { mongoRateLimit } = require('../middleware/rateLimit');
+const { downloadLimit, readLimit } = require('../middleware/documentLimits');
 const { requireAuth, loadClinicContext, requirePermission } = require('../middleware/auth');
 const schemas = require('../validators/schemas');
 const { PERMISSIONS } = require('../config/constants');
@@ -35,6 +37,28 @@ router.get(
   '/me/episodes/:episodeId',
   validate({ params: schemas.episodeIdParam }),
   episodeController.ownGetEpisode
+);
+
+// Part 4: the patient's OWN episode documents. Read and download only - a
+// patient can never upload, and every handler re-resolves ownership in the
+// service (an unowned episode is a 404, never a 403 leak).
+router.get(
+  '/me/episodes/:episodeId/documents',
+  readLimit,
+  validate({ params: schemas.episodeIdParam, query: schemas.paginationQuery }),
+  documentController.listDocuments
+);
+router.get(
+  '/me/episodes/:episodeId/documents/:documentId',
+  readLimit,
+  validate({ params: schemas.documentParams }),
+  documentController.getDocument
+);
+router.get(
+  '/me/episodes/:episodeId/documents/:documentId/download',
+  downloadLimit,
+  validate({ params: schemas.documentParams }),
+  documentController.downloadDocument
 );
 
 router.get(

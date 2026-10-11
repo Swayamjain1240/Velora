@@ -1,8 +1,11 @@
 name: CI
 
-# Part 1 gate: server tests (MongoDB), client tests + lint + build, dependency
-# audit and a Git tree/history secret scan. The server integration suite needs a
-# real MongoDB, provided here as a service container.
+# Gate: server tests (replica-set MongoDB), client tests + lint + build, browser
+# journeys, dependency audit and a Git tree/history secret scan.
+#
+# Parts 2+ write inside MongoDB transactions, so the database MUST be a replica
+# set. Service containers cannot be started with `--replSet`, so each job starts
+# a disposable single-node replica set with `docker run` and initiates it.
 
 on:
   push:
@@ -16,30 +19,34 @@ jobs:
   server:
     name: Server tests
     runs-on: ubuntu-latest
-    services:
-      mongo:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       NODE_ENV: test
-      MONGODB_URI: mongodb://127.0.0.1:27017/velora_test
-      MONGODB_TEST_URI: mongodb://127.0.0.1:27017/velora_test
+      MONGODB_URI: mongodb://127.0.0.1:27017/velora_test?replicaSet=rs0
+      MONGODB_TEST_URI: mongodb://127.0.0.1:27017/velora_test?replicaSet=rs0
       CLIENT_ORIGIN: http://localhost:5173
       SESSION_PEPPER: ci_test_session_pepper_0123456789
       MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       SESSION_TTL_HOURS: "12"
+      DOCUMENT_STORAGE_ROOT: /tmp/velora-documents
+      DOCUMENT_ENCRYPTION_KEY: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 30); do
+            docker exec mongo mongosh --quiet --eval "db.adminCommand('ping').ok" >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker exec mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+          for i in $(seq 1 30); do
+            [ "$(docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary')" = "true" ] && break
+            sleep 2
+          done
       - run: npm ci
       - name: Server tests
         run: npm test -w server
@@ -65,24 +72,16 @@ jobs:
     name: Browser journeys
     runs-on: ubuntu-latest
     needs: [server, client]
-    services:
-      mongo:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       NODE_ENV: test
       PORT: "4100"
-      MONGODB_URI: mongodb://127.0.0.1:27017/velora_e2e
+      MONGODB_URI: mongodb://127.0.0.1:27017/velora_e2e?replicaSet=rs0
       CLIENT_ORIGIN: http://localhost:5173
       SESSION_PEPPER: ci_test_session_pepper_0123456789
       MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       SESSION_TTL_HOURS: "12"
+      DOCUMENT_STORAGE_ROOT: /tmp/velora-documents-e2e
+      DOCUMENT_ENCRYPTION_KEY: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
       VITE_API_PROXY: http://localhost:4100
       E2E_BASE_URL: http://localhost:5173
     steps:
@@ -92,6 +91,18 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 30); do
+            docker exec mongo mongosh --quiet --eval "db.adminCommand('ping').ok" >/dev/null 2>&1 && break
+            sleep 2
+          done
+          docker exec mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'127.0.0.1:27017'}]})"
+          for i in $(seq 1 30); do
+            [ "$(docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary')" = "true" ] && break
+            sleep 2
+          done
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Seed synthetic clinic

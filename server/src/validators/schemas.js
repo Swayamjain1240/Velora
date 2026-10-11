@@ -208,6 +208,9 @@ const correctDischargeSchema = z
   });
 
 const episodeIdParam = z.object({ episodeId: objectIdSchema }).strict();
+const documentParams = z
+  .object({ episodeId: objectIdSchema, documentId: objectIdSchema })
+  .strict();
 const episodeTeamParams = z
   .object({ episodeId: objectIdSchema, assignmentId: objectIdSchema })
   .strict();
@@ -247,6 +250,7 @@ module.exports = {
   createEpisodeSchema,
   correctDischargeSchema,
   episodeIdParam,
+  documentParams,
   episodeTeamParams,
   assignTeamSchema,
 };
