@@ -1,5 +1,6 @@
 'use strict';
 
+import { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import Landing from '../features/public/Landing';
@@ -13,6 +14,10 @@ import AppShell from '../features/app/AppShell';
 import Dashboard from '../features/app/Dashboard';
 import ClinicSettings from '../features/app/ClinicSettings';
 import Profile from '../features/app/Profile';
+import PatientList from '../features/patients/PatientList';
+import PatientDetail from '../features/patients/PatientDetail';
+import PatientSelf from '../features/patient/PatientSelf';
+import CaregiverHome from '../features/caregiver/CaregiverHome';
 
 // Route guard (UX only - the server is the real boundary, control #3).
 function Protected({ children }) {
@@ -22,6 +27,15 @@ function Protected({ children }) {
     return <Navigate to={mfaPending ? '/login/mfa' : '/login'} replace />;
   }
   return children;
+}
+
+// The patient list and detail share the /app/patients path: the detail is a
+// nested view keyed on the selected patient id, so the URL never grows beyond
+// the fixed shell and the back action is a plain state reset.
+function PatientsRoute() {
+  const [selectedId, setSelectedId] = useState(null);
+  if (selectedId) return <PatientDetail patientId={selectedId} onBack={() => setSelectedId(null)} />;
+  return <PatientList onOpen={setSelectedId} />;
 }
 
 export default function App() {
@@ -44,6 +58,9 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="clinic" element={<ClinicSettings />} />
+        <Route path="patients" element={<PatientsRoute />} />
+        <Route path="me" element={<PatientSelf />} />
+        <Route path="caregiver" element={<CaregiverHome />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

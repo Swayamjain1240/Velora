@@ -220,6 +220,48 @@ input, select {
 
 .pager { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; color: var(--muted); }
 
+/* ---------- Part 2: patients, consent, caregivers ---------- */
+.card--tabs { min-height: 0; }
+.detail-head { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.detail-head h1 { margin: 0; }
+.muted { color: var(--muted); }
+.stack { display: flex; flex-direction: column; gap: .5rem; align-items: flex-start; margin: .75rem 0; }
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr;
+  gap: .25rem .9rem;
+  margin: .5rem 0;
+}
+.summary dt { font-weight: 600; color: var(--muted); }
+.summary dd { margin: 0; }
+
+.scopes {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .35rem .6rem;
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.scopes legend { font-size: .8rem; color: var(--muted); }
+.check { display: flex; align-items: center; gap: .35rem; font-weight: 500; margin: 0; }
+.check input { width: auto; }
+
+.wizard { display: flex; flex-direction: column; gap: .5rem; flex: 1 1 auto; min-height: 0; }
+.stepper { list-style: none; display: flex; gap: .5rem; padding: 0; margin: 0 0 .25rem; flex-wrap: wrap; }
+.stepper__item {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .2rem .7rem;
+  font-size: .85rem;
+  color: var(--muted);
+}
+.stepper__item--active { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.wizard__body { overflow: auto; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: .35rem; }
+.wizard__actions { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; margin-top: .5rem; }
+
 /* ---------- Small screens: one primary panel ---------- */
 @media (max-width: 640px) {
   .shell__header { flex-direction: column; align-items: stretch; }

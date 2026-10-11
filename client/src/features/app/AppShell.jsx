@@ -9,7 +9,13 @@ export default function AppShell() {
   const { user, memberships, logout } = useAuth();
   const navigate = useNavigate();
   const membership = memberships && memberships[0];
-  const isAdmin = membership && membership.roleKey === 'admin';
+  const roleKey = membership && membership.roleKey;
+  const isAdmin = roleKey === 'admin';
+  // Part 2: staff hold patient.read; the patient and caregiver roles get their
+  // own scoped entry points instead of the clinic-wide patient list.
+  const isStaff = roleKey === 'care_coordinator' || roleKey === 'clinical_reviewer';
+  const isPatient = roleKey === 'patient';
+  const isCaregiver = roleKey === 'caregiver';
 
   async function onLogout() {
     await logout();
@@ -24,6 +30,9 @@ export default function AppShell() {
         <span className="shell__brand">Velora</span>
         <nav className="shell__nav" aria-label="Application">
           <NavLink to="/app" end>Overview</NavLink>
+          {isStaff && <NavLink to="/app/patients">Patients</NavLink>}
+          {isPatient && <NavLink to="/app/me">My records</NavLink>}
+          {isCaregiver && <NavLink to="/app/caregiver">Shared with me</NavLink>}
           {isAdmin && <NavLink to="/app/clinic">Clinic &amp; staff</NavLink>}
           <NavLink to="/app/profile">Profile</NavLink>
         </nav>
