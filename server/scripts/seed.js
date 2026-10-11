@@ -17,6 +17,8 @@ const MembershipRole = require('../src/models/MembershipRole');
 const PatientProfile = require('../src/models/PatientProfile');
 const RecoveryEpisode = require('../src/models/RecoveryEpisode');
 const CareTeamAssignment = require('../src/models/CareTeamAssignment');
+const PatientAssignment = require('../src/models/PatientAssignment');
+const CaregiverGrant = require('../src/models/CaregiverGrant');
 const RateLimitBucket = require('../src/models/RateLimitBucket');
 
 const SEED_PASSWORD = 'SyntheticDevPass!24';
@@ -33,6 +35,9 @@ const STAFF = [
   // account that owns a linked profile (read-and-download only).
   { email: 'docsview@synthetic.invalid', name: 'Synthetic Document Coordinator', roleKey: 'care_coordinator' },
   { email: 'patient.docs@synthetic.invalid', name: 'Synthetic Document Patient', roleKey: 'patient' },
+  // Scoped caregiver holder: the one-viewport gate needs a session that can
+  // reach the caregiver screen, which requires an ACTIVE, explicit grant.
+  { email: 'caregiver.docs@synthetic.invalid', name: 'Synthetic Document Caregiver', roleKey: 'caregiver' },
 ];
 
 // Part 4: one synthetic care team with a DRAFT episode (documents accepted) and
@@ -42,7 +47,10 @@ const STAFF = [
 async function seedDocumentJourney(clinic, passwordHash) {
   const coordinator = await User.findOne({ email: 'docsview@synthetic.invalid' });
   const patientUser = await User.findOne({ email: 'patient.docs@synthetic.invalid' });
-  if (!coordinator || !patientUser) throw new Error('document journey accounts were not seeded');
+  const caregiverUser = await User.findOne({ email: 'caregiver.docs@synthetic.invalid' });
+  if (!coordinator || !patientUser || !caregiverUser) {
+    throw new Error('document journey accounts were not seeded');
+  }
 
   const membership = await ClinicMembership.findOne({ clinic: clinic.id, user: coordinator.id });
 
@@ -71,6 +79,46 @@ async function seedDocumentJourney(clinic, passwordHash) {
       status: 'draft',
     }),
   ];
+
+  // The coordinator holds an ACTIVE intake assignment on both profiles, so the
+  // staff patient list/detail (also part of the one-viewport gate) is reachable.
+  for (const profile of profiles) {
+    await PatientAssignment.updateOne(
+      { clinic: clinic.id, patient: profile.id, memberUser: coordinator.id, status: 'active' },
+      {
+        $setOnInsert: {
+          clinic: clinic.id,
+          patient: profile.id,
+          membership: membership ? membership.id : undefined,
+          memberUser: coordinator.id,
+          status: 'active',
+          assignedBy: coordinator.id,
+          assignedByRole: 'staff',
+          assignedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+  }
+
+  // The caregiver holds ONLY view_profile on the linked patient: every other
+  // scope stays inert, so the caregiver screen shows a scoped, read-only view.
+  await CaregiverGrant.updateOne(
+    { clinic: clinic.id, patient: profiles[1].id, granteeEmail: caregiverUser.email },
+    {
+      $set: { status: 'active', scopes: ['view_profile'] },
+      $setOnInsert: {
+        clinic: clinic.id,
+        patient: profiles[1].id,
+        granteeEmail: caregiverUser.email,
+        caregiverUser: caregiverUser.id,
+        grantedByUser: coordinator.id,
+        grantedByRole: 'staff',
+        grantedAt: new Date(),
+      },
+    },
+    { upsert: true }
+  );
 
   // The coordinator is an ACTIVE team member on every seeded episode: document
   // write access requires that assignment, never a clinic role alone.

@@ -19,10 +19,12 @@ function session(file) {
 const SESSIONS = [
   { file: 'viewport-reviewer.json', routes: ['/app', '/app/patients', '/app/episodes', '/app/profile'] },
   { file: 'viewport-admin.json', routes: ['/app', '/app/clinic', '/app/profile'] },
-  // Part 4: the documents screens (opened by documents.spec) live under the
-  // episode detail, so this session covers the list screens it can reach.
-  { file: 'docs-coordinator.json', routes: ['/app', '/app/episodes'] },
+  // Part 4: the documents screens (opened by documents.spec) and the detail
+  // screens (opened by detail-viewports.spec) live under the episode detail, so
+  // this session covers the list screens it can reach.
+  { file: 'docs-coordinator.json', routes: ['/app', '/app/patients', '/app/episodes', '/app/profile'] },
   { file: 'docs-patient.json', routes: ['/app', '/app/me/episodes', '/app/me'] },
+  { file: 'docs-caregiver.json', routes: ['/app', '/app/caregiver'] },
 ];
 
 for (const size of VIEWPORTS) {

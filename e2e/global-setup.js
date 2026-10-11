@@ -27,6 +27,7 @@ const SESSIONS = [
   { email: 'admin@synthetic.invalid', file: 'viewport-admin.json' },
   { email: 'docsview@synthetic.invalid', file: 'docs-coordinator.json' },
   { email: 'patient.docs@synthetic.invalid', file: 'docs-patient.json' },
+  { email: 'caregiver.docs@synthetic.invalid', file: 'docs-caregiver.json' },
 ];
 
 // Minimal .env reader so the seed uses the SAME database as the running API
