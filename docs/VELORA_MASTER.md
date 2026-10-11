@@ -39,14 +39,14 @@ Code 2 (diagnostic tests/results) and Code 3 (insurance) are **out of active sco
 The numbered requirements below are grouped by delivery part. State values use the Duck evidence
 classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, `BLOCKED`.
 
-| ID | Requirement | Part | State (10 Oct 2026) |
+| ID | Requirement | Part | State (11 Oct 2026, through Part 4) |
 |---:|---|---:|---|
-| VEL-001 | Repository, documentation baseline and CI gate | 1 | IMPLEMENTED / UNVERIFIED |
-| VEL-002 | Clinic, staff RBAC and reviewer-eligibility boundary | 1 | IMPLEMENTED / UNVERIFIED |
-| VEL-003 | Authentication: Argon2id, sessions, MFA, CSRF, reset, invite | 1 | IMPLEMENTED / UNVERIFIED |
-| VEL-004 | Patient onboarding, consent history and caregiver grants | 2 | IMPLEMENTED / UNVERIFIED |
-| VEL-005 | Recovery episodes and care-team assignment | 3 | IMPLEMENTED / UNVERIFIED |
-| VEL-006 | Private discharge-document intake | 4 | PLANNED |
+| VEL-001 | Repository, documentation baseline and CI gate | 1 | VERIFIED (local scope) |
+| VEL-002 | Clinic, staff RBAC and reviewer-eligibility boundary | 1 | VERIFIED (local scope) |
+| VEL-003 | Authentication: Argon2id, sessions, MFA, CSRF, reset, invite | 1 | VERIFIED (local scope) |
+| VEL-004 | Patient onboarding, consent history and caregiver grants | 2 | VERIFIED (local scope) |
+| VEL-005 | Recovery episodes and care-team assignment | 3 | VERIFIED (local scope) |
+| VEL-006 | Private discharge-document intake | 4 | VERIFIED (local scope; no antivirus provider, quarantine has no review screen yet) |
 | VEL-007 | Manual source-linked care-plan drafting | 5 | PLANNED |
 | VEL-008 | Clinical review, approval and versioning (completes synthetic M1) | 5 | PLANNED |
 | VEL-009 | AI extraction with source citations and reviewed language | 6 | PLANNED |
@@ -57,11 +57,11 @@ classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, 
 | VEL-014 | Audit, privacy requests, retention and metrics | 9 | PLANNED |
 | VEL-015 | Production hardening and isolated restore testing | 10 | PLANNED |
 | VEL-016 | Clinical-readiness gate before real-patient pilot | 10 | PLANNED |
-| VEL-017 | One-viewport rule for every authenticated screen | all | IMPLEMENTED / UNVERIFIED |
-| VEL-018 | Safe error envelope, no tenant-existence leakage | all | IMPLEMENTED / UNVERIFIED |
-| VEL-019 | Continuous secret scanning and dependency audit | all | IMPLEMENTED / UNVERIFIED |
-| VEL-020 | Documentation synchronized with real code | all | PARTIAL |
-| VEL-021 | 50+ meaningful commits without padding | all | PARTIAL |
+| VEL-017 | One-viewport rule for every authenticated screen | all | VERIFIED (list, detail, documents and caregiver screens at six sizes; chart panels arrive with later parts) |
+| VEL-018 | Safe error envelope, no tenant-existence leakage | all | VERIFIED (local scope) |
+| VEL-019 | Continuous secret scanning and dependency audit | all | VERIFIED (local scope) |
+| VEL-020 | Documentation synchronized with real code | all | VERIFIED through Part 4 |
+| VEL-021 | 50+ meaningful commits without padding | all | PARTIAL - 25 commits at Part 4 of 10; the target is for the completed project |
 
 ## 4. Ten-part roadmap
 

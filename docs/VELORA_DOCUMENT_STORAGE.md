@@ -205,6 +205,23 @@ attachment` with RFC 6266 encoding, `X-Content-Type-Options: nosniff`,
 `Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: same-origin`,
 and `Cache-Control: no-store`.
 
+## 8a. Reproducing the quarantine journey
+
+A live timeout cannot be produced on a healthy host with the shipped 3000 ms budget, so the browser
+journey that proves it is opt-in and needs an API started with a tiny budget:
+
+```bash
+# terminal 1
+PORT=4100 NODE_ENV=test DOCUMENT_PARSER_TIMEOUT_MS=50 node server/src/index.js
+# terminal 2 (Vite proxying /api at 4100)
+E2E_QUARANTINE=1 npx playwright test e2e/documents-quarantine.spec.js
+```
+
+The spec uploads a structurally valid PDF (three objects, one page, nothing appended after `%%EOF`)
+through the real UI. The only reason it can be held is the wall-clock limit, and the assertions require
+the `quarantined` status, the held-for-an-operator note, no "technically accepted" wording and no
+download control. Without `E2E_QUARANTINE=1` it is reported as skipped.
+
 ## 9. Screens
 
 Staff: episode detail -> **Documents** tab -> `choose -> review -> upload -> result`, plus the

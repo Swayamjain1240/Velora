@@ -167,7 +167,7 @@ npm test -w server               # 100 unit + integration tests (replica-set Mon
 npm test -w client               # 18 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
-npx playwright test              # 36 browser journeys at six viewport sizes
+npx playwright test              # 48 browser journeys at six viewport sizes
 npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
 npm audit --omit=dev             # production dependency audit
 ```
@@ -186,8 +186,14 @@ npx playwright test              # in another (Chromium is installed via npx pla
 The suite makes many requests in a minute, so the API is started the way CI starts it for browser
 journeys: `NODE_ENV=test PORT=4100 node server/src/index.js`. That switches off only the in-process
 blanket limiter; the durable Mongo-backed per-route limits stay active. The journeys upload synthetic
-PDFs byte-for-byte, compare the downloaded bytes with the original, and assert the document screens
-at all six viewport sizes.
+PDFs byte-for-byte, compare the downloaded bytes with the original, and measure the list routes, the
+detail screens (patient, episode, documents) and the caregiver's scoped view at all six required
+viewport sizes.
+
+One journey is opt-in because it needs an API with a tiny parser budget: start the API with
+`DOCUMENT_PARSER_TIMEOUT_MS=50` and run `E2E_QUARANTINE=1 npx playwright test
+e2e/documents-quarantine.spec.js` to watch a structurally valid file be quarantined end to end. It is
+reported as skipped in a normal run so the default gate stays meaningful.
 
 During implementation:
 

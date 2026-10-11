@@ -227,6 +227,10 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   `choose -> review -> upload -> result`, download it and compare the bytes with the uploaded
   original - plus a refusal journey (active PDF), a closed-episode read-only check and a patient
   read-only check.
+- **Browser (one-viewport, cross-part):** `viewports.spec.js` measures every list route for five
+  enrolled role sessions (reviewer, admin, document coordinator, patient, caregiver) at all six
+  sizes, and `detail-viewports.spec.js` walks into the staff patient detail, the staff episode detail
+  and the caregiver's scoped patient detail at all six sizes.
 - **Recovery:** `scripts/reconcile-documents.js` dry run is part of the part gate; `--apply` requires
   an explicit operator and audits every repair.
 - **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.

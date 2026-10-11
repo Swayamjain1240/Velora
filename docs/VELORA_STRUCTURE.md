@@ -26,7 +26,9 @@ Velora/
     auth.spec.js                  # login / MFA / staff journeys
     patients.spec.js              # Part 2-3 onboarding / consent / activation / episode journey
     documents.spec.js             # Part 4 upload / refusal / download journeys per viewport
-    viewports.spec.js             # six-size one-viewport assertions
+    documents-quarantine.spec.js  # opt-in live quarantine journey (needs a 50 ms parser budget)
+    detail-viewports.spec.js      # six-size one-viewport assertions for the detail screens
+    viewports.spec.js             # six-size one-viewport assertions for the list routes
     global-setup.js               # seeds the synthetic clinic; enrols viewport sessions
   server/
     package.json

@@ -5,6 +5,101 @@ Evidence classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, 
 
 ---
 
+## Session - 11 October 2026 - Duck review: cross-part completeness audit (Parts 1-4)
+
+### What was reviewed
+
+The authority set (the three PDFs' markdown mirrors plus the owner's ten build prompts), `README.md`,
+`.env.example`, the CI workflow and the whole `server/`, `client/` and `e2e/` trees, against the
+exit gate of every part from 1 to 4 and all 25 security controls.
+
+### Repository state on entry
+
+| Item | Observed |
+|---|---|
+| Branch / HEAD | `main` at `1b4b302`, identical to `origin/main` |
+| Dirty tree | clean; no untracked or ignored-in-error files |
+| Commits | 25 meaningful commits across Parts 1-4 (no `fix:`-only padding run) |
+| Tracked private files | `.env.example` and `.gitignore` only - no `.env`, key, upload or object file |
+| Sessions in the browser gate | 5 enrolled roles (reviewer, admin, document coordinator, patient, caregiver) |
+| CI state | **unavailable** - `gh` is not installed on this host, so the Actions/PR state could not be read; no pass is claimed for it |
+
+### Part-by-part verdict
+
+| Part | Deliverable | Verdict | Evidence |
+|---:|---|---|---|
+| 1 | Repository, authentication, clinic permissions | **COMPLETE (local scope)** | Argon2id only, opaque revocable sessions, forced staff MFA with TOTP + single-use recovery codes, double-submit CSRF bound to the session, invite/reset tokens stored as hashes, RBAC with a separately verified reviewer boundary and admin-without-clinical-access; CI gate present |
+| 2 | Patient onboarding, consent and caregiver access | **COMPLETE (local scope)** | `PatientProfile`/`PatientAssignment`/`PatientConsent`/`CaregiverGrant`/`AccessInvitation`; consent append-only enforced **inside the model** (update/delete hooks throw); grants inactive until acceptance, expiring and revocable; intake assignment required for every staff read; caregiver screen scoped to `view_profile` only |
+| 3 | Recovery episodes and care-team assignment | **COMPLETE (local scope)** | Immutable episode identity, atomic `{_id, revision, status:'draft'}` correction filter with append-only history, partial unique index on the active assignment, last-assignee protection, reviewer eligibility at assignment time, admin denied clinical metadata |
+| 4 | Private discharge-document intake | **COMPLETE (local scope)** | Metadata-only documents, provider-neutral encrypted storage outside the repo, bounded isolated parser worker, authorize-before-read, quarantine/rejected/failed states, scoped mirror for the patient owner, reconciliation command; the live quarantine browser journey was added by this audit |
+| 5-10 | Plans, AI, tasks, check-ins, closure, hardening | **PLANNED / not started** | Deliberately out of scope for Parts 1-4 |
+
+### Drift found in this audit and fixed
+
+| # | Drift | Classification | Fix |
+|---:|---|---|---|
+| 1 | Control #25 / VEL-017 evidence covered the LIST routes but not the detail screens, and nothing measured the caregiver screen | `DRIFT` (evidence gap) | Seeded a scoped caregiver account with an active `view_profile` grant and intake assignments for the document coordinator; enrolled a fifth browser session; added `e2e/detail-viewports.spec.js` (staff patient detail, staff episode detail, caregiver's scoped patient view) at all six sizes; `/app/patients` added to the coordinator session and `/app/caregiver` measured |
+| 2 | The exit gate's "browser quarantine journey" had no reproducible live evidence | `PARTIAL` | Added the opt-in `e2e/documents-quarantine.spec.js` and ran it against an API started with `DOCUMENT_PARSER_TIMEOUT_MS=50`: a structurally valid 2,000,273-byte PDF was uploaded through the UI and came back **Quarantined**, with the held-for-operator note and no download offered |
+| 3 | `VELORA_MASTER.md` still showed the 10 Oct requirement states (VEL-006 `PLANNED`, VEL-001..005 `IMPLEMENTED / UNVERIFIED`) | `DRIFT` (doc vs code) | Requirement table updated to the 11 Oct states through Part 4, with the honest residual limits inline |
+| 4 | CI waited for the stack with an unpinned `npx wait-on` download | `DRIFT` (control #13/#14) | Replaced with a bounded `curl` readiness loop - no extra dependency enters the build |
+
+### Evidence (all re-run on this HEAD, after the repairs above)
+
+| Check | Command | Result |
+|---|---|---|
+| Server tests | `npm test -w server` | **100 pass / 0 fail**, exit 0 |
+| Client tests | `npm test -w client` | **18 pass / 0 fail**, exit 0 |
+| Client lint | `npm run lint -w client` | clean, exit 0 |
+| Production build | `npm run build -w client` | succeeds, exit 0 |
+| Browser journeys | `npx playwright test` | **48 pass / 0 fail / 1 skipped**, exit 0 (the skip is the opt-in quarantine journey) |
+| Quarantine journey | `E2E_QUARANTINE=1 npx playwright test e2e/documents-quarantine.spec.js` | **1 pass**, exit 0 |
+| Document reconciliation | `npm run documents:reconcile -w server` | clean store (0 missing / 0 unreadable / 0 mismatches / 0 orphans); drift detection and the `--apply` operator guard verified separately |
+| Production audit | `npm audit --omit=dev` | 0 vulnerabilities |
+| Tree secret scan | `git grep` for key patterns | no matches |
+| History secret scan | `git log -p --all` for key patterns | 0 matches |
+| Env/template drift | `env.js` keys vs `.env.example` | no missing key; only `TEST_MONGO_*` and `VITE_API_BASE_URL` are extra |
+| Unsafe HTML / secret leak into the bundle | grep for `dangerouslySetInnerHTML`/`innerHTML` and server secret names in `client/` | no matches |
+| Dead scaffolding | grep for `TODO`/`FIXME`/placeholders in `server/src`, `client/src`, `e2e` | none (one HTML `placeholder` attribute) |
+
+### Requirement coverage (Parts 1-4 scope)
+
+`VEL-001`..`VEL-006` and `VEL-017`..`VEL-020` are `VERIFIED` at local scope. `VEL-007`+ remain
+`PLANNED` (Parts 5-10 were not started). `VEL-021` stays `PARTIAL`: 25 meaningful commits against a
+50+ target for the *completed* project, with no commit padding.
+
+### Security-25 status for the Parts 1-4 scope
+
+Controls 3, 4, 5, 6, 8, 9, 11, 21, 23 were verified by the part gates above (route protection,
+auth/MFA/CSRF, server-side clinic+assignment+state checks, input/byte validation, separated upload and
+download limits, safe error envelope, file-response headers, and the adversarial suites). Controls 1,
+2, 13, 14, 15, 16, 17, 18, 22 were re-checked directly in this audit (no secret in the tree or
+history or the bundle, fail-closed env with storage-root/key pairing, unchanged pinned dependency set
+with a 0-vulnerability production audit, private-file ignore rules, server-only `MONGODB_URI`, Argon2id
+intact, and no external provider added). Control 7 is structural (no unsafe HTML anywhere). Controls
+10, 12 and 24 were checked against the code and documents changed here. Control 19 is this entry;
+control 20 was satisfied by the three Part 4 commits and by leaving the restored gates green; control
+25 now covers list routes, detail screens, document screens and the caregiver view.
+
+### Duck verdict: PASS (Parts 1-4, local scope)
+
+All four completed parts meet their exit gates on this HEAD, with the four drift items above repaired
+and every check re-run afterwards. Evidence remains local: no deployment, no real data, no antivirus
+certification and no clinical validation.
+
+### Remaining limits (carried forward)
+
+- CI/Actions and pull-request state cannot be read from this host (`gh` unavailable), and all work has
+  been committed directly to `main` with no review PR - a deviation from the Part 2 prompt guidance.
+- Quarantined documents have no operator review screen yet (status plus the reconciliation command).
+- Validation is structural, not antivirus; no scanning provider is authorized.
+- A live parser timeout is only reproducible with a lowered wall-clock budget (documented opt-in spec).
+- Caregiver scopes other than `view_profile` remain inert by design; administrator clinical access is
+  possible only through an explicit assignment, never through admin status.
+- No production deployment, restore drill, retention policy or clinical-readiness gate (Parts 9-10);
+  the commit-count target is a whole-project goal.
+
+---
+
 ## Session - 11 October 2026 - Part 4 (private discharge-document intake)
 
 ### Duck review (start of session)
@@ -76,7 +171,7 @@ URL is ever stored or returned.
 | Client tests | `npm test -w client` | **18 pass / 0 fail** |
 | Client lint | `npm run lint -w client` | clean |
 | Client build | `npm run build -w client` | production build succeeds (63 modules) |
-| Browser journeys | `npx playwright test` | **36 pass / 0 fail** (upload/refusal/download journeys plus the six-viewport suite) |
+| Browser journeys | `npx playwright test` | **36 pass / 0 fail** at Part 4 close (upload/refusal/download journeys plus the six-viewport suite); **48 pass / 0 fail** once the cross-part audit added the detail-screen and caregiver sessions |
 | Document reconciliation | `npm run documents:reconcile -w server` | dry run on the live store: 24 live rows / 24 objects, 0 missing, 0 unreadable, 0 integrity mismatches, 0 orphans. Removing one object of a `ready` row was reported as `missing: <id> key <uuid>`, and an unreferenced object as `orphan: <uuid>`; both were restored afterwards, and `--apply` without `--operator` was refused with exit code 2 |
 | Production audit | `npm audit --omit=dev` | 0 vulnerabilities |
 | Secret scan (tree) | `git grep` for key patterns | no credentials; only `.env.example` tracked |

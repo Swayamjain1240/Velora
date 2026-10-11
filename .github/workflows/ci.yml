@@ -112,7 +112,19 @@ jobs:
       - name: Start client
         run: npm run dev -w client &
       - name: Wait for stack
-        run: npx wait-on http://localhost:4100/api/health http://localhost:5173
+        # Readiness is asserted with curl instead of an unpinned `npx wait-on`
+        # download: no extra dependency enters the build (control #13, #14).
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:4100/api/health >/dev/null && \
+               curl -fsS http://localhost:5173 >/dev/null; then
+              echo "stack ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "stack did not become ready" >&2
+          exit 1
       - name: Browser journeys
         run: npx playwright test
 
