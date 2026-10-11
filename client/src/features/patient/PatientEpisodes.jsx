@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import DocumentsPanel from '../documents/DocumentsPanel';
 
 const PAGE_SIZE = 10;
 
@@ -54,6 +55,15 @@ export default function PatientEpisodes() {
           <dt>Status</dt><dd>{selected.status}</dd>
         </dl>
         <p className="muted">Your care team reviews the discharge details. Contact them if something looks wrong.</p>
+        {/* Read and download only: a patient can never upload a document, and
+            every request re-resolves ownership on the server. */}
+        <DocumentsPanel
+          episodeId={selected.id}
+          basePath={`/patient/me/episodes/${selected.id}`}
+          canUpload={false}
+          readOnlyReason="Only your care team can upload documents."
+          onDenied={fail}
+        />
       </section>
     );
   }

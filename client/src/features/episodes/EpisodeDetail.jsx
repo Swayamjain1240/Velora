@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import DocumentsPanel from '../documents/DocumentsPanel';
 
 const PAGE_SIZE = 10;
-const TABS = ['overview', 'corrections', 'team'];
+const TABS = ['overview', 'corrections', 'team', 'documents'];
 const COMMON_ZONES = [
   'Europe/London',
   'Europe/Paris',
@@ -242,6 +243,18 @@ export default function EpisodeDetail({ episodeId, onBack }) {
               </tbody>
             </table>
           </div>
+        )}
+
+        {tab === 'documents' && (
+          <DocumentsPanel
+            episodeId={episodeId}
+            basePath={`/episodes/${episodeId}`}
+            // Only an assigned team member may upload, and only to a draft
+            // episode; the server re-checks both on every request.
+            canUpload={episode.status === 'draft'}
+            readOnlyReason={`Documents can only be added while the episode is a draft (this episode is ${episode.status}).`}
+            onDenied={fail}
+          />
         )}
       </div>
     </section>

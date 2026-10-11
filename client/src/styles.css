@@ -262,6 +262,34 @@ input, select {
 .wizard__body { overflow: auto; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: .35rem; }
 .wizard__actions { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; margin-top: .5rem; }
 
+/* ---------- Part 4: private documents ---------- */
+.documents { display: flex; flex-direction: column; gap: .5rem; flex: 1 1 auto; min-height: 0; }
+.documents__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.documents__head h2 { margin: 0; }
+.documents__summary { display: flex; gap: .4rem; flex-wrap: wrap; }
+.documents__note { display: block; color: var(--muted); font-size: .8rem; }
+
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: .05rem .55rem;
+  font-size: .78rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  white-space: nowrap;
+}
+.pill--ready { background: #e6f4ea; border-color: #a8d5b5; color: #14532d; }
+.pill--uploading { background: #eef2f7; }
+.pill--rejected { background: #fdecea; border-color: #f0b3ae; color: var(--danger); }
+.pill--quarantined { background: #fff4e5; border-color: #edc99a; color: #8a4b00; }
+.pill--failed { background: #f3f4f6; border-color: #c7ccd4; color: #444c56; }
+
 /* ---------- Small screens: one primary panel ---------- */
 @media (max-width: 640px) {
   .shell__header { flex-direction: column; align-items: stretch; }
