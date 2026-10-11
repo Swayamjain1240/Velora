@@ -167,6 +167,58 @@ const acceptAccessInvitationSchema = z
 
 const patientActivationSchema = z.object({ email: emailSchema }).strict();
 
+// ---------- Part 3: recovery episodes and care-team assignment ----------
+
+// A strict calendar date, so a discharge date never depends on the caller's
+// clock or offset. The IANA timezone is validated in the service.
+const dateOnlySchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a calendar date (YYYY-MM-DD)')
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, 'Enter a real calendar date');
+
+const createEpisodeSchema = z
+  .object({
+    patientId: objectIdSchema,
+    dischargeDate: dateOnlySchema,
+    dischargeTimezone: z.string().trim().min(1).max(64),
+    reference: z
+      .string()
+      .trim()
+      .min(3)
+      .max(40)
+      .regex(/^[A-Za-z0-9-]+$/, 'Reference may contain letters, digits and hyphens')
+      .optional(),
+  })
+  .strict();
+
+const correctDischargeSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    dischargeDate: dateOnlySchema.optional(),
+    dischargeTimezone: z.string().trim().min(1).max(64).optional(),
+    reason: z.string().trim().max(300).optional(),
+  })
+  .strict()
+  .refine((v) => v.dischargeDate !== undefined || v.dischargeTimezone !== undefined, {
+    message: 'Provide a discharge date or timezone to correct.',
+  });
+
+const episodeIdParam = z.object({ episodeId: objectIdSchema }).strict();
+const episodeTeamParams = z
+  .object({ episodeId: objectIdSchema, assignmentId: objectIdSchema })
+  .strict();
+
+const assignTeamSchema = z
+  .object({
+    memberUserId: objectIdSchema,
+    responsibility: z.enum(['care_coordinator', 'clinical_reviewer']),
+  })
+  .strict();
+
 module.exports = {
   loginSchema,
   mfaVerifySchema,
@@ -192,4 +244,9 @@ module.exports = {
   caregiverGrantParams,
   acceptAccessInvitationSchema,
   patientActivationSchema,
+  createEpisodeSchema,
+  correctDischargeSchema,
+  episodeIdParam,
+  episodeTeamParams,
+  assignTeamSchema,
 };

@@ -427,6 +427,19 @@ async function revokeAssignment({ clinicId, user, patientId, assignmentId, ip, u
   return publicAssignment(assignment);
 }
 
+// Resolves the caller's own patient record id (ownership), or 404. Used by
+// Part 3 so a patient can list their own episodes without any staff role.
+async function resolveOwnProfileId({ clinicId, user }) {
+  const patient = await PatientProfile.findOne({
+    clinic: clinicId,
+    linkedUserId: user.id,
+  })
+    .select('_id')
+    .lean();
+  if (!patient) throw errors.notFound('No patient profile is linked to this account.');
+  return patient._id;
+}
+
 // The patient's own view: their profile plus the grants they control.
 async function getOwnProfile({ clinicId, user }) {
   const patient = await PatientProfile.findOne({
@@ -451,6 +464,7 @@ module.exports = {
   listEligibleAssignees,
   createAssignment,
   revokeAssignment,
+  resolveOwnProfileId,
   getOwnProfile,
   activeAssignmentCount,
   randomReference,

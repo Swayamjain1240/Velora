@@ -5,6 +5,7 @@
 // account is the caller.
 const express = require('express');
 const caregiverController = require('../controllers/caregiverController');
+const episodeController = require('../controllers/episodeController');
 const { validate } = require('../middleware/validate');
 const { mongoRateLimit } = require('../middleware/rateLimit');
 const { requireAuth, loadClinicContext, requirePermission } = require('../middleware/auth');
@@ -23,6 +24,18 @@ const inviteLimit = mongoRateLimit({
 });
 
 router.get('/me/profile', caregiverController.ownProfile);
+
+// Part 3: the patient's own recovery episodes (ownership, not a clinic role).
+router.get(
+  '/me/episodes',
+  validate({ query: schemas.paginationQuery }),
+  episodeController.ownListEpisodes
+);
+router.get(
+  '/me/episodes/:episodeId',
+  validate({ params: schemas.episodeIdParam }),
+  episodeController.ownGetEpisode
+);
 
 router.get(
   '/me/:patientId/caregivers',

@@ -40,6 +40,9 @@ const PatientAssignment = require('../../src/models/PatientAssignment');
 const PatientConsent = require('../../src/models/PatientConsent');
 const CaregiverGrant = require('../../src/models/CaregiverGrant');
 const AccessInvitation = require('../../src/models/AccessInvitation');
+const RecoveryEpisode = require('../../src/models/RecoveryEpisode');
+const CareTeamAssignment = require('../../src/models/CareTeamAssignment');
+const EpisodeCorrection = require('../../src/models/EpisodeCorrection');
 
 let counter = 0;
 function uniq(prefix) {
@@ -72,6 +75,7 @@ async function resetDb() {
     User, Clinic, ClinicMembership, MembershipRole, Invitation,
     PasswordReset, Session, AuditEvent, MfaRecoveryCode, RateLimitBucket,
     PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
+    RecoveryEpisode, CareTeamAssignment, EpisodeCorrection,
   ];
   // Delete through the raw driver so model-level invariants (for example the
   // append-only consent guard) do not block the harness's own reset.
@@ -227,5 +231,6 @@ module.exports = {
     User, Clinic, ClinicMembership, MembershipRole, Invitation,
     PasswordReset, Session, AuditEvent, MfaRecoveryCode, RateLimitBucket,
     PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
+    RecoveryEpisode, CareTeamAssignment, EpisodeCorrection,
   },
 };
