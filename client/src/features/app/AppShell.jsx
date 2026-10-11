@@ -31,7 +31,9 @@ export default function AppShell() {
         <nav className="shell__nav" aria-label="Application">
           <NavLink to="/app" end>Overview</NavLink>
           {isStaff && <NavLink to="/app/patients">Patients</NavLink>}
+          {isStaff && <NavLink to="/app/episodes">Episodes</NavLink>}
           {isPatient && <NavLink to="/app/me">My records</NavLink>}
+          {isPatient && <NavLink to="/app/me/episodes">My recovery</NavLink>}
           {isCaregiver && <NavLink to="/app/caregiver">Shared with me</NavLink>}
           {isAdmin && <NavLink to="/app/clinic">Clinic &amp; staff</NavLink>}
           <NavLink to="/app/profile">Profile</NavLink>

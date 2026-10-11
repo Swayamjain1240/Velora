@@ -17,7 +17,10 @@ import Profile from '../features/app/Profile';
 import PatientList from '../features/patients/PatientList';
 import PatientDetail from '../features/patients/PatientDetail';
 import PatientSelf from '../features/patient/PatientSelf';
+import PatientEpisodes from '../features/patient/PatientEpisodes';
 import CaregiverHome from '../features/caregiver/CaregiverHome';
+import EpisodeList from '../features/episodes/EpisodeList';
+import EpisodeDetail from '../features/episodes/EpisodeDetail';
 
 // Route guard (UX only - the server is the real boundary, control #3).
 function Protected({ children }) {
@@ -36,6 +39,14 @@ function PatientsRoute() {
   const [selectedId, setSelectedId] = useState(null);
   if (selectedId) return <PatientDetail patientId={selectedId} onBack={() => setSelectedId(null)} />;
   return <PatientList onOpen={setSelectedId} />;
+}
+
+// Same nested pattern for episodes: the detail is a state-swapped view so the
+// URL stays inside the fixed shell.
+function EpisodesRoute() {
+  const [selectedId, setSelectedId] = useState(null);
+  if (selectedId) return <EpisodeDetail episodeId={selectedId} onBack={() => setSelectedId(null)} />;
+  return <EpisodeList onOpen={setSelectedId} />;
 }
 
 export default function App() {
@@ -59,7 +70,9 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="clinic" element={<ClinicSettings />} />
         <Route path="patients" element={<PatientsRoute />} />
+        <Route path="episodes" element={<EpisodesRoute />} />
         <Route path="me" element={<PatientSelf />} />
+        <Route path="me/episodes" element={<PatientEpisodes />} />
         <Route path="caregiver" element={<CaregiverHome />} />
         <Route path="profile" element={<Profile />} />
       </Route>
