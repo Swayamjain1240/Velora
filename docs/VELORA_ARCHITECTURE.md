@@ -117,7 +117,7 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
   reviewer's eligibility to be currently `verified`; the last active assignment can never be
   revoked.
 
-## 5. Data model (Parts 1-4)
+## 5. Data model (Parts 1-5)
 
 | Model | Purpose | Notable indexes |
 |---|---|---|
@@ -140,6 +140,13 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
 | `CareTeamAssignment` | episode team intervals (active/revoked) | partial unique `(clinic,episode,memberUser)` where `status='active'` |
 | `EpisodeCorrection` | append-only discharge-date correction history | `(clinic,episode,correctedAt)` |
 | `EpisodeDocument` | private document **metadata** (opaque key, display filename, allowlisted type, size, SHA-256, technical status) | unique `storageKey`; unique `(episode,sha256)`; `(clinic,episode,createdAt)` |
+| `CarePlanVersion` | one version of a manual care plan for an episode (state, revision, approval facts, current/superseded) | unique `(episode,version)`; **partial unique `(episode)` where `isCurrent:true, state:'approved'`**; `(clinic,episode,version)` |
+| `CarePlanItem` | one clinical instruction (verbatim original wording + structured fields + computed `unresolvedFields` + review state) | `(version,order)`; `(clinic,episode,version)` |
+| `SourceReference` | citation of one READY document of the same episode (page, quoted text, location) | `(item,createdAt)`; `(version,createdAt)` |
+| `ReviewEvent` | **append-only** plan timeline (actor, transition, bounded reason) | `(clinic,episode,at)`; `(version,at)` |
+
+The Part 5 contract for these four collections - states, clinical-field rules, authority matrix, HTTP
+endpoints and the single approval transaction - is [VELORA_CARE_PLAN.md](VELORA_CARE_PLAN.md).
 
 Timestamps are UTC. Compound unique indexes enforce clinic-scoped identifiers and active-grant
 invariants. Projections keep `tokenHash`, `csrfSecret`, internal audit payloads and unrelated PII
@@ -167,6 +174,9 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
 | document upload | 20 / hour per user |
 | document download | 120 / hour per user |
 | document metadata read | 600 / hour per user |
+| care-plan read | 600 / hour per user |
+| care-plan draft mutation (version/item/source/submit/resubmit) | 240 / hour per user |
+| care-plan review mutation (item decision, clarification, approve) | 60 / hour per user |
 
 ## 7. Client architecture
 
@@ -185,6 +195,14 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   (`lib/api.downloadDocument`) whose object URL is revoked after the download starts. `uploadDocument`
   posts raw bytes with the filename in a header. A denied read clears the list and shows a safe
   sentence; nothing in the UI ever presents `ready` as clinical approval.
+- Part 5 adds `features/plans` inside the episode detail (`CarePlanPanel`, `PlanItemForm`,
+  `PlanSourcePanel`, `PlanReviewPanel`, `planRules`) and the patient's read-only approved plan
+  (`features/patient/PatientPlan`). The workspace uses tabs (Draft / Sources / Review / History), a
+  multi-step draft wizard, a **two-step item editor** (core clinical fields, then the remaining
+  instructions) and server pagination (8 items per page), so it stays inside one viewport; the
+  source and review panes sit side by side on wide screens and stack to a single primary panel on
+  narrow ones. Every mutation sends the plan revision the screen holds; a 409 clears the stale editor
+  and re-reads the plan, and a 403/404 clears the loaded clinical content entirely.
 - A denied refresh or a lost authorization clears the loaded patient/consent/grant state before an
   error is shown, so stale clinical data never remains on screen.
 - All server errors surface through a safe envelope; the client never renders unsanitized HTML.
@@ -227,6 +245,18 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   `choose -> review -> upload -> result`, download it and compare the bytes with the uploaded
   original - plus a refusal journey (active PDF), a closed-episode read-only check and a patient
   read-only check.
+- **Integration (Part 5):** coordinator drafting authority, reviewer authority (assigned + verified
+  only), admin clinical denial, patient and caregiver draft denial, other-clinic 404s, revoked
+  reviewer, unverified reviewer assignment denial, ready-document-only source linking with
+  wrong-episode 404s, incomplete items, unclear and conflicting dose/frequency/duration, invalid
+  transitions, stale revision (including two parallel writes), parallel approval, the DB-level
+  one-current-version constraint, approved immutability, supersession and the episode pointer, the
+  patient's current-approved projection, XSS strings kept verbatim, audit redaction (no clinical text
+  in `AuditEvent`/`ReviewEvent`) and the append-only review timeline.
+- **Browser (Part 5):** `plans.spec.js` runs the whole synthetic M1 slice - manual draft, source
+  citation, submit, per-item clinical acceptance, confirmed approval and the patient's approved view
+  (including "approval activates no task or reminder") - and measures the draft, sources, review and
+  patient plan screens at all six viewport sizes.
 - **Browser (one-viewport, cross-part):** `viewports.spec.js` measures every list route for five
   enrolled role sessions (reviewer, admin, document coordinator, patient, caregiver) at all six
   sizes, and `detail-viewports.spec.js` walks into the staff patient detail, the staff episode detail

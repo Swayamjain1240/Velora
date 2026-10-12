@@ -22,11 +22,14 @@ Velora/
     VELORA_STRUCTURE.md
     VELORA_SESSION_LOG.md
     VELORA_DOCUMENT_STORAGE.md    # Part 4 document API, storage setup and recovery runbook
+    VELORA_CARE_PLAN.md           # Part 5 care-plan API contract, states, authority and approval transaction
   e2e/
     auth.spec.js                  # login / MFA / staff journeys
     patients.spec.js              # Part 2-3 onboarding / consent / activation / episode journey
     documents.spec.js             # Part 4 upload / refusal / download journeys per viewport
     documents-quarantine.spec.js  # opt-in live quarantine journey (needs a 50 ms parser budget)
+    plans.spec.js                 # Part 5 M1 journey: draft -> review -> approve -> patient read,
+                                  # plus six-size measurement of the plan screens
     detail-viewports.spec.js      # six-size one-viewport assertions for the detail screens
     viewports.spec.js             # six-size one-viewport assertions for the list routes
     global-setup.js               # seeds the synthetic clinic; enrols viewport sessions
@@ -44,20 +47,22 @@ Velora/
               Session,MfaRecoveryCode,PasswordReset,RateLimitBucket,AuditEvent,
               PatientProfile,PatientAssignment,PatientConsent,CaregiverGrant,
               AccessInvitation,RecoveryEpisode,CareTeamAssignment,EpisodeCorrection,
-              EpisodeDocument}.js
+              EpisodeDocument,CarePlanVersion,CarePlanItem,SourceReference,ReviewEvent}.js
+      policies/carePlanPolicy.js  # plan states/transitions, clinical fields, completeness rules
       validators/schemas.js
       controllers/{authController,staffController,patientController,caregiverController,
-                   episodeController,documentController}.js
+                   episodeController,documentController,carePlanController}.js
       services/{authService,sessionService,mfaService,passwordService,
                 crypto,staffService,rateLimitService,auditService,errors,txService,
                 patientService,consentService,caregiverService,episodeService,
-                documentStorage,documentValidator,documentInspector,documentService}.js
+                documentStorage,documentValidator,documentInspector,documentService,
+                carePlanService}.js
       workers/documentParser.js   # isolated, memory- and time-limited byte parser (no secrets)
-      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents}.js
+      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents,plans}.js
     tests/
       helpers/{setup,documents}.js  # harness: env, db, factories, agents; synthetic file fixtures
       unit/{env,crypto-password}.test.js
-      integration/{auth,staff,patients,episodes,documents}.test.js
+      integration/{auth,staff,patients,episodes,documents,plans}.test.js
   client/
     package.json
     vite.config.js                # dev proxy /api -> API (overridable)
@@ -74,11 +79,12 @@ Velora/
         patients/{PatientList,PatientDetail}.jsx
         episodes/{EpisodeList,EpisodeDetail}.jsx
         documents/{DocumentsPanel,DocumentUpload}.jsx, documentRules.js
-        patient/{PatientSelf,PatientEpisodes}.jsx
+        plans/{CarePlanPanel,PlanItemForm,PlanSourcePanel,PlanReviewPanel}.jsx, planRules.js
+        patient/{PatientSelf,PatientEpisodes,PatientPlan}.jsx
         caregiver/CaregiverHome.jsx
       styles.css
       test/{setup,api.test}.js, auth-flows.test.jsx, patients.test.jsx, episodes.test.jsx,
-           documents.test.jsx
+           documents.test.jsx, plans.test.jsx
 ```
 
 ## Conventions

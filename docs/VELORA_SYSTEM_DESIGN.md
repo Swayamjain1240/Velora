@@ -149,7 +149,82 @@ Access:
 | Clinic administrator | deny (403) | deny (403) | deny (403) |
 | Revoked assignment / other clinic / caregiver without a scope | deny | uniform 404 | uniform 404 |
 
-## 9. Decision log (Parts 1-4)
+## 8d. Care-plan model, review and approval (Part 5)
+
+> The full contract - states, clinical-field rules, authority matrix, HTTP endpoints and the approval
+> transaction - lives in [VELORA_CARE_PLAN.md](VELORA_CARE_PLAN.md). This section records the design
+> decisions behind it.
+
+A plan is a sequence of immutable-in-spirit **versions** for one episode. `CarePlanVersion` holds the
+clinic/patient/episode linkage (all three immutable), a per-episode monotonic `version`, the state, an
+optimistic-concurrency `revision`, the creator/reviewer/approval facts, and the current/superseded
+relationship. `CarePlanItem` holds one clinical instruction; `SourceReference` cites one READY document
+of the same episode (page, quoted text, optional location); `ReviewEvent` is an append-only timeline.
+
+States and transitions (anything else is a 409, never a silent rewrite):
+
+```text
+draft ──submit──> in_review ──approve──> approved ──(next approval)──> superseded
+                     │  ▲
+        clarification │  │ resubmit
+                     ▼  │
+             needs_clarification
+```
+
+Only `draft` and `needs_clarification` are editable; `approved` and `superseded` are frozen. Editing an
+approved plan is impossible by design - a change starts a NEW draft version (`?fromVersionId` copies
+items and citations, and every copied item returns to *awaiting clinical review*), and the approved
+version stays the patient's current plan until the replacement is approved.
+
+Clinical completeness is computed by `policies/carePlanPolicy.js`, never by a model or a guess:
+
+- an **unclear** value (`?`, `n/a`, `unknown`, `as directed`, ...) is unresolved;
+- a **conflicting** value (two different numbers joined by `or`/`/`/`-`, e.g. `5 mg or 10 mg`) is
+  unresolved and the stored string is left exactly as typed;
+- a medication item additionally requires `dose`, `frequency` and `duration`;
+- every item requires `originalWording` and at least one source citation.
+
+Submit is the lighter gate (at least one item, every item cited, no unresolved *structure*). Approval
+re-validates the whole reviewed content server-side, immediately before the claim, and refuses with a
+message that names the unresolved fields.
+
+Authority (resolved in the service on every request, from the database):
+
+| Caller | Read version workspace | Draft items / sources | Review, clarify, approve | Patient's approved plan |
+|---|---|---|---|---|
+| Assigned coordinator (active assignment, draft episode) | allow | allow | deny (403) | deny (403) |
+| Assigned + clinic-verified reviewer | allow | deny (403) | allow | deny (403) |
+| Same-clinic staff, not on the team | uniform 404 | uniform 404 | uniform 404 | deny (403) |
+| Patient owner | deny (403) | deny | deny | allow (current approved only) |
+| Caregiver (any grant) | uniform 404 | deny | deny | deny (403) |
+| Clinic administrator | **403** | **403** | **403** | deny |
+
+The patient projection (`getPatientCurrentPlan`) is deliberately narrower than the staff one: approved
+clinical fields plus the permitted source references and the approval actor/time - never the reviewer's
+working state (`clinicalReviewState`, `reviewNote`, `reviewedByLabel`), the clarification history or the
+internal unresolved-field diagnostics, and never a draft (before approval it answers `plan: null`).
+
+**Approval is one MongoDB transaction** over the revision- and state-constrained claim:
+
+1. claim the version with `{_id, clinic, episode, state:'in_review', revision}` and increment the
+   revision (exactly one parallel caller can win; the loser gets a 409);
+2. re-derive reviewer role, verified eligibility, permission catalog and the current assignment inside
+   the same request before the claim;
+3. validate the complete reviewed content and reject unresolved clinical fields;
+4. supersede the previous current version first, conditionally on it still being the approved current
+   one;
+5. make the new version the single current one;
+6. move the episode's `approvedPlanVersion`/`planState`;
+7. append the review events (approved, superseded) and the audit record.
+
+A repeated approval by the same reviewer for the same revision is **idempotent** (returns the approved
+version, writes no second event). A **partial unique index** on `(episode)` where
+`isCurrent:true, state:'approved'` makes "two current versions" impossible at the database level, not
+merely in the service - a concurrent approval and a direct driver update are both refused.
+Approval activates **no** task, reminder, schedule or message; the episode's own lifecycle status is
+untouched.
+
+## 9. Decision log (Parts 1-5)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -184,8 +259,15 @@ Access:
 | D29 | Metadata row first, then the object, then `ready` | object first | a crash leaves a visible `uploading` row rather than an invisible orphan |
 | D30 | Exclusive object writes (never overwrite) | overwrite on retry | a retry can never clobber evidence; reconciliation removes true orphans |
 | D31 | `--apply` requires explicit `--operator` and audits every repair | unattended repair | recovery actions must be attributable |
+| D32 | Unresolved dose/frequency/duration blocks approval | default/guess a value | a guessed dose is a dosing error; never guess |
+| D33 | New draft version replaces an approved one | edit the approved version in place | approved content must stay immutable for the audit trail |
+| D34 | Old version stays current until the replacement is approved | supersede at draft time | a patient must never lose their only approved plan |
+| D35 | Partial unique index for one current approved version | service-only invariant | parallel approvals and direct writes must both be refused |
+| D36 | Reviewer decision needs `in_review` as an allowed write state | reuse the draft-only guard | the reviewer path was invisible to the draft guard (found by test, fixed) |
+| D37 | Patient projection omits reviewer working state | return one shared mapper | reviewer notes and clarification history are internal |
+| D38 | Harness-owned HTTP listener for tests | supertest's own server | supertest closes its server on settle; sequential agent requests could race that close and fail flakily |
 
-## 10. Known limitations (Parts 1-4)
+## 10. Known limitations (Parts 1-5)
 
 - Invitations and password-reset links are delivered by **server log only** in development; no mail
   provider is authorized yet. This is deliberate (control #22) and must be replaced before any pilot.
@@ -207,3 +289,10 @@ Access:
 - Part 3 episodes stay `draft`; activation/closure and downstream plan workflows arrive in later
   parts. There is no caregiver episode view yet (the `view_episodes` scope remains inert).
 - Discharge dates are corrected one episode at a time; there is no bulk import.
+- Part 5 fulfils VEL-007/VEL-008 for **manual** authoring only: there is no extraction assistance, no
+  medication schedule and no reminder (Parts 6-7), and `carePlanPolicy` is a documented, deliberately
+  simple text analysis (it flags ambiguity, it does not understand clinical language).
+- The patient's caregiver `view_plan` scope is still inert: a caregiver cannot read a plan yet.
+- Plans are never deleted; retention and privacy requests arrive in Part 9.
+- Items are authored and reviewed page by page (8 per page); there is no bulk edit or item import.
+- A plan is not versioned by a content hash, so two identical drafts are two versions.

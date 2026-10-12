@@ -5,6 +5,186 @@ Evidence classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, 
 
 ---
 
+## Session - 12 October 2026 - Part 5 (manual care plans, review, approval and versioning)
+
+### Duck review (start of session)
+
+Read before writing code: the three authority PDFs and their markdown mirrors
+(`VELORA_MERN_MASTER.pdf`, `VELORA_MERN_ARCHITECTURE.pdf`, `VELORA_MERN_DUCK_LOG.pdf`),
+`VELORA_MERN_10_BUILD_PROMPTS.md`, `README.md`, `AGENTS.md`, the Parts 1-4 review entries in this
+log and their API contracts (`VELORA_DOCUMENT_STORAGE.md`, the route and validator sources), plus the
+current source and tests.
+
+State on entry: branch `main`, working tree carrying the uncommitted Part 5 work, no `gh` on this
+host, so PR and CI run state are **not observable locally** - the evidence below is the local gate
+(`npm test` in both workspaces, the Playwright journeys, the production audit and both secret scans),
+which is also what the CI workflow runs.
+
+Foundations Part 5 depends on were re-verified rather than assumed:
+
+| Foundation | Verification |
+|---|---|
+| Clinic isolation | every plan query is filtered on `clinic`; a guessed episode id from another clinic is a scoped `404` (integration + browser) |
+| Episode assignment | drafting reuses the Part 4 write rule: an **active** `care_coordinator` assignment on a **draft** episode |
+| Reviewer eligibility | re-derived from the database on every decision (active membership + `roleKey` + `reviewerEligibility = verified` + role permission + active reviewer assignment); revocation and unverification both lose authority immediately |
+| Document readiness | a source must be a `ready` document of the **same** episode: unready is `409`, foreign/unready-episode is `404` |
+| Audit | `AuditEvent` and the append-only `ReviewEvent` timeline record actor/transition/bounded reason and **never** clinical text |
+| One-viewport | plan screens are asserted at all six sizes inside `plans.spec.js`; the existing list/detail measurements still pass |
+
+### External service gate (control #22)
+
+**No provider selected or called.** Extraction assistance, an LLM, OCR, a drug-interaction database
+and a terminology service are all DISCLOSED / NOT SELECTED. Part 5 is entirely local (Express +
+Mongoose + MongoDB) and adds **no** environment variable and **no** dependency. AI extraction is not
+stubbed, not mocked and not scheduled here - it remains Part 6.
+
+### Work performed (Part 5)
+
+- **Models:** `CarePlanVersion` (version, state, revision, creator/submitter/clarification/approval
+  facts, `isCurrent`/`supersededBy`, episode/clinic/patient linkage), `CarePlanItem` (verbatim
+  `originalWording`, all structured clinical fields, server-computed `unresolvedFields`, review state),
+  `SourceReference` (ready document + page + quote + location) and `ReviewEvent` (append-only timeline
+  whose model hooks refuse update/delete).
+- **States:** `draft -> in_review -> {needs_clarification -> in_review, approved -> superseded}` with a
+  pure transition table in `policies/carePlanPolicy.js`; anything else is a `409`.
+- **Clinical rules:** a missing, unclear or conflicting dose/frequency/duration stays unresolved and
+  blocks approval. `computeUnresolvedFields` treats `?`/`n/a`/`unknown`/`as directed`/… as absent and
+  flags alternatives ("5 mg or 10 mg") as `<field>_conflict`. Nothing is ever guessed or defaulted.
+- **Authority:** coordinator drafting, reviewer-only approval, explicit admin clinical denial, patient
+  and caregiver draft denial, patient-owner approved-plan read.
+- **APIs:** draft create/detail, item create/update/delete/reorder and source link/remove (all with
+  `expectedRevision`), submit, clarification, resubmit, approve, patient current-approved read and
+  authorized version history - with `no-store` on every response.
+- **Approval transaction (one session):** claim on state+revision, supersede the previous current
+  version, flip the new one current, move the episode's `approvedPlanVersion`/`planState`, write the
+  timeline. Retry is idempotent (`idempotent: true`); a parallel approval loses with `409`; the
+  DB-level partial unique index on `(episode)` where `isCurrent && state='approved'` makes two current
+  versions impossible even for a future code path.
+- **Frontend:** draft wizard, paginated item editor, source review panel, review/clarification panel,
+  explicit approval confirmation, version history and the patient approved-plan view - presented as a
+  tabbed single-panel workspace (Draft / Sources / Review / History) so switching and paging never
+  exceed one viewport.
+- **No downstream activation:** approving writes no task, reminder, schedule or message and leaves the
+  episode's own lifecycle `status` untouched.
+
+### Defects found and fixed during verification (dependent drift)
+
+1. **MFA enrollment could hand the client a secret the server did not keep.** A double-fired
+   `POST /auth/mfa/enroll/setup` (React StrictMode, or a refresh) generated a second secret and
+   overwrote the first, so every code the user derived from the displayed secret was rejected. Install
+   is now a compare-and-set: the first writer wins, a loser re-reads the winner's stored secret, and
+   the response always carries the secret that is actually persisted (bounded retry, then a safe
+   `503`).
+2. **`enroll/setup` could replace the second factor of an already-enrolled account.** A password-only
+   (`mfa_pending`) session could install a new secret on an account with MFA enabled, which is a
+   second-factor takeover for anyone holding the password. Both enrollment steps now refuse
+   first-time-only: an enabled account can only verify. (A deliberate, audited factor reset does not
+   exist yet - recorded as a limit.)
+3. **A stale in-flight episode load could overwrite what the coordinator had just typed**, leaving the
+   discharge-correction button disabled with the old value silently restored. The episode detail now
+   ignores a response for a superseded load, so the editor keeps the user's input.
+4. **The one-time enrollment browser journeys could not be retried.** `auth.spec.js` and
+   `patients.spec.js` drive forced enrollment, which is inherently one-time: a Playwright retry could
+   only ever reach the verification screen, and CI's `retries: 1` would have replaced the real failure
+   with a confusing timeout. Those two files now configure `retries: 0` and are re-run by re-seeding.
+
+### Key invariants enforced
+
+- At most **one current approved version per episode**, enforced by a partial unique index and by the
+  conditional claim - not only by application logic.
+- Approved content is **immutable**; changing clinical content means a new draft version, and the
+  previous approved version stays current (and patient-visible) until the replacement is approved.
+- A copied version resets every item to **unreviewed** - a previous approval never carries over to
+  edited clinical content.
+- Editing an item clears its review state and note, so an approval cannot survive an edit.
+- The patient view is the **approved projection only**: reviewer working state, clarification history
+  and unresolved-field diagnostics are absent, and an unapproved episode returns an empty payload
+  (never an error that would reveal a draft exists).
+- Sources are ready-document-verified server-side, and every item needs a source before submission.
+
+### Evidence (re-run on this working tree)
+
+| Check | Command | Result |
+|---|---|---|
+| Server suite | `npm test -w server` | **126 pass / 0 fail** (~102 s, replica-set MongoDB test DB) |
+| Client suite | `npm test -w client` | **24 pass / 0 fail** (6 files) |
+| Client lint | `npm run lint -w client` | clean |
+| Client build | `npm run build -w client` | production build succeeds (278.70 kB js, 8.84 kB css) |
+| Browser journeys | `PORT=4100 npx playwright test` | **49 pass / 1 skipped / 0 fail** - the skip is the opt-in quarantine journey that needs a 50 ms parser budget |
+| Part 5 journey | `plans.spec.js` | manual draft -> items -> sources -> submit -> per-item acceptance -> confirmed approval -> patient approved view -> immutability, plus draft/sources/review/patient screens measured at all six sizes |
+| Production audit | `npm audit --omit=dev` (root, server, client) | **0 vulnerabilities** |
+| Secret scan (tree) | `git grep` for private keys, provider tokens, credentialed URIs, `VITE_` secrets | clean; only `.env.example` is tracked |
+| Secret scan (history) | `git log -p --all` for keys/tokens and credentialed `mongodb://` URIs | clean; `.env.example` is the only `.env*` file ever added |
+| Dependencies | `git diff` on `package.json` files | Part 5 adds **no** dependency and no env var |
+
+Advisory (dev-only, unchanged from Part 1): `npm audit` still reports dev-tooling advisories in
+`vitest`/`tinypool`/`esbuild`/`vite`. They are excluded from the production gate (`--omit=dev` = 0)
+and the only available fix is a breaking Vitest major upgrade, deferred as tooling work.
+
+### Security-25 matrix (Part 5)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets hidden | VERIFIED | no new secret; `no-store` on plan responses; scans clean |
+| 2 | Fail-closed env | VERIFIED | unchanged; Part 5 adds no variable |
+| 3 | Private and draft routes protected | VERIFIED | `requireAuth` + clinic context on every plan route; patient route is ownership-only |
+| 4 | Argon2id, MFA, sessions, CSRF preserved | VERIFIED | tests + journeys green; the two enrollment defects above fixed |
+| 5 | Clinic + role + assignment + reviewer verification + owner + state | VERIFIED | authority matrix tested per role and per state |
+| 6 | Strict validation and sanitisation | VERIFIED | strict zod schemas, unknown fields rejected, bounded clinical text |
+| 7 | Safe rendering of clinical/user text | VERIFIED | text nodes only, no `dangerouslySetInnerHTML`; XSS strings kept verbatim |
+| 8 | Rate limits on draft, review, approval | VERIFIED | durable Mongo-backed buckets 600/240/60 per hour per user |
+| 9 | Safe errors, scoped 404, 409 for stale/incomplete | VERIFIED | error matrix in `VELORA_CARE_PLAN.md` section 7 |
+| 10 | Exact CORS allowlist | VERIFIED | unchanged |
+| 11 | CSP, headers, no-store | VERIFIED | helmet stack plus per-response `no-store, private` |
+| 12 | Debug off | VERIFIED | unchanged; no stack traces or Mongo errors in responses |
+| 13 | Dependencies reviewed before changes | VERIFIED | no dependency added; `npm audit --omit=dev` = 0 |
+| 14 | No unused packages | VERIFIED | dependency set unchanged |
+| 15 | Private files audited/ignored | VERIFIED | `.env` ignored at root/server/client; nothing new tracked |
+| 16 | `MONGODB_URI` private | VERIFIED | server-only; no credentialed URI in tree or history |
+| 17 | Argon2id/bcrypt preserved | VERIFIED | unchanged |
+| 18 | Git history/tree scan | VERIFIED | both clean after the Part 5 work |
+| 19 | Part 5 security audit completed | VERIFIED | this matrix plus `VELORA_CARE_PLAN.md` |
+| 20 | Test, diff, commit after coherent work | VERIFIED | suites and journeys run before the commit |
+| 21 | Continuous security | VERIFIED | conditional claim + unique index + append-only timeline + `expectedRevision` on every mutation |
+| 22 | External APIs disclosed before use | VERIFIED | none used; gate documented |
+| 23 | Every role, transition, denial and race tested | VERIFIED | 24 plan integration cases + 6 client cases + the M1 browser journey |
+| 24 | README, authorities, API and review docs synchronised | VERIFIED | README, master, architecture, system design, structure, the new `VELORA_CARE_PLAN.md` and this log |
+| 25 | One-viewport screens | VERIFIED | draft, sources, review and patient approved-plan screens measured at all six sizes |
+
+### Duck verdict: PASS (Part 5, local scope)
+
+All 25 controls are VERIFIED for the Part 5 scope with both suites, the full browser gate, the
+production audit and both secret scans green. Evidence is local (development) with synthetic data
+only; no production deployment, no clinical validation and no AI extraction is claimed or implied.
+Part 6 was not started.
+
+### Duck against VEL-005, VEL-006, VEL-007 and VEL-010
+
+| ID | Requirement | Verdict | Evidence / caveat |
+|---:|---|---|---|
+| VEL-005 | Recovery episodes and care-team assignment (Part 3) | **VERIFIED (local)** - re-verified, not assumed | episode + care-team integration tests, the Part 3 browser journey and the detail measurements all still pass; Part 5 reads episodes only through `resolveClinicalAccess`/`assertEpisodeTeamWrite`, so no new bypass path was introduced |
+| VEL-006 | Private discharge-document intake (Part 4) | **VERIFIED (local)** - re-verified, not assumed | document suite and journeys still pass; Part 5 consumes documents strictly as **ready sources** of the same episode, and cannot read bytes or alter a document's status |
+| VEL-007 | Manual source-linked care-plan drafting (Part 5) | **VERIFIED (local)** | manual-only drafting with verbatim wording, ready-document citations, unresolved-field blocking and revision-guarded edits; no extraction assistance exists |
+| VEL-010 | Medication schedules, daily tasks and actor-attributed logs (Part 7) | **PLANNED - correctly not activated** | no task, reminder, schedule or log model is written by approval; the browser journey asserts no task/reminder control or route appears for the patient, and the episode's own `status` is untouched by the approval transaction |
+
+Ducking VEL-010 was the deliberate guard for this part: the temptation is to "finish" the plan by
+creating the schedule it describes. Approval therefore stores clinical intent and **nothing else**;
+scheduling stays Part 7.
+
+### Remaining limits
+
+- **Manual only.** No extraction, OCR, AI assistance or drug-interaction checking (Part 6).
+- **No downstream activation.** Approval creates no task, reminder, schedule or message (Part 7).
+- **Single reviewer.** One assigned verified reviewer decides; there is no multi-signature workflow.
+- **Caregiver plan access is not wired.** `view_plan` is declared in the grant catalog but no caregiver
+  route honours it, so granting it exposes nothing (fail-closed).
+- **No MFA factor reset flow.** An enabled account can only verify; replacing a lost factor needs a
+  deliberate audited flow that does not exist yet.
+- **No production deployment or clinical validation**; quarantined documents still have no review UI,
+  and the opt-in quarantine journey needs a 50 ms parser budget to run.
+
+---
+
 ## Session - 11 October 2026 - Duck review: cross-part completeness audit (Parts 1-4)
 
 ### What was reviewed

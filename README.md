@@ -6,7 +6,7 @@ Velora is a planned JavaScript MERN application that helps clinics convert priva
 
 Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
 
-> **Current status - 11 October 2026:** **Parts 1-3 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, and recovery episodes with care-team assignment and atomic draft discharge corrections. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
+> **Current status - 12 October 2026:** **Parts 1-5 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, and **manual source-linked care plans with clinical review, clarification, approval and immutable versioning**. Part 5 completes the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
 
 ## Project authority
 
@@ -70,7 +70,7 @@ Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no
 | 2 | Patient onboarding, consent and caregiver access | Implemented / verified locally |
 | 3 | Recovery episodes and care-team assignment | Implemented / verified locally |
 | 4 | Private discharge-document intake | Implemented / verified locally |
-| 5 | Manual care plans, review, approval and versioning | Planned - completes synthetic M1 |
+| 5 | Manual care plans, review, approval and versioning | Implemented / verified locally - completes synthetic M1 |
 | 6 | AI extraction, source citations and reviewed language | Planned |
 | 7 | Medication schedules, daily tasks and actor-attributed logs | Planned |
 | 8 | Check-ins, clarification queue, dashboard and reminders | Planned |
@@ -83,11 +83,11 @@ Code 2 diagnostic tests/results and Code 3 insurance remain outside the active s
 
 | Role | Boundary |
 |---|---|
-| Patient | Own records and current approved plan; no clinical approval |
-| Caregiver | Only explicitly active granular scopes; no automatic document access or onward invitation |
-| Care coordinator | Assigned operational coordination and draft preparation; no clinical publication |
-| Clinical reviewer | Assigned review and approval after clinic eligibility verification |
-| Clinic admin | Staff and settings administration; admin status alone grants no clinical-record browsing |
+| Patient | Own records and the current approved plan; no clinical approval, no drafts |
+| Caregiver | Only explicitly active granular scopes; no automatic document or plan access, no onward invitation |
+| Care coordinator | Assigned operational coordination and manual draft authoring; no clinical publication |
+| Clinical reviewer | Assigned review, clarification and approval after clinic eligibility verification |
+| Clinic admin | Staff and settings administration; admin status alone grants no clinical-record browsing or approval |
 
 Every protected operation must be enforced on the Express server using the authenticated identity, clinic, role, ownership or active assignment/grant, requested action and workflow state. React route protection is a user-interface layer, not the authorization boundary.
 
@@ -154,6 +154,11 @@ in-repo root fails startup, and the root without its key is refused (it would st
 Provider-neutral interface, encryption format, HTTP contract and the recovery runbook are documented
 in [docs/VELORA_DOCUMENT_STORAGE.md](docs/VELORA_DOCUMENT_STORAGE.md).
 
+Part 5 adds manual care plans with clinical review and approval. The state machine, clinical-field
+rules (a missing, unclear or conflicting dose, frequency or duration is never guessed and blocks
+approval), authority matrix, HTTP contract and the single approval transaction are documented in
+[docs/VELORA_CARE_PLAN.md](docs/VELORA_CARE_PLAN.md).
+
 The example `MONGODB_URI` points at the local replica set (`mongodb://127.0.0.1:27019/velora?replicaSet=rs0`),
 which the `mongo:test-rs` script serves; the same instance hosts the `velora_test` database.
 
@@ -163,11 +168,11 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 100 unit + integration tests (replica-set MongoDB test DB)
-npm test -w client               # 18 client unit tests (Vitest)
+npm test -w server               # 126 unit + integration tests (replica-set MongoDB test DB)
+npm test -w client               # 24 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
-npx playwright test              # 48 browser journeys at six viewport sizes
+npx playwright test              # 50 browser journeys at six viewport sizes
 npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
 npm audit --omit=dev             # production dependency audit
 ```
@@ -184,11 +189,17 @@ npx playwright test              # in another (Chromium is installed via npx pla
 ```
 
 The suite makes many requests in a minute, so the API is started the way CI starts it for browser
-journeys: `NODE_ENV=test PORT=4100 node server/src/index.js`. That switches off only the in-process
+journeys: `NODE_ENV=test PORT=4100 node server/src/index.js` (and the API port must be exported for
+the seed/session setup: `PORT=4100 npx playwright test`). That switches off only the in-process
 blanket limiter; the durable Mongo-backed per-route limits stay active. The journeys upload synthetic
 PDFs byte-for-byte, compare the downloaded bytes with the original, and measure the list routes, the
-detail screens (patient, episode, documents) and the caregiver's scoped view at all six required
-viewport sizes.
+detail screens (patient, episode, documents), the care-plan screens (draft, sources, review) and the
+patient's approved-plan view at all six required viewport sizes.
+
+Part 5 seeds a dedicated M1 journey fixture: episode `EP-PLANJRNY` with an assigned coordinator, an
+assigned clinic-verified reviewer and one ready source document, and no plan data. `e2e/plans.spec.js`
+drives the whole slice through the browser - manual draft with hand-typed clinical items, source
+citation, submit, per-item clinical acceptance, confirmed approval and the patient's approved view.
 
 One journey is opt-in because it needs an API with a tiny parser budget: start the API with
 `DOCUMENT_PARSER_TIMEOUT_MS=50` and run `E2E_QUARANTINE=1 npx playwright test
@@ -209,7 +220,9 @@ During implementation:
 Development uses synthetic identities and synthetic documents only; no real patient data or real
 clinical files are used. A document status of `ready` means the upload passed **technical** validation
 and is queued for later human review - it never means clinically approved, and no antivirus
-certification is claimed. Before any real-patient pilot, Velora requires clinical workflow review, privacy/provider decisions, retention and incident processes, verified staff onboarding, secure deployment, backup plus isolated restore testing, representative extraction/language evaluation and explicit owner authorization.
+certification is claimed. An `approved` care-plan version means an assigned, clinic-verified clinical
+reviewer approved that exact version; it is not a claim of clinical correctness or of regulatory
+compliance, and approval activates **no** task, reminder or message. Before any real-patient pilot, Velora requires clinical workflow review, privacy/provider decisions, retention and incident processes, verified staff onboarding, secure deployment, backup plus isolated restore testing, representative extraction/language evaluation and explicit owner authorization.
 
 ## Owner
 

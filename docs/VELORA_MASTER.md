@@ -28,6 +28,8 @@ Code 2 (diagnostic tests/results) and Code 3 (insurance) are **out of active sco
 1. No automated clinical action. Uploading a document or receiving an AI result can never activate
    patient instructions, tasks or reminders.
 2. Every clinical instruction requires an explicitly assigned, verified clinical reviewer's approval.
+   A missing, unclear or conflicting dose/frequency/duration is never guessed: it stays unresolved
+   and blocks approval until a human states it.
 3. Consent, caregiver grants, review and revocation are append-only or audited; revocation blocks
    future requests immediately.
 4. Admin status alone never grants clinical-record browsing or approval.
@@ -39,7 +41,7 @@ Code 2 (diagnostic tests/results) and Code 3 (insurance) are **out of active sco
 The numbered requirements below are grouped by delivery part. State values use the Duck evidence
 classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, `BLOCKED`.
 
-| ID | Requirement | Part | State (11 Oct 2026, through Part 4) |
+| ID | Requirement | Part | State (12 Oct 2026, through Part 5) |
 |---:|---|---:|---|
 | VEL-001 | Repository, documentation baseline and CI gate | 1 | VERIFIED (local scope) |
 | VEL-002 | Clinic, staff RBAC and reviewer-eligibility boundary | 1 | VERIFIED (local scope) |
@@ -47,8 +49,8 @@ classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, 
 | VEL-004 | Patient onboarding, consent history and caregiver grants | 2 | VERIFIED (local scope) |
 | VEL-005 | Recovery episodes and care-team assignment | 3 | VERIFIED (local scope) |
 | VEL-006 | Private discharge-document intake | 4 | VERIFIED (local scope; no antivirus provider, quarantine has no review screen yet) |
-| VEL-007 | Manual source-linked care-plan drafting | 5 | PLANNED |
-| VEL-008 | Clinical review, approval and versioning (completes synthetic M1) | 5 | PLANNED |
+| VEL-007 | Manual source-linked care-plan drafting | 5 | VERIFIED (local scope; hand-authored items only, no extraction assistance) |
+| VEL-008 | Clinical review, approval and versioning (completes synthetic M1) | 5 | VERIFIED (local scope; approval activates no task or reminder) |
 | VEL-009 | AI extraction with source citations and reviewed language | 6 | PLANNED |
 | VEL-010 | Medication schedules, daily tasks and actor-attributed logs | 7 | PLANNED |
 | VEL-011 | Patient/caregiver check-ins and clarification queue | 8 | PLANNED |
@@ -57,11 +59,11 @@ classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, 
 | VEL-014 | Audit, privacy requests, retention and metrics | 9 | PLANNED |
 | VEL-015 | Production hardening and isolated restore testing | 10 | PLANNED |
 | VEL-016 | Clinical-readiness gate before real-patient pilot | 10 | PLANNED |
-| VEL-017 | One-viewport rule for every authenticated screen | all | VERIFIED (list, detail, documents and caregiver screens at six sizes; chart panels arrive with later parts) |
+| VEL-017 | One-viewport rule for every authenticated screen | all | VERIFIED (list, detail, documents, care-plan (draft/sources/review) and patient approved-plan screens at six sizes; chart panels arrive with later parts) |
 | VEL-018 | Safe error envelope, no tenant-existence leakage | all | VERIFIED (local scope) |
 | VEL-019 | Continuous secret scanning and dependency audit | all | VERIFIED (local scope) |
-| VEL-020 | Documentation synchronized with real code | all | VERIFIED through Part 4 |
-| VEL-021 | 50+ meaningful commits without padding | all | PARTIAL - 25 commits at Part 4 of 10; the target is for the completed project |
+| VEL-020 | Documentation synchronized with real code | all | VERIFIED through Part 5 |
+| VEL-021 | 50+ meaningful commits without padding | all | PARTIAL - 26 commits at Part 5 of 10; the target is for the completed project |
 
 ## 4. Ten-part roadmap
 
