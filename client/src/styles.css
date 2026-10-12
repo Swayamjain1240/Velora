@@ -290,7 +290,62 @@ input, select {
 .pill--quarantined { background: #fff4e5; border-color: #edc99a; color: #8a4b00; }
 .pill--failed { background: #f3f4f6; border-color: #c7ccd4; color: #444c56; }
 
+/* ---------- Part 5: manual care plans and clinical review ---------- */
+textarea {
+  font: inherit;
+  padding: .55rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  width: 100%;
+  resize: vertical;
+}
+
+.plans { display: flex; flex-direction: column; gap: .5rem; flex: 1 1 auto; min-height: 0; }
+.plans__head { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.plans__head h2 { margin: 0; }
+.plans__head .btn { margin-left: auto; }
+.plans__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.plans__item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .5rem .75rem;
+  background: #fff;
+}
+.plans__item-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.plans__item-head strong { font-size: .95rem; }
+.plans__field { display: contents; }
+.plans__quote {
+  display: block;
+  margin: .25rem 0 0;
+  padding-left: .6rem;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+  font-size: .88rem;
+}
+.plans__source { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .5rem; }
+.plans__sources summary { cursor: pointer; font-size: .9rem; }
+.plans__blockers { margin: .25rem 0; padding-left: 1.1rem; color: var(--danger); font-size: .9rem; }
+.plans__confirm { border: 1px solid var(--border); border-radius: 10px; padding: .5rem .75rem; }
+.plans__confirm ul { margin: .25rem 0; padding-left: 1.1rem; font-size: .9rem; }
+.plans__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .5rem; }
+/* Side-by-side source/review panes on wide screens; switchable (stacked) panels
+ * on small ones, so a narrow screen still shows one primary region. */
+.plans__split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; min-height: 0; flex: 1 1 auto; }
+.plans__pane { display: flex; flex-direction: column; gap: .35rem; min-height: 0; }
+.plans__pane h3 { margin: .35rem 0 0; font-size: 1rem; }
+
+.pill--plan-draft { background: #eef2f7; }
+.pill--plan-in_review { background: #fff4e5; border-color: #edc99a; color: #8a4b00; }
+.pill--plan-needs_clarification { background: #fdecea; border-color: #f0b3ae; color: var(--danger); }
+.pill--plan-approved { background: #e6f4ea; border-color: #a8d5b5; color: #14532d; }
+.pill--plan-superseded { background: #f3f4f6; border-color: #c7ccd4; color: #444c56; }
+
 /* ---------- Small screens: one primary panel ---------- */
+@media (max-width: 900px) {
+  .plans__split { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 640px) {
   .shell__header { flex-direction: column; align-items: stretch; }
   .shell__nav { justify-content: space-between; }

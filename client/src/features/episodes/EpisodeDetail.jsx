@@ -1,11 +1,12 @@
 'use strict';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import DocumentsPanel from '../documents/DocumentsPanel';
+import CarePlanPanel from '../plans/CarePlanPanel';
 
 const PAGE_SIZE = 10;
-const TABS = ['overview', 'corrections', 'team', 'documents'];
+const TABS = ['overview', 'plan', 'corrections', 'team', 'documents'];
 const COMMON_ZONES = [
   'Europe/London',
   'Europe/Paris',
@@ -29,6 +30,10 @@ export default function EpisodeDetail({ episodeId, onBack }) {
   const [candidates, setCandidates] = useState([]);
   const [assignee, setAssignee] = useState({ userId: '', responsibility: 'care_coordinator' });
   const [busy, setBusy] = useState(false);
+  // Once the user has edited the discharge form, a late-arriving load must not
+  // overwrite what they typed (a double-mounted effect can resolve after the
+  // first keystroke and would otherwise restore the stored values).
+  const formTouched = useRef(false);
 
   const fail = useCallback((err) => {
     // Authorization loss clears loaded clinical data before showing the error.
@@ -46,7 +51,12 @@ export default function EpisodeDetail({ episodeId, onBack }) {
     try {
       const data = await api(`/episodes/${episodeId}`);
       setEpisode(data.episode);
-      setForm({ dischargeDate: data.episode.dischargeDate || '', dischargeTimezone: data.episode.dischargeTimezone || '' });
+      if (!formTouched.current) {
+        setForm({
+          dischargeDate: data.episode.dischargeDate || '',
+          dischargeTimezone: data.episode.dischargeTimezone || '',
+        });
+      }
     } catch (err) { fail(err); }
   }, [episodeId, fail]);
 
@@ -154,14 +164,33 @@ export default function EpisodeDetail({ episodeId, onBack }) {
               <dt>Discharge date</dt><dd>{episode.dischargeDate}</dd>
               <dt>Timezone</dt><dd>{episode.dischargeTimezone}</dd>
               <dt>Revision</dt><dd>{episode.revision}</dd>
+              <dt>Approved plan</dt>
+              <dd>{episode.approvedPlanVersion ? 'Published to the patient' : 'None yet'}</dd>
+              <dt>Plan state</dt><dd>{(episode.planState || 'none').replace(/_/g, ' ')}</dd>
               <dt>Active team</dt><dd>{activeTeam.length}</dd>
             </dl>
             {episode.status === 'draft' ? (
               <form className="inline-form" onSubmit={correct} noValidate>
                 <label htmlFor="ep-date">Discharge date</label>
-                <input id="ep-date" type="date" value={form.dischargeDate} onChange={(e) => setForm({ ...form, dischargeDate: e.target.value })} />
+                <input
+                  id="ep-date"
+                  type="date"
+                  value={form.dischargeDate}
+                  onChange={(e) => {
+                    formTouched.current = true;
+                    setForm({ ...form, dischargeDate: e.target.value });
+                  }}
+                />
                 <label htmlFor="ep-tz">Timezone</label>
-                <input id="ep-tz" list="ep-tz-list" value={form.dischargeTimezone} onChange={(e) => setForm({ ...form, dischargeTimezone: e.target.value })} />
+                <input
+                  id="ep-tz"
+                  list="ep-tz-list"
+                  value={form.dischargeTimezone}
+                  onChange={(e) => {
+                    formTouched.current = true;
+                    setForm({ ...form, dischargeTimezone: e.target.value });
+                  }}
+                />
                 <datalist id="ep-tz-list">
                   {COMMON_ZONES.map((z) => <option key={z} value={z} />)}
                 </datalist>
@@ -243,6 +272,17 @@ export default function EpisodeDetail({ episodeId, onBack }) {
               </tbody>
             </table>
           </div>
+        )}
+
+        {tab === 'plan' && (
+          // Part 5: manual drafting, clinical review, approval and version
+          // history. The panel reads its own data and re-checks every action
+          // against the current plan revision.
+          <CarePlanPanel
+            episodeId={episodeId}
+            episodeStatus={episode.status}
+            onDenied={fail}
+          />
         )}
 
         {tab === 'documents' && (

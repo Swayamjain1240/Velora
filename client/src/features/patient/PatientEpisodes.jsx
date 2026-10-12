@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import DocumentsPanel from '../documents/DocumentsPanel';
+import PatientPlan from './PatientPlan';
 
 const PAGE_SIZE = 10;
 
@@ -55,6 +56,9 @@ export default function PatientEpisodes() {
           <dt>Status</dt><dd>{selected.status}</dd>
         </dl>
         <p className="muted">Your care team reviews the discharge details. Contact them if something looks wrong.</p>
+        {/* Part 5: only the CURRENT APPROVED plan is ever rendered here - the
+            server never sends drafts or reviewer working state to this role. */}
+        <PatientPlan episodeId={selected.id} />
         {/* Read and download only: a patient can never upload a document, and
             every request re-resolves ownership on the server. */}
         <DocumentsPanel
