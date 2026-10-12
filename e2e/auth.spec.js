@@ -9,6 +9,13 @@
 const { test, expect } = require('@playwright/test');
 const { signInThroughMfa } = require('./helpers');
 
+// Forced enrollment is a ONE-TIME journey: the first successful run enables MFA
+// for the account, so a Playwright retry could only ever reach the verification
+// screen, never the enrollment screen again. Disable retries for this file so a
+// failure is reported once instead of being masked by a guaranteed-retry failure.
+// Re-running the whole gate re-seeds the database and restores the journey.
+test.describe.configure({ retries: 0 });
+
 const ENROLL_USER = 'coordinator@synthetic.invalid';
 
 test('landing page renders the product and its safety boundaries', async ({ page }) => {

@@ -11,6 +11,11 @@
 const { test, expect } = require('@playwright/test');
 const { signInThroughMfa } = require('./helpers');
 
+// Like auth.spec, this file drives a ONE-TIME forced enrollment for its dedicated
+// synthetic account, so a retry could only land on the verification screen.
+// Fail once with the real error instead of twice with an enrollment mismatch.
+test.describe.configure({ retries: 0 });
+
 const FLOW_USER = 'flow@synthetic.invalid';
 
 test('a coordinator onboards, consents, activates a patient and invites a caregiver', async ({ page }) => {
