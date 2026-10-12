@@ -49,6 +49,9 @@ function publicVersion(version) {
     createdByLabel: version.createdByLabel || null,
     createdAt: version.createdAt,
     submittedAt: version.submittedAt || null,
+    // Who reviewed it (the acting reviewer), separately from who approved it.
+    reviewerLabel: version.reviewerLabel || null,
+    reviewerAt: version.reviewerAt || null,
     clarificationReason: version.clarificationReason || null,
     clarificationByLabel: version.clarificationByLabel || null,
     clarificationAt: version.clarificationAt || null,
@@ -982,6 +985,9 @@ async function requestClarification({
       clarificationBy: user.id,
       clarificationByLabel: user.email,
       clarificationAt: now,
+      reviewer: user.id,
+      reviewerLabel: user.email,
+      reviewerAt: now,
     },
   });
   if (!updated) throw revisionConflict();
@@ -1047,15 +1053,18 @@ async function reviewItem({
     }
   }
 
+  const now = new Date();
   const updated = await bumpVersion({
     clinicId,
     planId,
     expectedRevision,
     states: [STATES.IN_REVIEW],
+    // Record the acting reviewer on the version so a reader never has to join
+    // the timeline to answer "who reviewed this".
+    update: { reviewer: user.id, reviewerLabel: user.email, reviewerAt: now },
   });
   if (!updated) throw revisionConflict();
 
-  const now = new Date();
   await CarePlanItem.updateOne(
     { _id: item._id },
     {

@@ -42,6 +42,13 @@ const carePlanVersionSchema = new mongoose.Schema(
     createdByLabel: { type: String, maxlength: 200 },
     submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     submittedAt: { type: Date },
+    // The reviewer who actually worked THIS version. Set by the first reviewer
+    // decision (an item review or a clarification request) and refreshed on each
+    // one, so the version itself answers "who reviewed it" without a join. The
+    // approving actor is stored separately in `approvedBy`.
+    reviewer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    reviewerLabel: { type: String, maxlength: 200 },
+    reviewerAt: { type: Date },
     clarificationReason: { type: String, trim: true, maxlength: 500 },
     clarificationBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     clarificationByLabel: { type: String, maxlength: 200 },

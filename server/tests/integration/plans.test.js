@@ -702,6 +702,9 @@ test('invalid transitions are refused with a conflict, never silently applied', 
   assert.equal(clarified.body.plan.state, 'needs_clarification');
   assert.equal(clarified.body.plan.clarificationReason, 'Please state the exact dose of the first item.');
   assert.equal(clarified.body.plan.clarificationByLabel, ctx.reviewer.user.email);
+  // A clarification request is a reviewer decision, so it labels the version too.
+  assert.equal(clarified.body.plan.reviewerLabel, ctx.reviewer.user.email);
+  assert.ok(clarified.body.plan.reviewerAt);
 
   const edited = await ctx.coordCtx.a
     .patch(`${planPath(ctx, planId)}/items/${item.body.item.id}`)
@@ -730,11 +733,23 @@ test('invalid transitions are refused with a conflict, never silently applied', 
 test('approval is one transaction: current version, episode pointer and history agree', async () => {
   const ctx = await setup();
   const { planId, itemIds } = await completeApproval(ctx);
+
+  // Still in review: the reviewer's first item decision already labelled the
+  // version, before any approval happened.
+  const inReview = await readPlan(ctx, planId);
+  assert.equal(inReview.body.plan.state, 'in_review');
+  assert.equal(inReview.body.plan.reviewerLabel, ctx.reviewer.user.email);
+  assert.equal(inReview.body.plan.approvedByLabel, null);
+
   const approved = await approve(ctx, planId);
   assert.equal(approved.status, 200, JSON.stringify(approved.body));
   assert.equal(approved.body.plan.state, 'approved');
   assert.equal(approved.body.plan.isCurrent, true);
   assert.equal(approved.body.plan.approvedByLabel, ctx.reviewer.user.email);
+  // The version stores who REVIEWED it as well as who approved it, so a reader
+  // never has to join the timeline to answer that question.
+  assert.equal(approved.body.plan.reviewerLabel, ctx.reviewer.user.email);
+  assert.ok(approved.body.plan.reviewerAt);
   assert.ok(approved.body.plan.approvedAt);
   assert.equal(approved.body.idempotent, false);
   assert.equal(approved.body.superseded, null);
@@ -962,6 +977,10 @@ test('the patient sees only the current approved plan, without reviewer working 
   assert.equal(med.unresolvedFields, undefined);
   assert.equal(after.body.plan.clarificationReason, undefined);
   assert.equal(after.body.plan.revision, undefined);
+  // The acting reviewer's identity is reviewer working state, not patient
+  // content: only the approval actor/time is published.
+  assert.equal(after.body.plan.reviewerLabel, undefined);
+  assert.equal(after.body.plan.reviewerAt, undefined);
 
   // A superseded version is never what the patient reads.
   const next = await createPlan(ctx, { fromVersionId: planId });

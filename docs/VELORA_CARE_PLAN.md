@@ -66,7 +66,11 @@ superseded          -> (terminal)
 
 Each version stores its episode/clinic/patient linkage, monotonic `version` number, `revision`
 counter, creator, submitter, clarification actor/reason, approval actor/time, `state` and the
-`isCurrent`/`supersededBy` relationship. Editing an approved plan is refused with a `409`; the way to
+`isCurrent`/`supersededBy` relationship. It also stores **the reviewer who actually worked it**
+(`reviewerLabel`/`reviewerAt`, written by the first reviewer decision - an item review or a
+clarification request - and refreshed on each one), kept separate from the approving actor, so a
+reader never has to join the timeline to answer "who reviewed this". The reviewer's identity is
+reviewer working state: the patient projection exposes only the approval actor and time. Editing an approved plan is refused with a `409`; the way to
 change clinical content is to create a **new draft version**, which may be copied from an existing
 version (`fromVersionId`) with every copied item reset to **unreviewed**.
 

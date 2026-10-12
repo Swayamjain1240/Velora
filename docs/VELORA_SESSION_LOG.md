@@ -41,7 +41,8 @@ stubbed, not mocked and not scheduled here - it remains Part 6.
 ### Work performed (Part 5)
 
 - **Models:** `CarePlanVersion` (version, state, revision, creator/submitter/clarification/approval
-  facts, `isCurrent`/`supersededBy`, episode/clinic/patient linkage), `CarePlanItem` (verbatim
+  facts plus the acting reviewer, `isCurrent`/`supersededBy`, episode/clinic/patient linkage),
+  `CarePlanItem` (verbatim
   `originalWording`, all structured clinical fields, server-computed `unresolvedFields`, review state),
   `SourceReference` (ready document + page + quote + location) and `ReviewEvent` (append-only timeline
   whose model hooks refuse update/delete).
