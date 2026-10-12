@@ -166,33 +166,76 @@ async function verifyMfa({ session, code, recoveryCode, ip, userAgent }) {
   return { token, user: publicUser(user) };
 }
 
-// Step 1 of enrollment: reuse an existing unconfirmed secret, or generate one.
-// The secret is stored encrypted but MFA stays disabled until step 2 confirms
-// a matching code. Reusing makes this idempotent under double-fired effects.
-async function startMfaEnrollment({ user }) {
-  const freshUser = await User.findById(user.id).select('+mfa.secretEnc');
-  const stored = freshUser && freshUser.mfa && freshUser.mfa.secretEnc;
-  const alreadyConfirmed = Boolean(freshUser && freshUser.mfa && freshUser.mfa.enabled);
-  let secretBase32;
-  if (stored && !alreadyConfirmed) {
-    try {
-      secretBase32 = openSecret(stored);
-    } catch {
-      secretBase32 = undefined;
-    }
-  }
-  const fresh = mfaService.createEnrollment(user, { secretBase32 });
-  user.mfa = {
-    ...(user.mfa && user.mfa.toObject ? user.mfa.toObject() : user.mfa || {}),
-    secretEnc: fresh.secretEnc,
-  };
-  await user.save();
+// Step 1 of enrollment: reuse an existing unconfirmed secret, or install one.
+// The secret is stored encrypted but MFA stays disabled until step 2 confirms a
+// matching code.
+//
+// Installing is ATOMIC and the response always carries the secret that is
+// actually stored: a double-fired setup (React StrictMode) or a retried one can
+// otherwise race, and the client could display a secret the database did not
+// keep - which makes every enrollment code unverifiable until the page is
+// reloaded. Only the first writer installs; a loser re-reads the winner's secret.
+const ENROLLMENT_ATTEMPTS = 4;
+
+function publicEnrollment(user, secretBase32) {
   const env = getEnv();
+  const totp = mfaService.createEnrollment(user, { secretBase32 });
   return {
-    otpauthUrl: fresh.otpauthUrl,
+    otpauthUrl: totp.otpauthUrl,
     // Base32 shown only outside production so dev/test can seed an authenticator.
-    secretBase32: env.NODE_ENV === 'production' ? undefined : fresh.secretBase32,
+    secretBase32: env.NODE_ENV === 'production' ? undefined : secretBase32,
   };
+}
+
+async function startMfaEnrollment({ user }) {
+  for (let attempt = 0; attempt < ENROLLMENT_ATTEMPTS; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const current = await User.findById(user.id).select('+mfa.secretEnc');
+    if (!current) throw errors.unauthorized();
+
+    // Enrollment is FIRST-TIME only. A password-only (mfa_pending) session must
+    // never be able to install a replacement secret on an account that already
+    // has MFA enabled: that would let anyone holding the password swap the
+    // second factor and take the account over. A lost factor needs a deliberate,
+    // audited reset that does not exist yet (documented limit).
+    if (current.mfa && current.mfa.enabled) {
+      throw errors.conflict(
+        'Multi-factor authentication is already enabled for this account. Verify with your authenticator app.'
+      );
+    }
+
+    const enabled = false;
+    const sealed = current.mfa ? current.mfa.secretEnc : undefined;
+    const unconfirmedSecret = sealed || undefined;
+
+    let reusable;
+    if (unconfirmedSecret) {
+      try {
+        reusable = openSecret(unconfirmedSecret);
+      } catch {
+        // An unreadable secret (for example after a key rotation) is replaced
+        // below instead of being handed back.
+        reusable = undefined;
+      }
+    }
+    if (reusable) return publicEnrollment(current, reusable);
+
+    const fresh = mfaService.createEnrollment(current, {});
+    // Compare-and-set: install only while the account still has no unconfirmed
+    // secret (or still has the unreadable one we are replacing).
+    // eslint-disable-next-line no-await-in-loop
+    const installed = await User.findOneAndUpdate(
+      unconfirmedSecret
+        ? { _id: current.id, 'mfa.enabled': { $ne: true }, 'mfa.secretEnc': unconfirmedSecret }
+        : { _id: current.id, 'mfa.enabled': { $ne: true }, 'mfa.secretEnc': { $exists: false } },
+      { $set: { 'mfa.secretEnc': fresh.secretEnc } },
+      { new: true, select: '+mfa.secretEnc' }
+    );
+    if (installed) return publicEnrollment(current, fresh.secretBase32);
+  }
+  // Every attempt lost the compare-and-set, which only happens under a burst of
+  // concurrent enrollments; the caller may simply retry safely.
+  throw errors.busy('Could not start multi-factor enrollment. Please retry.');
 }
 
 // Step 2: verify a code against the stored secret, enable MFA, issue recovery
@@ -200,6 +243,13 @@ async function startMfaEnrollment({ user }) {
 async function completeMfaEnrollment({ session, code, ip, userAgent }) {
   const user = await User.findById(session.user).select('+mfa.secretEnc');
   if (!user) throw errors.unauthorized();
+  // Mirrors the setup guard: an account that already has MFA can only VERIFY,
+  // never re-enroll from a password-only session.
+  if (user.mfa && user.mfa.enabled) {
+    throw errors.conflict(
+      'Multi-factor authentication is already enabled for this account. Verify with your authenticator app.'
+    );
+  }
   const ok = await mfaService.verifyTotp(user, code);
   if (!ok) {
     await audit.record({

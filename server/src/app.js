@@ -16,6 +16,7 @@ const caregiverRoutes = require('./routes/caregiver');
 const accessRoutes = require('./routes/access');
 const episodeRoutes = require('./routes/episodes');
 const documentRoutes = require('./routes/documents');
+const planRoutes = require('./routes/plans');
 
 function buildApp() {
   const app = express();
@@ -66,6 +67,10 @@ function buildApp() {
   app.use('/api/episodes', episodeRoutes);
   // Part 4: private discharge documents (metadata + encrypted object storage).
   app.use('/api/episodes', documentRoutes);
+  // Part 5: manual care plans, clinical review and approval. An approval
+  // publishes a version to the patient and activates NO task, reminder or
+  // message.
+  app.use('/api/episodes', planRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

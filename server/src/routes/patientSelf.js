@@ -7,6 +7,7 @@ const express = require('express');
 const caregiverController = require('../controllers/caregiverController');
 const episodeController = require('../controllers/episodeController');
 const documentController = require('../controllers/documentController');
+const carePlanController = require('../controllers/carePlanController');
 const { validate } = require('../middleware/validate');
 const { mongoRateLimit } = require('../middleware/rateLimit');
 const { downloadLimit, readLimit } = require('../middleware/documentLimits');
@@ -59,6 +60,16 @@ router.get(
   downloadLimit,
   validate({ params: schemas.documentParams }),
   documentController.downloadDocument
+);
+
+// Part 5: the patient's CURRENT APPROVED care plan only. Drafts, the
+// clarification history and the reviewer's working notes are never reachable
+// through this route - and the staff version workspace is closed to this role.
+router.get(
+  '/me/episodes/:episodeId/plan',
+  readLimit,
+  validate({ params: schemas.episodeIdParam }),
+  carePlanController.patientCurrentPlan
 );
 
 router.get(

@@ -6,9 +6,11 @@
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 
+const crypto = require('node:crypto');
 const { loadEnv, getEnv } = require('../src/config/env');
 const { connectDb, disconnectDb } = require('../src/config/db');
 const { hashPassword } = require('../src/services/passwordService');
+const documentStorage = require('../src/services/documentStorage');
 const { SYSTEM_ROLES } = require('../src/config/constants');
 const User = require('../src/models/User');
 const Clinic = require('../src/models/Clinic');
@@ -20,6 +22,11 @@ const CareTeamAssignment = require('../src/models/CareTeamAssignment');
 const PatientAssignment = require('../src/models/PatientAssignment');
 const CaregiverGrant = require('../src/models/CaregiverGrant');
 const RateLimitBucket = require('../src/models/RateLimitBucket');
+const EpisodeDocument = require('../src/models/EpisodeDocument');
+const CarePlanVersion = require('../src/models/CarePlanVersion');
+const CarePlanItem = require('../src/models/CarePlanItem');
+const SourceReference = require('../src/models/SourceReference');
+const ReviewEvent = require('../src/models/ReviewEvent');
 
 const SEED_PASSWORD = 'SyntheticDevPass!24';
 
@@ -38,7 +45,26 @@ const STAFF = [
   // Scoped caregiver holder: the one-viewport gate needs a session that can
   // reach the caregiver screen, which requires an ACTIVE, explicit grant.
   { email: 'caregiver.docs@synthetic.invalid', name: 'Synthetic Document Caregiver', roleKey: 'caregiver' },
+  // Part 5 care-plan journey: a coordinator who drafts, a VERIFIED reviewer who
+  // is assigned to the same episode, and the patient account that owns it.
+  { email: 'plan.coordinator@synthetic.invalid', name: 'Synthetic Plan Coordinator', roleKey: 'care_coordinator' },
+  { email: 'plan.reviewer@synthetic.invalid', name: 'Synthetic Plan Reviewer', roleKey: 'clinical_reviewer' },
+  { email: 'plan.patient@synthetic.invalid', name: 'Synthetic Plan Patient', roleKey: 'patient' },
 ];
+
+// A technically valid one-page synthetic PDF: the only document the Part 5
+// journey may cite as a source.
+function planPdfBytes() {
+  return Buffer.from(
+    '%PDF-1.4\n' +
+      '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n' +
+      '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n' +
+      '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n' +
+      'synthetic discharge summary - fabricated content only\n' +
+      'trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n0\n%%EOF\n',
+    'latin1'
+  );
+}
 
 // Part 4: one synthetic care team with a DRAFT episode (documents accepted) and
 // a CLOSED episode (documents refused), plus a patient-linked episode so the
@@ -147,6 +173,125 @@ async function seedDocumentJourney(clinic, passwordHash) {
   console.log(`Seeded ${episodes.length} synthetic document-journey episodes (draft, closed, patient-linked).`);
 }
 
+// Part 5: one draft episode with an assigned coordinator, an assigned VERIFIED
+// reviewer and one READY source document. Any plan data from a previous run is
+// removed so the browser journey always starts from an empty plan slot.
+async function seedPlanJourney(clinic) {
+  const coordinator = await User.findOne({ email: 'plan.coordinator@synthetic.invalid' });
+  const reviewer = await User.findOne({ email: 'plan.reviewer@synthetic.invalid' });
+  const patientUser = await User.findOne({ email: 'plan.patient@synthetic.invalid' });
+  if (!coordinator || !reviewer || !patientUser) {
+    throw new Error('care-plan journey accounts were not seeded');
+  }
+
+  const membership = await ClinicMembership.findOne({ clinic: clinic.id, user: coordinator.id });
+  const reviewerMembership = await ClinicMembership.findOne({ clinic: clinic.id, user: reviewer.id });
+
+  const profile = await upsertProfile(clinic, coordinator, {
+    reference: 'PT-PLANJRNY',
+    fullName: 'Synthetic Plan Journey Patient',
+    linkedUserId: patientUser.id,
+  });
+  const episode = await upsertEpisode(clinic, coordinator, profile, {
+    reference: 'EP-PLANJRNY',
+    status: 'draft',
+  });
+
+  // Start clean: remove every version of this episode together with its items,
+  // citations and review timeline. Review events are append-only, so they are
+  // removed through the raw collection.
+  const versions = await CarePlanVersion.find({ clinic: clinic.id, episode: episode.id })
+    .select('_id')
+    .lean();
+  const versionIds = versions.map((v) => v._id);
+  if (versionIds.length) {
+    await SourceReference.deleteMany({ version: { $in: versionIds } });
+    await CarePlanItem.deleteMany({ version: { $in: versionIds } });
+    await ReviewEvent.collection.deleteMany({ version: { $in: versionIds } });
+  }
+  await CarePlanVersion.deleteMany({ clinic: clinic.id, episode: episode.id });
+  await RecoveryEpisode.updateOne(
+    { _id: episode.id },
+    { $set: { planState: 'none', approvedPlanVersion: null } }
+  );
+
+  await PatientAssignment.updateOne(
+    { clinic: clinic.id, patient: profile.id, memberUser: coordinator.id, status: 'active' },
+    {
+      $setOnInsert: {
+        clinic: clinic.id,
+        patient: profile.id,
+        membership: membership ? membership.id : undefined,
+        memberUser: coordinator.id,
+        status: 'active',
+        assignedBy: coordinator.id,
+        assignedByRole: 'staff',
+        assignedAt: new Date(),
+      },
+    },
+    { upsert: true }
+  );
+
+  for (const [member, memberMembership, responsibility] of [
+    [coordinator, membership, 'care_coordinator'],
+    [reviewer, reviewerMembership, 'clinical_reviewer'],
+  ]) {
+    await CareTeamAssignment.updateOne(
+      { clinic: clinic.id, episode: episode.id, memberUser: member.id, status: 'active' },
+      {
+        $setOnInsert: {
+          clinic: clinic.id,
+          patient: episode.patient,
+          episode: episode.id,
+          membership: memberMembership ? memberMembership.id : undefined,
+          memberUser: member.id,
+          responsibility,
+          status: 'active',
+          assignedBy: coordinator.id,
+          assignedByRole: 'staff',
+          assignedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+  }
+
+  // One READY source document, stored through the same encrypted provider the
+  // API uses (no plaintext ever reaches the filesystem).
+  const bytes = planPdfBytes();
+  const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+  let document = await EpisodeDocument.findOne({
+    clinic: clinic.id,
+    episode: episode.id,
+    sha256: digest,
+  });
+  if (!document) {
+    const storageKey = documentStorage.newStorageKey();
+    await documentStorage.put(storageKey, bytes);
+    document = await EpisodeDocument.create({
+      clinic: clinic.id,
+      patient: episode.patient,
+      episode: episode.id,
+      storageKey,
+      originalFilename: 'synthetic-discharge-summary.pdf',
+      mediaType: 'application/pdf',
+      byteSize: bytes.length,
+      sha256: digest,
+      status: 'ready',
+      technical: { pages: 1 },
+      uploadedBy: coordinator.id,
+      uploadedByRole: 'staff',
+    });
+  } else {
+    document.status = 'ready';
+    document.rejectionCode = undefined;
+    await document.save();
+  }
+
+  // eslint-disable-next-line no-console
+  console.log('Seeded the Part 5 care-plan journey episode (draft, ready source, assigned reviewer).');
+}
+
 async function upsertProfile(clinic, creator, { reference, fullName, linkedUserId = null }) {
   await PatientProfile.updateOne(
     { clinic: clinic.id, reference },
@@ -243,6 +388,7 @@ async function run() {
   }
 
   await seedDocumentJourney(clinic, passwordHash);
+  await seedPlanJourney(clinic);
 
   // eslint-disable-next-line no-console
   console.log(`\nAll synthetic accounts share password: ${SEED_PASSWORD}`);

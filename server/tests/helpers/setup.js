@@ -54,6 +54,10 @@ const RecoveryEpisode = require('../../src/models/RecoveryEpisode');
 const EpisodeDocument = require('../../src/models/EpisodeDocument');
 const CareTeamAssignment = require('../../src/models/CareTeamAssignment');
 const EpisodeCorrection = require('../../src/models/EpisodeCorrection');
+const CarePlanVersion = require('../../src/models/CarePlanVersion');
+const CarePlanItem = require('../../src/models/CarePlanItem');
+const SourceReference = require('../../src/models/SourceReference');
+const ReviewEvent = require('../../src/models/ReviewEvent');
 
 let counter = 0;
 function uniq(prefix) {
@@ -84,7 +88,9 @@ async function init() {
   await Promise.all(
     Object.values(mongoose.models).map((model) => model.init())
   );
-  return buildApp();
+  const app = buildApp();
+  await startOwnedServer(app);
+  return app;
 }
 
 async function resetDb() {
@@ -93,6 +99,7 @@ async function resetDb() {
     PasswordReset, Session, AuditEvent, MfaRecoveryCode, RateLimitBucket,
     PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
     RecoveryEpisode, CareTeamAssignment, EpisodeCorrection, EpisodeDocument,
+    CarePlanVersion, CarePlanItem, SourceReference, ReviewEvent,
   ];
   // Remove every stored object so a test can never observe a prior test's bytes.
   const objectsDir = path.join(process.env.DOCUMENT_STORAGE_ROOT, 'objects');
@@ -144,11 +151,31 @@ async function makeMember(clinic, { email, roleKey, eligibility } = {}) {
   return { user, membership };
 }
 
+// A listener the harness OWNS for the whole file. SuperTest closes a server it
+// started itself as soon as a request settles, so two sequential requests on the
+// same agent could race that close and throw inside SuperTest; passing our own
+// already-listening server keeps the bookkeeping out of SuperTest entirely.
+const http = require('node:http');
+const ownedServers = new WeakMap();
+const allOwnedServers = [];
+
+async function startOwnedServer(app) {
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  ownedServers.set(app, server);
+  allOwnedServers.push(server);
+  return server;
+}
+
 // Logs a user in through the real HTTP stack and returns a cookie-holding
-// agent. `withMfa` completes a real TOTP enrollment first.
+// agent against the harness-owned server.
 function agent(app) {
   const request = require('supertest');
-  return request.agent(app);
+  const server = ownedServers.get(app);
+  return request.agent(server || app);
 }
 
 async function login(app, email, password) {
@@ -186,7 +213,7 @@ function totpCode(base32, label) {
   return totp.generate();
 }
 
-// Drives the full enrollment: setup -> verify -> returns recovery codes.
+// Drives the full FIRST-TIME enrollment: setup -> verify -> recovery codes.
 async function enrollMfa(a, csrf, email) {
   const setup = await a.post('/api/auth/mfa/enroll/setup').set('X-CSRF-Token', csrf);
   const code = totpCode(setup.body.secretBase32, email);
@@ -195,6 +222,16 @@ async function enrollMfa(a, csrf, email) {
     .set('X-CSRF-Token', csrf)
     .send({ code });
   return { setup, verify, recoveryCodes: verify.body.recoveryCodes || [] };
+}
+
+// Completes the verification step of a SECOND device on an account that already
+// holds MFA: it verifies with the known secret instead of enrolling again, which
+// an already-enrolled account is no longer allowed to do.
+async function verifyMfa(a, csrf, secretBase32, email) {
+  return a
+    .post('/api/auth/mfa/verify')
+    .set('X-CSRF-Token', csrf)
+    .send({ code: totpCode(secretBase32, email) });
 }
 
 // Full sign-in that stops at the MFA prompt: returns the agent plus the CSRF
@@ -227,6 +264,11 @@ async function createPatient(a, csrf, body) {
 }
 
 async function shutdown() {
+  await Promise.all(
+    allOwnedServers.map(
+      (server) => new Promise((resolve) => server.close(() => resolve()))
+    )
+  );
   await disconnectDb();
   await mongoose.connection.close().catch(() => {});
 }
@@ -241,6 +283,7 @@ module.exports = {
   csrfFrom,
   totpCode,
   enrollMfa,
+  verifyMfa,
   loginPendingMfa,
   signInStaff,
   createPatient,
@@ -252,5 +295,6 @@ module.exports = {
     PasswordReset, Session, AuditEvent, MfaRecoveryCode, RateLimitBucket,
     PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
     RecoveryEpisode, CareTeamAssignment, EpisodeCorrection, EpisodeDocument,
+    CarePlanVersion, CarePlanItem, SourceReference, ReviewEvent,
   },
 };

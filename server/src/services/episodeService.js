@@ -90,6 +90,11 @@ function publicEpisode(episode) {
     dischargeDate: dateOnly(episode.dischargeDate),
     dischargeTimezone: episode.dischargeTimezone,
     revision: episode.revision,
+    // Part 5: the coarse plan-slot state and the pointer to the CURRENT approved
+    // plan version. Both are written only by an approval transaction (or a draft
+    // transition); they are never clinical content and they activate nothing.
+    planState: episode.planState || 'none',
+    approvedPlanVersion: episode.approvedPlanVersion ? String(episode.approvedPlanVersion) : null,
     createdAt: episode.createdAt,
     updatedAt: episode.updatedAt,
   };

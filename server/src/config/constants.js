@@ -22,7 +22,11 @@ const PERMISSIONS = Object.freeze({
   PATIENT_SELF: 'patient.self',
   // Declared for later parts (not yet enforced by any route):
   EPISODE_MANAGE: 'episode.manage',
+  // Part 5: drafting a manual plan, and the clinical review that can request
+  // clarification or approve it. `plan.review` is held ONLY by the clinical
+  // reviewer role: an administrator never receives it.
   PLAN_DRAFT: 'plan.draft',
+  PLAN_REVIEW: 'plan.review',
   CLINICAL_REVIEW: 'clinical.review',
 });
 
@@ -82,12 +86,15 @@ const SYSTEM_ROLES = Object.freeze([
       PERMISSIONS.EPISODE_MANAGE,
       PERMISSIONS.PLAN_DRAFT,
     ],
+    // The coordinator can draft a manual plan but can never review, clarify or
+    // approve one: that requires the separately verified reviewer role.
   },
   {
     key: ROLES.CLINICAL_REVIEWER,
     name: 'Clinical Reviewer',
     // Reads patient context for review; cannot create or administer patients.
-    permissions: [PERMISSIONS.PATIENT_READ, PERMISSIONS.CLINICAL_REVIEW],
+    // Part 5 adds plan review, which is the only path to an approved plan.
+    permissions: [PERMISSIONS.PATIENT_READ, PERMISSIONS.CLINICAL_REVIEW, PERMISSIONS.PLAN_REVIEW],
   },
   {
     key: ROLES.PATIENT,

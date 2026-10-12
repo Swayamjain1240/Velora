@@ -32,6 +32,20 @@ const recoveryEpisodeSchema = new mongoose.Schema(
     dischargeTimezone: { type: String, required: true, trim: true, maxlength: 64 },
     // Monotonic revision for optimistic concurrency on draft corrections.
     revision: { type: Number, required: true, default: 1, min: 1 },
+    // Part 5: the current CLINICALLY APPROVED plan version, and a coarse plan
+    // state for listings. Only an approval transaction writes these, and an
+    // approval activates NO downstream workflow (no task, reminder or message)
+    // - the episode's own lifecycle status stays untouched.
+    approvedPlanVersion: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CarePlanVersion',
+      default: null,
+    },
+    planState: {
+      type: String,
+      enum: ['none', 'draft', 'in_review', 'needs_clarification', 'approved'],
+      default: 'none',
+    },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', immutable: true },
   },
   { timestamps: true }

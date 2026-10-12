@@ -222,6 +222,117 @@ const assignTeamSchema = z
   })
   .strict();
 
+// ---- Part 5: manual care plans -------------------------------------------------
+
+const planIdParam = z.object({ episodeId: objectIdSchema, planId: objectIdSchema }).strict();
+const planItemParams = z
+  .object({ episodeId: objectIdSchema, planId: objectIdSchema, itemId: objectIdSchema })
+  .strict();
+const planSourceParams = z
+  .object({ episodeId: objectIdSchema, planId: objectIdSchema, sourceId: objectIdSchema })
+  .strict();
+
+const revisionOnlySchema = z.object({ expectedRevision: z.coerce.number().int().min(1) }).strict();
+
+// Clinical text is stored and returned as TEXT only (control #7): length-bounded,
+// never interpreted as markup, and every HTML-looking string is treated as
+// literal content.
+const clinicalText = (max) => z.string().trim().max(max);
+
+const createPlanSchema = z
+  .object({
+    title: clinicalText(200).optional(),
+    summary: clinicalText(2000).optional(),
+    fromVersionId: objectIdSchema.optional(),
+  })
+  .strict();
+
+const updatePlanSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    title: clinicalText(200).optional(),
+    summary: clinicalText(2000).optional(),
+  })
+  .strict()
+  .refine((v) => v.title !== undefined || v.summary !== undefined, {
+    message: 'Provide a title or summary to update.',
+  });
+
+const planItemFields = {
+  kind: z
+    .enum(['medication', 'instruction', 'monitoring', 'follow_up', 'warning', 'diet_activity', 'home_care'])
+    .optional(),
+  originalWording: clinicalText(2000),
+  medication: clinicalText(200).optional(),
+  dose: clinicalText(120).optional(),
+  route: clinicalText(120).optional(),
+  frequency: clinicalText(120).optional(),
+  timing: clinicalText(200).optional(),
+  duration: clinicalText(120).optional(),
+  condition: clinicalText(300).optional(),
+  homeCare: clinicalText(500).optional(),
+  dietActivity: clinicalText(500).optional(),
+  followUp: clinicalText(500).optional(),
+  warning: clinicalText(500).optional(),
+};
+
+const createPlanItemSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    order: z.coerce.number().int().min(1).max(10000).optional(),
+    ...planItemFields,
+  })
+  .strict();
+
+const updatePlanItemSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    ...planItemFields,
+    originalWording: clinicalText(2000).optional(),
+  })
+  .strict();
+
+const reorderPlanItemSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    direction: z.enum(['up', 'down']),
+  })
+  .strict();
+
+const linkSourceSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    documentId: objectIdSchema,
+    text: z.string().trim().min(1).max(2000),
+    page: z.coerce.number().int().min(1).max(100000).optional(),
+    location: z.string().trim().max(300).optional(),
+  })
+  .strict();
+
+const reviewPlanItemSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    decision: z.enum(['accepted', 'clarify']),
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+const clarificationSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    reason: z.string().trim().min(5, 'Explain what needs clarifying').max(500),
+  })
+  .strict();
+
+const approvePlanSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    // An explicit acknowledgement that approval publishes this version to the
+    // patient as the current plan.
+    confirm: z.literal(true, { errorMap: () => ({ message: 'Approval must be confirmed.' }) }),
+  })
+  .strict();
+
 module.exports = {
   loginSchema,
   mfaVerifySchema,
@@ -252,5 +363,18 @@ module.exports = {
   episodeIdParam,
   documentParams,
   episodeTeamParams,
+  planIdParam,
+  planItemParams,
+  planSourceParams,
+  revisionOnlySchema,
+  createPlanSchema,
+  updatePlanSchema,
+  createPlanItemSchema,
+  updatePlanItemSchema,
+  reorderPlanItemSchema,
+  linkSourceSchema,
+  reviewPlanItemSchema,
+  clarificationSchema,
+  approvePlanSchema,
   assignTeamSchema,
 };

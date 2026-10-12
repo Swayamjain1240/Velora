@@ -112,6 +112,43 @@ test('MFA enrollment setup is idempotent: repeated setup returns the same secret
   assert.strictEqual((await a.get('/api/auth/me')).status, 200);
 });
 
+test('concurrent MFA enrollment setups agree on ONE secret and that secret verifies', async () => {
+  // The sequential case above can pass even when the install is a read-then-save
+  // race: two parallel setup calls would each generate a secret, the database
+  // would keep one of them and the client could render the other - leaving the
+  // user unable to enrol with a code that looks correct. This case fires both
+  // calls together and then proves the returned secret is the stored one.
+  const { admin } = await seedAdmin();
+  const a = harness.agent(app);
+  const login = await a.post('/api/auth/login').send({ email: admin.user.email, password: PASSWORD });
+  const csrf = harness.csrfFrom(login);
+
+  const [s1, s2] = await Promise.all([
+    a.post('/api/auth/mfa/enroll/setup').set('X-CSRF-Token', csrf),
+    a.post('/api/auth/mfa/enroll/setup').set('X-CSRF-Token', csrf),
+  ]);
+  assert.strictEqual(s1.status, 200);
+  assert.strictEqual(s2.status, 200);
+  assert.strictEqual(
+    s1.body.secretBase32,
+    s2.body.secretBase32,
+    'parallel setup calls must return the stored secret'
+  );
+
+  const code = harness.totpCode(s1.body.secretBase32, admin.user.email);
+  const verify = await a
+    .post('/api/auth/mfa/enroll/verify')
+    .set('X-CSRF-Token', csrf)
+    .send({ code });
+  assert.strictEqual(verify.status, 200, JSON.stringify(verify.body));
+  assert.ok(verify.body.recoveryCodes.length > 0);
+
+  // The stored secret is the one the client was shown, not a discarded sibling.
+  const stored = await harness.models.User.findById(admin.user.id).select('+mfa.secretEnc');
+  const { openSecret } = require('../../src/services/crypto');
+  assert.strictEqual(openSecret(stored.mfa.secretEnc), s1.body.secretBase32);
+});
+
 test('MFA promotion rotates the session token (fixation defense)', async () => {
   const { admin } = await seedAdmin();
   const a = harness.agent(app);
@@ -137,13 +174,17 @@ test('revoke-all kills every other session for the user', async () => {
   const first = harness.agent(app);
   const login1 = await first.post('/api/auth/login').send({ email: admin.user.email, password: PASSWORD });
   const csrf1 = harness.csrfFrom(login1);
-  await harness.enrollMfa(first, csrf1, admin.user.email);
+  const enrolled = await harness.enrollMfa(first, csrf1, admin.user.email);
+  const secret = enrolled.setup.body.secretBase32;
 
-  // Second device logs in and completes MFA too.
+  // Second device logs in and completes MFA too - by VERIFYING with the same
+  // authenticator, because an enrolled account may not enrol again.
   const second = harness.agent(app);
   const login2 = await second.post('/api/auth/login').send({ email: admin.user.email, password: PASSWORD });
   const csrf2 = harness.csrfFrom(login2);
-  await harness.enrollMfa(second, csrf2, admin.user.email);
+  assert.strictEqual(login2.body.next, 'mfa_verify');
+  const verified = await harness.verifyMfa(second, csrf2, secret, admin.user.email);
+  assert.strictEqual(verified.status, 200, JSON.stringify(verified.body));
 
   assert.strictEqual((await second.get('/api/auth/me')).status, 200);
 
@@ -154,6 +195,47 @@ test('revoke-all kills every other session for the user', async () => {
 
   assert.strictEqual((await second.get('/api/auth/me')).status, 401);
   assert.strictEqual((await first.get('/api/auth/me')).status, 401);
+});
+
+test('a password-only session can never replace an existing MFA factor', async () => {
+  // MFA must be a real second factor. If an mfa_pending (password-only) session
+  // could install a new secret, anyone holding the password could swap the
+  // factor and take the account over - so enrollment is first-time only.
+  const { admin } = await seedAdmin();
+  const owner = harness.agent(app);
+  const login1 = await owner.post('/api/auth/login').send({ email: admin.user.email, password: PASSWORD });
+  const csrf1 = harness.csrfFrom(login1);
+  const enrolled = await harness.enrollMfa(owner, csrf1, admin.user.email);
+  const secret = enrolled.setup.body.secretBase32;
+
+  const attacker = harness.agent(app);
+  const login2 = await attacker
+    .post('/api/auth/login')
+    .send({ email: admin.user.email, password: PASSWORD });
+  const csrf2 = harness.csrfFrom(login2);
+  assert.strictEqual(login2.body.next, 'mfa_verify');
+
+  // No new secret, and no completion of a self-chosen one.
+  const setup = await attacker
+    .post('/api/auth/mfa/enroll/setup')
+    .set('X-CSRF-Token', csrf2);
+  assert.strictEqual(setup.status, 409, JSON.stringify(setup.body));
+  assert.strictEqual(setup.body.secretBase32, undefined);
+
+  const rogue = await attacker
+    .post('/api/auth/mfa/enroll/verify')
+    .set('X-CSRF-Token', csrf2)
+    .send({ code: harness.totpCode('JBSWY3DPEHPK3PXP', admin.user.email) });
+  assert.strictEqual(rogue.status, 409, JSON.stringify(rogue.body));
+  assert.strictEqual((await attacker.get('/api/auth/me')).status, 401);
+
+  // The stored factor is unchanged, so the legitimate authenticator still works.
+  const stored = await harness.models.User.findById(admin.user.id).select('+mfa.secretEnc');
+  const { openSecret } = require('../../src/services/crypto');
+  assert.strictEqual(openSecret(stored.mfa.secretEnc), secret);
+  const ok = await harness.verifyMfa(attacker, csrf2, secret, admin.user.email);
+  assert.strictEqual(ok.status, 200, JSON.stringify(ok.body));
+  assert.strictEqual((await attacker.get('/api/auth/me')).status, 200);
 });
 
 test('TOTP enrollment then login requires a live code; recovery code is single-use', async () => {
