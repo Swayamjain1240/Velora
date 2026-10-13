@@ -17,6 +17,7 @@ const accessRoutes = require('./routes/access');
 const episodeRoutes = require('./routes/episodes');
 const documentRoutes = require('./routes/documents');
 const planRoutes = require('./routes/plans');
+const extractionRoutes = require('./routes/extractions');
 
 function buildApp() {
   const app = express();
@@ -71,6 +72,10 @@ function buildApp() {
   // publishes a version to the patient and activates NO task, reminder or
   // message.
   app.use('/api/episodes', planRoutes);
+  // Part 6: AI-assisted extraction JOBS and reviewed Hindi/English renderings.
+  // A provider is optional; with none selected the manual Part 5 workflow is
+  // the only path and these routes answer with a stable "not enabled" code.
+  app.use('/api/episodes', extractionRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

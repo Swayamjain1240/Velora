@@ -62,6 +62,27 @@ const envSchema = z
     DOCUMENT_PARSER_MEMORY_MB: z.coerce.number().int().min(16).max(1024).default(128),
     DOCUMENT_PARSER_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
     DOCUMENT_PARSER_QUEUE_MAX: z.coerce.number().int().min(0).max(64).default(8),
+    // Part 6: AI-assisted extraction. NO provider is selected by default
+    // (`none`), and nothing here is required unless a provider is enabled -
+    // controls #2 and #22: shipping the product must never require an AI key.
+    // `EXTRACTION_PROVIDER` is only shape-checked here; the provider REGISTRY
+    // (src/providers/index.js) decides which names exist and fails closed at
+    // startup for an unknown one, so this file never has to know providers.
+    EXTRACTION_PROVIDER: z
+      .string()
+      .regex(/^[a-z][a-z0-9_-]{0,31}$/, 'EXTRACTION_PROVIDER must be a short lowercase slug')
+      .default('none'),
+    // Server-only. Never prefixed with VITE_ and never sent to the browser.
+    EXTRACTION_API_KEY: z.string().min(1).max(4096).optional(),
+    EXTRACTION_MODEL: z.string().min(1).max(120).optional(),
+    // Bounded job I/O: the model receives at most this much document text and
+    // may return at most this many bytes (control #8).
+    EXTRACTION_MAX_INPUT_CHARS: z.coerce.number().int().min(1000).max(500_000).default(60_000),
+    EXTRACTION_MAX_OUTPUT_BYTES: z.coerce.number().int().min(1024).max(2 * 1024 * 1024).default(256 * 1024),
+    EXTRACTION_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
+    EXTRACTION_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+    EXTRACTION_JOBS_PER_HOUR: z.coerce.number().int().min(1).max(1000).default(30),
+    EXTRACTION_RUNS_PER_DAY: z.coerce.number().int().min(1).max(10_000).default(200),
     TRUST_PROXY: z
       .enum(['true', 'false'])
       .default('false')

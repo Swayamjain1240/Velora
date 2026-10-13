@@ -28,6 +28,11 @@ const PERMISSIONS = Object.freeze({
   PLAN_DRAFT: 'plan.draft',
   PLAN_REVIEW: 'plan.review',
   CLINICAL_REVIEW: 'clinical.review',
+  // Part 6: running an AI-ASSISTED extraction job. This is a drafting aid, so it
+  // sits with the drafting role and NEVER confers review, approval or any
+  // clinical authority: an extraction job cannot approve, publish, prescribe,
+  // change clinical state, activate a task or send a reminder.
+  EXTRACTION_RUN: 'extraction.run',
 });
 
 const ROLES = Object.freeze({
@@ -85,6 +90,7 @@ const SYSTEM_ROLES = Object.freeze([
       PERMISSIONS.CAREGIVER_MANAGE,
       PERMISSIONS.EPISODE_MANAGE,
       PERMISSIONS.PLAN_DRAFT,
+      PERMISSIONS.EXTRACTION_RUN,
     ],
     // The coordinator can draft a manual plan but can never review, clarify or
     // approve one: that requires the separately verified reviewer role.

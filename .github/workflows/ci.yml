@@ -84,6 +84,9 @@ jobs:
       DOCUMENT_ENCRYPTION_KEY: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
       VITE_API_PROXY: http://localhost:4100
       E2E_BASE_URL: http://localhost:5173
+      # Part 6: the LOCAL deterministic provider (no network, no key). This is a
+      # test-only value; the shipped default is `none` (see the fail-closed step).
+      EXTRACTION_PROVIDER: fake
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -108,7 +111,10 @@ jobs:
       - name: Seed synthetic clinic
         run: npm run seed -w server
       - name: Start API
-        run: npm run start -w server &
+        # Captured PID so the provider-disabled journey can restart it below.
+        run: |
+          node server/src/index.js > /tmp/api.log 2>&1 &
+          echo $! > /tmp/api.pid
       - name: Start client
         run: npm run dev -w client &
       - name: Wait for stack
@@ -127,6 +133,21 @@ jobs:
           exit 1
       - name: Browser journeys
         run: npx playwright test
+      - name: Extraction fails closed with no provider enabled
+        # The AI journey above runs with the fake provider; this restart proves the
+        # SHIPPED default (no provider) fails closed and drafting by hand still works.
+        run: |
+          kill "$(cat /tmp/api.pid)" 2>/dev/null || true
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:4100/api/health >/dev/null 2>&1 && sleep 1 || break
+          done
+          EXTRACTION_PROVIDER=none node server/src/index.js > /tmp/api-none.log 2>&1 &
+          echo $! > /tmp/api.pid
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:4100/api/health >/dev/null && break
+            sleep 2
+          done
+          npx playwright test e2e/extractions.spec.js -g "no provider enabled"
 
   security:
     name: Dependency audit and secret scan

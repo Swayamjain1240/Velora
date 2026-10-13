@@ -173,12 +173,61 @@ async function validate(bytes, opts = {}) {
   }
 }
 
+// Part 6: reads the text layer of an already-stored document through the SAME
+// bounded worker pool, so untrusted bytes are parsed under the same time,
+// memory, concurrency and queue limits as an upload. Returns { ok:true, pages,
+// charCount, truncated } or { ok:false, code } with a stable code (`NO_TEXT_LAYER`
+// for a scan, `TEXT_LAYER_TIMEOUT` when the budget is spent).
+const TEXT_LAYER_CODES = Object.freeze({
+  NO_TEXT_LAYER: 'NO_TEXT_LAYER',
+  TEXT_TOO_LARGE: 'TEXT_TOO_LARGE',
+  TEXT_LAYER_UNSUPPORTED_MEDIA: 'TEXT_LAYER_UNSUPPORTED_MEDIA',
+  TEXT_LAYER_MALFORMED: 'TEXT_LAYER_MALFORMED',
+});
+
+async function extractTextLayer(bytes, opts = {}) {
+  const env = getEnv();
+  const payload = {
+    mode: 'text',
+    bytes,
+    mediaType: opts.mediaType,
+    maxChars: opts.maxChars || env.EXTRACTION_MAX_INPUT_CHARS,
+    stallMs: process.env.NODE_ENV === 'test' ? opts.stallMs : undefined,
+  };
+
+  await acquire();
+  try {
+    const outcome = await runWorker(payload, {
+      // The text budget is its own wall-clock limit: reading a text layer is
+      // cheap, and a document that needs longer is not worth holding a slot for.
+      timeoutMs: Math.max(env.DOCUMENT_PARSER_TIMEOUT_MS, 1000),
+      memoryMb: env.DOCUMENT_PARSER_MEMORY_MB,
+    });
+    if (outcome && outcome.ok) {
+      return {
+        ok: true,
+        pages: outcome.pages || [],
+        charCount: outcome.charCount || 0,
+        truncated: Boolean(outcome.truncated),
+      };
+    }
+    const code = (outcome && outcome.code) || 'PARSER_ERROR';
+    // Only stable, non-diagnostic codes leave this module.
+    const safe = TEXT_LAYER_CODES[code] ? code : code === 'PARSER_TIMEOUT' ? 'TEXT_LAYER_TIMEOUT' : 'TEXT_LAYER_ERROR';
+    return { ok: false, code: safe };
+  } finally {
+    release();
+  }
+}
+
 module.exports = {
   validate,
+  extractTextLayer,
   safeError,
   errorClass,
   REJECTION_CODES,
   PRE_PERSIST_CODES,
   INCONCLUSIVE_CODES,
   SAFE_MESSAGES,
+  TEXT_LAYER_CODES,
 };

@@ -224,7 +224,36 @@ merely in the service - a concurrent approval and a direct driver update are bot
 Approval activates **no** task, reminder, schedule or message; the episode's own lifecycle status is
 untouched.
 
-## 9. Decision log (Parts 1-5)
+## 8e. AI-assisted extraction and reviewed language (Part 6)
+
+> The full contract - provider disclosure, models, schema, jobs, limits, threat model and evaluation
+> limits - lives in [VELORA_EXTRACTION.md](VELORA_EXTRACTION.md). This section records the design
+> decisions behind it.
+
+AI is an **untrusted drafting aid with zero clinical authority**. There is no code path from a model
+suggestion to approval, publication, a prescription, a task or a reminder. The shipped provider is
+`none`: jobs fail closed with `PROVIDER_DISABLED` and manual drafting (Part 5) is unaffected.
+
+- **Adapter first.** Any provider implements one neutral interface (`extract({ pages, model })`); the
+  registry fails closed on an unknown name. The only enabled provider is the deterministic local
+  `fake` (offline, no key, byte-for-byte reproducible), so all provider-independent work and tests
+  exist before any vendor is chosen (control #22).
+- **Document text is data.** It is quoted inside explicit delimiters (which are stripped from the
+  text first) and never treated as instruction or tool authorization; suspicious lines are detected
+  as position-only labels and force `needs_review`.
+- **The server decides.** The model's `missing`/`conflicts` claims are evidence, not truth. The server
+  validates the strict schema, verifies every citation against the supplied pages, and classifies each
+  field itself (`suggested`/`missing`/`conflicting`/`unresolved`). An anchored value absent from the
+  cited source is `unresolved`, never trusted; ambiguity is never normalized into a fact.
+- **Apply is a separate draft edit.** It re-checks authority and the current revision, then goes
+  through the Part 5 service: one ordinary item, the same citation, still "awaiting clinical review".
+- **Language renderings** are linked, versioned, numerically guarded, assigned-reviewer-approved and
+  never patient-visible automatically; approving one changes no clinical value or plan state.
+- **Why no provider yet:** selecting one requires the completed disclosure (provider, purpose, key,
+  env var, data sent, retention/region, cost) and owner/clinical/privacy review. Until then the
+  boundary is clean and the product is fully functional without AI.
+
+## 9. Decision log (Parts 1-6)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -266,9 +295,18 @@ untouched.
 | D36 | Reviewer decision needs `in_review` as an allowed write state | reuse the draft-only guard | the reviewer path was invisible to the draft guard (found by test, fixed) |
 | D37 | Patient projection omits reviewer working state | return one shared mapper | reviewer notes and clarification history are internal |
 | D38 | Harness-owned HTTP listener for tests | supertest's own server | supertest closes its server on settle; sequential agent requests could race that close and fail flakily |
+| D39 | Provider-neutral extraction interface + deterministic local fake | pick an LLM/OCR vendor now | control #22; all provider-independent work and tests exist before any vendor |
+| D40 | Document text quoted as delimited data, delimiters stripped | pass text as a prompt | document text must never be instruction or tool authorization |
+| D41 | Server classifies every field; model claims are evidence | trust the model's missing/conflicts | a fabricated dose is a dosing error; anchored values absent from the source become `unresolved` |
+| D42 | Applying a suggestion is a separate Part 5 draft edit | write clinical state from the job | AI output must never change clinical state, approve or publish |
+| D43 | Reviewed renderings never patient-visible automatically | show an approved rendering to the patient | presentation approval must not bypass plan approval |
+| D44 | A `needs_review` suggestion is still decidable | disable apply/dismiss on flagged suggestions | a flagged suggestion is exactly the one a human must decide (found by the browser journey, fixed) |
 
-## 10. Known limitations (Parts 1-5)
+## 10. Known limitations (Parts 1-6)
 
+- No external AI/OCR provider is selected or called; a real provider needs the completed disclosure
+  and owner/clinical/privacy review first (control #22). The evaluation is **software behaviour on
+  invented values, not clinical accuracy**.
 - Invitations and password-reset links are delivered by **server log only** in development; no mail
   provider is authorized yet. This is deliberate (control #22) and must be replaced before any pilot.
 - Devices/sessions are listed and revocable, but there is no per-device naming or push.

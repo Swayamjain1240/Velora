@@ -333,6 +333,84 @@ const approvePlanSchema = z
   })
   .strict();
 
+// ---- Part 6: AI-assisted extraction and reviewed language ----------------------
+
+const extractionJobParams = z
+  .object({ episodeId: objectIdSchema, jobId: objectIdSchema })
+  .strict();
+const extractionSuggestionParams = z
+  .object({ episodeId: objectIdSchema, jobId: objectIdSchema, suggestionId: objectIdSchema })
+  .strict();
+const variantParams = z
+  .object({ episodeId: objectIdSchema, planId: objectIdSchema, variantId: objectIdSchema })
+  .strict();
+const planItemVariantParams = z
+  .object({ episodeId: objectIdSchema, planId: objectIdSchema, itemId: objectIdSchema })
+  .strict();
+
+// A job is created for ONE ready document and ONE draft version.
+const createExtractionJobSchema = z
+  .object({
+    documentId: objectIdSchema,
+    versionId: objectIdSchema,
+  })
+  .strict();
+
+// The values a coordinator ACCEPTS. Any subset of the schema fields: a field the
+// coordinator does not supply falls back to the suggestion, and nothing is
+// invented. Bounded exactly like a hand-typed item.
+const acceptedFieldValues = z
+  .object({
+    kind: z
+      .enum(['medication', 'instruction', 'monitoring', 'follow_up', 'warning', 'diet_activity', 'home_care'])
+      .optional(),
+    originalWording: clinicalText(2000).optional(),
+    medication: clinicalText(200).optional(),
+    dose: clinicalText(120).optional(),
+    route: clinicalText(120).optional(),
+    frequency: clinicalText(120).optional(),
+    timing: clinicalText(200).optional(),
+    duration: clinicalText(120).optional(),
+    condition: clinicalText(300).optional(),
+    homeCare: clinicalText(500).optional(),
+    dietActivity: clinicalText(500).optional(),
+    followUp: clinicalText(500).optional(),
+    warning: clinicalText(500).optional(),
+  })
+  .strict();
+
+const applySuggestionSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    fields: acceptedFieldValues.optional(),
+  })
+  .strict();
+
+const dismissSuggestionSchema = z
+  .object({ reason: z.string().trim().max(300).optional() })
+  .strict();
+
+const createVariantSchema = z
+  .object({
+    language: z.enum(['hi', 'en']),
+    kind: z.enum(['translation', 'simplification']),
+    text: z.string().trim().min(1).max(2000),
+    producedBy: z.enum(['model', 'human']).optional(),
+  })
+  .strict();
+
+const approveVariantSchema = z
+  .object({
+    // The reviewer must state that the rendering preserves the instruction's
+    // meaning. Approval without that statement is refused.
+    fidelityNote: z.string().trim().min(5, 'State that the meaning is preserved').max(500),
+  })
+  .strict();
+
+const rejectVariantSchema = z
+  .object({ reason: z.string().trim().min(5, 'Explain what is wrong').max(500) })
+  .strict();
+
 module.exports = {
   loginSchema,
   mfaVerifySchema,
@@ -377,4 +455,14 @@ module.exports = {
   clarificationSchema,
   approvePlanSchema,
   assignTeamSchema,
+  extractionJobParams,
+  extractionSuggestionParams,
+  variantParams,
+  planItemVariantParams,
+  createExtractionJobSchema,
+  applySuggestionSchema,
+  dismissSuggestionSchema,
+  createVariantSchema,
+  approveVariantSchema,
+  rejectVariantSchema,
 };

@@ -159,6 +159,14 @@ rules (a missing, unclear or conflicting dose, frequency or duration is never gu
 approval), authority matrix, HTTP contract and the single approval transaction are documented in
 [docs/VELORA_CARE_PLAN.md](docs/VELORA_CARE_PLAN.md).
 
+Part 6 adds optional, source-linked AI-assisted draft extraction and reviewed Hindi/English
+presentation. **AI is an untrusted drafting tool with zero approval/publishing/prescribing
+authority**, and the manual Part 5 workflow runs unchanged when AI is unavailable - which is the
+**shipped default** (`EXTRACTION_PROVIDER=none`, no key required). The provider decision, the
+mandatory external-API disclosure table, the strict schema, the job/missing/conflict rules, the
+threat model and the evaluation limits are documented in
+[docs/VELORA_EXTRACTION.md](docs/VELORA_EXTRACTION.md).
+
 The example `MONGODB_URI` points at the local replica set (`mongodb://127.0.0.1:27019/velora?replicaSet=rs0`),
 which the `mongo:test-rs` script serves; the same instance hosts the `velora_test` database.
 
@@ -168,12 +176,13 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 126 unit + integration tests (replica-set MongoDB test DB)
-npm test -w client               # 24 client unit tests (Vitest)
+npm test -w server               # 182 unit + integration tests (replica-set MongoDB test DB)
+npm test -w client               # 30 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
-npx playwright test              # 50 browser journeys at six viewport sizes
+npx playwright test              # 52 browser journeys at six viewport sizes (2 opt-in/skipped)
 npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
+npm run evaluate:extraction -w server   # synthetic extraction evaluation (software behaviour, not clinical)
 npm audit --omit=dev             # production dependency audit
 ```
 
@@ -201,6 +210,16 @@ assigned clinic-verified reviewer and one ready source document, and no plan dat
 drives the whole slice through the browser - manual draft with hand-typed clinical items, source
 citation, submit, per-item clinical acceptance, confirmed approval and the patient's approved view.
 
+Part 6 seeds a dedicated AI journey fixture: episode `EP-AIJRNY` with an assigned coordinator, an
+assigned clinic-verified reviewer, a linked patient and one ready synthetic discharge note (no plan
+data). With the LOCAL deterministic provider enabled
+(`EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js`), `e2e/extractions.spec.js`
+drives the whole slice through the browser: create a draft, run a job, read the source/AI/missing/conflict
+panels, accept one value and apply it as an ordinary draft item, dismiss another, draft and approve a
+Hindi rendering, and prove the patient sees no AI text and no rendering. The same file also proves the
+**shipped default** fails closed: run it with no provider (`EXTRACTION_PROVIDER=none`) and the job
+reports `PROVIDER_DISABLED` while drafting by hand keeps working.
+
 One journey is opt-in because it needs an API with a tiny parser budget: start the API with
 `DOCUMENT_PARSER_TIMEOUT_MS=50` and run `E2E_QUARANTINE=1 npx playwright test
 e2e/documents-quarantine.spec.js` to watch a structurally valid file be quarantined end to end. It is
@@ -222,7 +241,7 @@ clinical files are used. A document status of `ready` means the upload passed **
 and is queued for later human review - it never means clinically approved, and no antivirus
 certification is claimed. An `approved` care-plan version means an assigned, clinic-verified clinical
 reviewer approved that exact version; it is not a claim of clinical correctness or of regulatory
-compliance, and approval activates **no** task, reminder or message. Before any real-patient pilot, Velora requires clinical workflow review, privacy/provider decisions, retention and incident processes, verified staff onboarding, secure deployment, backup plus isolated restore testing, representative extraction/language evaluation and explicit owner authorization.
+compliance, and approval activates **no** task, reminder or message. AI-assisted extraction is an untrusted drafting aid: it cannot approve, publish, prescribe, change clinical state, activate a task or send a reminder, and the synthetic evaluation harness measures software behaviour only - it is not clinical accuracy. No external AI/OCR provider is selected or called. Before any real-patient pilot, Velora requires clinical workflow review, privacy/provider decisions (including the completed AI provider disclosure), retention and incident processes, verified staff onboarding, secure deployment, backup plus isolated restore testing, a labelled clinical extraction/language evaluation and explicit owner authorization.
 
 ## Owner
 

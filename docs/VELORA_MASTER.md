@@ -18,8 +18,10 @@ plans. Patients and explicitly authorized caregivers later read only those appro
 record recovery activity and ask the assigned care team for clarification.
 
 Velora **does not** diagnose, prescribe, decide clinical urgency, certify recovery, or publish AI
-output automatically. AI assistance is deferred until the manual review-and-approval workflow is
-built and verified (Part 6). Manual clinical approval always precedes any AI assistance.
+output automatically. AI assistance (Part 6) is an **untrusted drafting aid**: it cannot approve,
+publish, prescribe, change clinical state, activate a task or send a reminder, and manual clinical
+approval always precedes any AI assistance. The manual workflow runs unchanged when AI is
+unavailable, which is the shipped default (`EXTRACTION_PROVIDER=none`).
 
 Code 2 (diagnostic tests/results) and Code 3 (insurance) are **out of active scope**.
 
@@ -41,7 +43,7 @@ Code 2 (diagnostic tests/results) and Code 3 (insurance) are **out of active sco
 The numbered requirements below are grouped by delivery part. State values use the Duck evidence
 classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, `BLOCKED`.
 
-| ID | Requirement | Part | State (12 Oct 2026, through Part 5) |
+| ID | Requirement | Part | State (13 Oct 2026, through Part 6) |
 |---:|---|---:|---|
 | VEL-001 | Repository, documentation baseline and CI gate | 1 | VERIFIED (local scope) |
 | VEL-002 | Clinic, staff RBAC and reviewer-eligibility boundary | 1 | VERIFIED (local scope) |
@@ -51,7 +53,7 @@ classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, 
 | VEL-006 | Private discharge-document intake | 4 | VERIFIED (local scope; no antivirus provider, quarantine has no review screen yet) |
 | VEL-007 | Manual source-linked care-plan drafting | 5 | VERIFIED (local scope; hand-authored items only, no extraction assistance) |
 | VEL-008 | Clinical review, approval and versioning (completes synthetic M1) | 5 | VERIFIED (local scope; approval activates no task or reminder) |
-| VEL-009 | AI extraction with source citations and reviewed language | 6 | PLANNED |
+| VEL-009 | AI extraction with source citations and reviewed language | 6 | VERIFIED (local scope; synthetic data, deterministic local provider only, **no external provider selected or called**; the manual Part 5 workflow is the shipped default) |
 | VEL-010 | Medication schedules, daily tasks and actor-attributed logs | 7 | PLANNED |
 | VEL-011 | Patient/caregiver check-ins and clarification queue | 8 | PLANNED |
 | VEL-012 | Staff/patient dashboard and reminders | 8 | PLANNED |

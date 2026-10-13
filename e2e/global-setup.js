@@ -33,6 +33,9 @@ const SESSIONS = [
   { email: 'plan.coordinator@synthetic.invalid', file: 'plan-coordinator.json' },
   { email: 'plan.reviewer@synthetic.invalid', file: 'plan-reviewer.json' },
   { email: 'plan.patient@synthetic.invalid', file: 'plan-patient.json' },
+  // Part 6 extraction journey: the linked patient of the AI-journey episode, so
+  // the journey can prove no AI output and no rendering reaches them.
+  { email: 'ai.patient@synthetic.invalid', file: 'ai-patient.json' },
 ];
 
 // Minimal .env reader so the seed uses the SAME database as the running API

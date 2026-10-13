@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "lint": "eslint src"
+    "lint": "eslint src --ext .js,.jsx"
   },
   "dependencies": {
     "react": "^18.3.1",

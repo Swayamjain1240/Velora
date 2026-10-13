@@ -771,3 +771,128 @@ claimed. Scope for clinical-record browsing remains `PLANNED` for Parts 2+.
 - A stale Vite dependency-optimizer cache after a dependency upgrade can surface a spurious
   `React is not defined` dev error. Clear `client/.vite` and `client/node_modules/.vite` and restart
   the dev server; CI installs fresh so it is unaffected. Both paths are gitignored.
+
+---
+
+## Session - 13 October 2026 - Part 6 (AI-assisted extraction and reviewed language)
+
+### Duck review (start of session)
+
+**Files read:** the three authority PDFs' markdown mirrors (`VELORA_MERN_MASTER.pdf`,
+`VELORA_MERN_ARCHITECTURE.pdf`, `VELORA_MERN_DUCK_LOG.pdf`), `VELORA_MERN_10_BUILD_PROMPTS.md`,
+`README.md`, the Parts 1-5 review entries below, the Part 5 care-plan contract, and the current
+server/client/e2e trees.
+
+**Observed repository state before changes:** branch `main`; Part 5 committed and VERIFIED (manual
+care plans with clinical review and approval). Part 6 files were present but **uncommitted and
+unverified**: extraction models, policy, providers (interface + deterministic fake), service,
+controller, routes, two validators, a worker text-layer reader, client `ExtractionPanel`/`LanguagePanel`,
+unit/integration tests, the synthetic PDF helper and one browser journey. No provider was selected.
+The reference docs predated Part 6 (`docs/VELORA_EXTRACTION.md` did not exist) and CI did not enable
+the deterministic provider.
+
+**Classification:** Part 5 = VERIFIED; Part 6 = **PARTIAL** (implemented, not yet verified end to end);
+provider = **DISCLOSED / NOT SELECTED**; documentation = **DRIFT**.
+
+### Mandatory external-API disclosure
+
+**No external AI/OCR provider is selected or called.** The shipped provider is `none` (a job fails
+closed with `PROVIDER_DISABLED`, drafting by hand unaffected) and the only enabled test provider is
+`fake` - deterministic, offline, no key, no network. The completed disclosure table, the adapter
+boundary and the owner decisions still required are recorded in `docs/VELORA_EXTRACTION.md` section 3.
+No SDK was installed (`openai`, `anthropic`, `tesseract`, `@aws-sdk/*`, etc. appear in no manifest).
+
+### Defects found and fixed during verification
+
+The browser journey is what caught these; the unit and integration tests were already green.
+
+- **The citable/ready documents were never loaded on the care-plan screen.** `CarePlanPanel` only
+  fetched them behind a manual reload in the sources panel, so the extraction document `select` was
+  empty and a job could never be created by a real user. Fixed with an effect that loads the
+  episode's ready documents with the plan; both the extraction and sources panels now see them.
+- **The extraction panel read the wrong filename field.** It used `doc.originalFilename`, but the
+  document API's public shape (and `PlanSourcePanel`) uses `filename`, so every option rendered blank.
+  Fixed to the canonical `filename`.
+- **`needs_review` suggestions were undecidable.** The panel disabled Apply/Dismiss unless a
+  suggestion was `proposed`, but a suggestion with a missing or conflicting field is exactly the one a
+  human must decide, and the server *accepts* an apply with the coordinator's accepted values. Fixed
+  so any suggestion that is neither applied nor dismissed can be applied or dismissed.
+- **Fixture/selector drift in the journey (test bugs, not product bugs):** a `.first()` text match hit
+  a hidden `<option>`; an unscoped patient assertion matched the seeded patient's own name; and the
+  Hindi fixture stated a dose the item did not hold, so the fidelity guard correctly refused it. Each
+  was corrected in the journey (scoped selectors, the item's real numbers, a selection that confirms it
+  took effect).
+
+### Work performed (Part 6)
+
+| Area | Result |
+|---|---|
+| Provider boundary | provider-neutral interface, registry that fails closed on an unknown name, deterministic `fake` provider, synthetic evaluation fixtures |
+| Service + policy | bounded job lifecycle, strict output validation, citation verification, server-side classification, injection containment, dedupe + idempotency, bounded retries |
+| Language | versioned Hindi/English renderings, numeric fidelity guard, assigned-verified-reviewer approval, never patient-visible |
+| API | job/result routes and variant routes behind existing clinic + assignment + document + draft-version access |
+| Client | switchable Source / AI / Accepted-value / Decision panels with paginated lists inside the existing tabs, beside the manual workflow |
+| Evaluation | `server/tests/fixtures/extraction-evaluation.json` + `scripts/evaluate-extraction.js` + a unit gate |
+| Docs | `docs/VELORA_EXTRACTION.md` (contract, disclosure, threat model, evaluation limits); README, `.env.example`, CI and this log synced |
+
+### Evidence
+
+| Check | Command | Result |
+|---|---|---|
+| Server tests | `npm test -w server` | **182 pass / 0 fail** (unit + integration on the replica-set `velora_test`) |
+| Client tests | `npm test -w client` | **30 pass / 0 fail** |
+| Client lint | `npm run lint -w client` | clean |
+| Client build | `npm run build -w client` | production build succeeds |
+| Browser journeys | `EXTRACTION_PROVIDER=fake npx playwright test` | **50 pass / 2 skipped** (opt-in quarantine; provider-disabled journey) |
+| Provider-disabled journey | `EXTRACTION_PROVIDER=none npx playwright test -g "no provider enabled"` | **1 pass** (fails closed; manual drafting unaffected) |
+| Evaluation harness | `npm run evaluate:extraction -w server` | all labelled expectations met (field/citation/missing/conflict/language/injection = 1.0) |
+| Production audit | `npm audit --omit=dev` | 0 vulnerabilities |
+| AI/OCR SDK audit | manifest grep | no AI/OCR SDK in any manifest |
+| Secret scan (tree) | key/token/private-key patterns across the working tree | clean; no `.env`/key/pem tracked |
+| Secret scan (history) | `git log -p --all` for key/token patterns | clean |
+
+### Security-25 matrix (Part 6)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets server-only, redacted logs | VERIFIED | `EXTRACTION_API_KEY` is server env only; no `VITE_` secret; prompts/source never logged |
+| 2 | Provider env validated only when enabled, fail closed | VERIFIED | default `none`; registry fails closed; env unit test |
+| 3 | Job/result routes protected | VERIFIED | auth + clinic + assignment + permission on every route |
+| 4 | Secure auth preserved | VERIFIED | Argon2id/MFA/session/CSRF unchanged |
+| 5 | Clinic + assignment + document + draft/version access; no AI authority | VERIFIED | re-checked before start and before apply; no approve/publish/prescribe path |
+| 6 | Validate prompts, schemas, output, forms | VERIFIED | strict zod schema; bounded delimited input; server classification |
+| 7 | No unsafe HTML | VERIFIED | text rendered as text |
+| 8 | Job/user/provider/concurrency/budget limits | VERIFIED | bounded I/O, timeout, retries, per-hour/per-day budgets, dedupe |
+| 9 | Safe errors, no prompts/source/keys/diagnostics | VERIFIED | stable `errorCode` + safe message |
+| 10 | Exact CORS | VERIFIED | unchanged allowlist |
+| 11 | CSP + no-store | VERIFIED | security middleware |
+| 12 | Debug/provider verbose logging off | VERIFIED | production gating |
+| 13 | SDK/docs/terms reviewed first | VERIFIED | interface written first; no SDK added |
+| 14 | Remove unused SDKs | VERIFIED | manifest audit |
+| 15 | Exclude prompts/fixtures/caches/.env | VERIFIED | synthetic fixtures only; `.env` untracked |
+| 16 | `MONGODB_URI`/provider keys server-only | VERIFIED | no client secret surface |
+| 17 | Preserve Argon2id | VERIFIED | password service unchanged |
+| 18 | Git tree/history secret scan | VERIFIED | both scans clean (above) |
+| 19 | AI threat/security audit | VERIFIED | `docs/VELORA_EXTRACTION.md` section 9 |
+| 20 | Test/diff/meaningful commit | VERIFIED | 182 + 30 tests, 50 journeys, one Part 6 commit |
+| 21 | Continuous security | VERIFIED | design + tests throughout |
+| 22 | Provider disclosure before external API | VERIFIED | no provider selected; disclosure table present |
+| 23 | Test every state and adversarial output | VERIFIED | integration + unit + evaluation fixtures (injection, malformed/oversized/unknown-key output, wrong/outside citations, missing/conflict, stale/denied/cross-clinic, translation review, manual fallback) |
+| 24 | Sync docs and evaluation evidence | VERIFIED | extraction doc, README, `.env.example`, CI, this log |
+| 25 | AI review fits one viewport | VERIFIED | pagination + switchable panels; asserted at six sizes |
+
+### Duck verdict: PASS (Part 6, local scope)
+
+Part 6 is implemented and verified end to end on **synthetic** data against the deterministic local
+provider, with the manual Part 5 workflow unchanged and the shipped default (`none`) failing closed.
+No external provider is selected or called. Evidence is local (development); no deployment, clinical
+validation or regulatory claim is made. Part 7 was not started.
+
+### Remaining limits
+
+- No external AI/OCR provider is selected; a real provider needs the completed disclosure table and
+  owner/clinical/privacy review before any network call.
+- The evaluation is **software behaviour on invented values**, not clinical accuracy; a labelled
+  clinical set and clinical sign-off are required before a pilot.
+- A real provider's retention/region/cost terms are unreviewed and unconfigured.
+- No production deployment, backup/restore test or monitoring (Part 10).

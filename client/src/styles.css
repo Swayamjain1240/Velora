@@ -312,6 +312,8 @@ textarea {
   padding: .5rem .75rem;
   background: #fff;
 }
+/* Part 6: the suggestion/rendering the reviewer is currently examining. */
+.plans__item--active { border-color: var(--primary); }
 .plans__item-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
 .plans__item-head strong { font-size: .95rem; }
 .plans__field { display: contents; }

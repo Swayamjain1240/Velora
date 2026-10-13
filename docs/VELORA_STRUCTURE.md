@@ -23,6 +23,7 @@ Velora/
     VELORA_SESSION_LOG.md
     VELORA_DOCUMENT_STORAGE.md    # Part 4 document API, storage setup and recovery runbook
     VELORA_CARE_PLAN.md           # Part 5 care-plan API contract, states, authority and approval transaction
+    VELORA_EXTRACTION.md          # Part 6 AI contract, provider disclosure, threat model, evaluation limits
   e2e/
     auth.spec.js                  # login / MFA / staff journeys
     patients.spec.js              # Part 2-3 onboarding / consent / activation / episode journey
@@ -30,13 +31,16 @@ Velora/
     documents-quarantine.spec.js  # opt-in live quarantine journey (needs a 50 ms parser budget)
     plans.spec.js                 # Part 5 M1 journey: draft -> review -> approve -> patient read,
                                   # plus six-size measurement of the plan screens
+    extractions.spec.js           # Part 6 journey: source/AI/missing/conflict/apply/dismiss +
+                                  # Hindi review + patient isolation, and the provider-disabled fallback
     detail-viewports.spec.js      # six-size one-viewport assertions for the detail screens
     viewports.spec.js             # six-size one-viewport assertions for the list routes
     global-setup.js               # seeds the synthetic clinic; enrols viewport sessions
   server/
     package.json
-    scripts/{seed.js,mongo-test-rs.js,reconcile-documents.js}
-                                  # synthetic clinic + care teams; local replica set; document dry run/repair
+    scripts/{seed.js,mongo-test-rs.js,reconcile-documents.js,syntheticPdf.js,evaluate-extraction.js}
+                                  # synthetic clinic + care teams; local replica set; document dry run/repair;
+                                  # synthetic PDF builder; deterministic extraction evaluation harness
     src/
       app.js                      # express app assembly
       index.js                    # fail-closed startup, listen, graceful shutdown
@@ -47,8 +51,12 @@ Velora/
               Session,MfaRecoveryCode,PasswordReset,RateLimitBucket,AuditEvent,
               PatientProfile,PatientAssignment,PatientConsent,CaregiverGrant,
               AccessInvitation,RecoveryEpisode,CareTeamAssignment,EpisodeCorrection,
-              EpisodeDocument,CarePlanVersion,CarePlanItem,SourceReference,ReviewEvent}.js
-      policies/carePlanPolicy.js  # plan states/transitions, clinical fields, completeness rules
+              EpisodeDocument,CarePlanVersion,CarePlanItem,SourceReference,ReviewEvent,
+              ExtractionJob,DraftSuggestion,ExtractedField,SourceCitation,ModelRun,
+              ReviewedLanguageVariant}.js
+      policies/{carePlanPolicy,extractionPolicy}.js
+                                  # plan states/transitions, clinical fields, completeness rules;
+                                  # strict extraction schema, classification, injection detection, job limits
       validators/schemas.js
       controllers/{authController,staffController,patientController,caregiverController,
                    episodeController,documentController,carePlanController}.js
@@ -56,13 +64,17 @@ Velora/
                 crypto,staffService,rateLimitService,auditService,errors,txService,
                 patientService,consentService,caregiverService,episodeService,
                 documentStorage,documentValidator,documentInspector,documentService,
-                carePlanService}.js
+                documentTextLayer,carePlanService,extractionService,languageVariantService}.js
+      providers/{extractionProvider,fakeExtractionProvider,index}.js
+                                  # provider-neutral interface, deterministic local fake,
+                                  # registry that fails closed on an unknown provider
       workers/documentParser.js   # isolated, memory- and time-limited byte parser (no secrets)
-      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents,plans}.js
+      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents,plans,extractions}.js
     tests/
       helpers/{setup,documents}.js  # harness: env, db, factories, agents; synthetic file fixtures
-      unit/{env,crypto-password}.test.js
-      integration/{auth,staff,patients,episodes,documents,plans}.test.js
+      fixtures/extraction-evaluation.json  # synthetic extraction evaluation set (no real data)
+      unit/{env,crypto-password,extraction-policy,document-text-layer,extraction-evaluation}.test.js
+      integration/{auth,staff,patients,episodes,documents,plans,extractions,languageVariants}.test.js
   client/
     package.json
     vite.config.js                # dev proxy /api -> API (overridable)
@@ -80,11 +92,12 @@ Velora/
         episodes/{EpisodeList,EpisodeDetail}.jsx
         documents/{DocumentsPanel,DocumentUpload}.jsx, documentRules.js
         plans/{CarePlanPanel,PlanItemForm,PlanSourcePanel,PlanReviewPanel}.jsx, planRules.js
+        extraction/{ExtractionPanel,LanguagePanel}.jsx, extractionRules.js
         patient/{PatientSelf,PatientEpisodes,PatientPlan}.jsx
         caregiver/CaregiverHome.jsx
       styles.css
       test/{setup,api.test}.js, auth-flows.test.jsx, patients.test.jsx, episodes.test.jsx,
-           documents.test.jsx, plans.test.jsx
+           documents.test.jsx, plans.test.jsx, extractions.test.jsx
 ```
 
 ## Conventions

@@ -6,6 +6,8 @@ import { useAuth } from '../auth/AuthContext';
 import PlanItemForm from './PlanItemForm';
 import PlanReviewPanel from './PlanReviewPanel';
 import PlanSourcePanel from './PlanSourcePanel';
+import ExtractionPanel from '../extraction/ExtractionPanel';
+import LanguagePanel from '../extraction/LanguagePanel';
 import {
   PAGE_SIZE,
   clinicalValues,
@@ -19,7 +21,14 @@ import {
   unresolvedLabel,
 } from './planRules';
 
-const TABS = ['draft', 'sources', 'review', 'history'];
+// The AI-assisted tabs sit beside the manual ones and never replace them: with
+// no provider enabled they simply report that extraction is unavailable, and the
+// entire manual workflow below is unchanged.
+const TABS = ['draft', 'extraction', 'language', 'sources', 'review', 'history'];
+// `draft`/`sources` are drafting actions, `review` is clinical review; the two
+// Part 6 tabs are shown to the same care team and the server re-checks authority
+// on every request anyway.
+const TEAM_TABS = ['extraction', 'language'];
 const DOC_PAGE_SIZE = 50;
 // The item fields the editor submits (the wording is handled separately).
 const CLINICAL_KEYS = [
@@ -152,6 +161,14 @@ export default function CarePlanPanel({ episodeId, episodeStatus, onDenied }) {
       setReadyDocs([]);
     }
   }, [episodeId]);
+
+  // The citable/ready documents are needed by BOTH the extraction panel (which
+  // targets one ready document) and the sources panel. They are loaded with the
+  // episode, not only on a manual reload, so a coordinator opening the
+  // extraction tab always sees the episode's ready documents.
+  useEffect(() => {
+    loadReadyDocuments();
+  }, [loadReadyDocuments]);
 
   // Every write: send the revision we hold, then re-read the version list and the
   // detail so the screen never keeps a stale projection.
@@ -392,7 +409,11 @@ export default function CarePlanPanel({ episodeId, episodeStatus, onDenied }) {
       {!wizard && detail && detail.plan && (
         <>
           <div className="tabs" role="tablist" aria-label="Care plan sections">
-            {TABS.filter((name) => name !== 'review' || canReviewHint).map((name) => (
+            {TABS.filter(
+              (name) =>
+                (name !== 'review' || canReviewHint) &&
+                (!TEAM_TABS.includes(name) || canDraftHint || canReviewHint)
+            ).map((name) => (
               <button
                 key={name}
                 role="tab"
@@ -571,6 +592,32 @@ export default function CarePlanPanel({ episodeId, episodeStatus, onDenied }) {
                     )}
                   </ul>
                 </>
+              )}
+
+              {tab === 'extraction' && (
+                <ExtractionPanel
+                  episodeId={episodeId}
+                  planId={planId}
+                  planEditable={Boolean(detail.plan.editable)}
+                  readyDocuments={readyDocs}
+                  canDraft={canDraftHint}
+                  onDenied={fail}
+                  // An applied suggestion is an ordinary new draft item, so the
+                  // whole version is re-read to show it in place.
+                  onApplied={() => loadDetail(planId, itemPage)}
+                />
+              )}
+
+              {tab === 'language' && (
+                <LanguagePanel
+                  episodeId={episodeId}
+                  planId={planId}
+                  items={detail.allItems}
+                  planEditable={Boolean(detail.plan.editable)}
+                  canDraft={canDraftHint}
+                  canReview={canReviewHint}
+                  onDenied={fail}
+                />
               )}
 
               {tab === 'sources' && (

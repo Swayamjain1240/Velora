@@ -2,6 +2,11 @@
 
 // Synthetic document fixtures. Everything here is fabricated in memory - no
 // real or patient data is ever used (product invariant).
+//
+// The text-layer builder is SHARED with the seed script (scripts/syntheticPdf.js)
+// so the browser journey and the integration suite read the exact same synthetic
+// document shape, and the two can never drift apart.
+const { pdfWithTextPages, syntheticDischargeNote } = require('../../scripts/syntheticPdf');
 
 function pdfBase(bodyLines = []) {
   const extra = bodyLines.length ? `${bodyLines.join('\n')}\n` : '';
@@ -19,6 +24,10 @@ function pdfBase(bodyLines = []) {
 const pdfDocuments = {
   valid: () => pdfBase(),
   withToken: (token) => pdfBase([token]),
+  // A PDF with a REAL text layer (one content stream per page), used by the
+  // Part 6 extraction tests and by any test that needs readable text.
+  withText: (pages) => pdfWithTextPages(pages),
+  dischargeNote: () => syntheticDischargeNote(),
   malformed: () => Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\n', 'latin1'),
   trailing: () => Buffer.concat([pdfBase(), Buffer.from('GARBAGE-APPENDED', 'latin1')]),
   manyPages: (count) => {
@@ -113,4 +122,13 @@ function upload(a, csrf, episodeId, { filename, mediaType, body }) {
     .send(body);
 }
 
-module.exports = { pdfDocuments, pngDocuments, jpegDocuments, pngImage, jpegImage, upload };
+module.exports = {
+  pdfDocuments,
+  pngDocuments,
+  jpegDocuments,
+  pngImage,
+  jpegImage,
+  upload,
+  pdfWithTextPages,
+  syntheticDischargeNote,
+};

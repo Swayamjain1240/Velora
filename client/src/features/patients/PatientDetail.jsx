@@ -23,7 +23,6 @@ export default function PatientDetail({ patientId, onBack }) {
   const [caregiverForm, setCaregiverForm] = useState({ email: '', scopes: ['view_profile'] });
   const [assigneeId, setAssigneeId] = useState('');
   const [activationEmail, setActivationEmail] = useState('');
-  const [busy, setBusy] = useState(false);
 
   const fail = useCallback((err) => {
     // Authorization loss clears everything on screen: a denied refresh must

@@ -27,6 +27,15 @@ const CarePlanVersion = require('../src/models/CarePlanVersion');
 const CarePlanItem = require('../src/models/CarePlanItem');
 const SourceReference = require('../src/models/SourceReference');
 const ReviewEvent = require('../src/models/ReviewEvent');
+// Part 6: AI-assisted extraction and reviewed language renderings. The seeded
+// journey wipes its own working state so every browser run starts clean.
+const ExtractionJob = require('../src/models/ExtractionJob');
+const DraftSuggestion = require('../src/models/DraftSuggestion');
+const ExtractedField = require('../src/models/ExtractedField');
+const SourceCitation = require('../src/models/SourceCitation');
+const ModelRun = require('../src/models/ModelRun');
+const ReviewedLanguageVariant = require('../src/models/ReviewedLanguageVariant');
+const { pdfWithTextPages } = require('./syntheticPdf');
 
 const SEED_PASSWORD = 'SyntheticDevPass!24';
 
@@ -50,6 +59,9 @@ const STAFF = [
   { email: 'plan.coordinator@synthetic.invalid', name: 'Synthetic Plan Coordinator', roleKey: 'care_coordinator' },
   { email: 'plan.reviewer@synthetic.invalid', name: 'Synthetic Plan Reviewer', roleKey: 'clinical_reviewer' },
   { email: 'plan.patient@synthetic.invalid', name: 'Synthetic Plan Patient', roleKey: 'patient' },
+  // Part 6 extraction journey: its OWN linked patient account, because a profile
+  // links at most one account per clinic.
+  { email: 'ai.patient@synthetic.invalid', name: 'Synthetic Extraction Journey Patient', roleKey: 'patient' },
 ];
 
 // A technically valid one-page synthetic PDF: the only document the Part 5
@@ -292,6 +304,160 @@ async function seedPlanJourney(clinic) {
   console.log('Seeded the Part 5 care-plan journey episode (draft, ready source, assigned reviewer).');
 }
 
+// Part 6: one draft episode with an assigned coordinator, an assigned VERIFIED
+// reviewer and a READY synthetic discharge note whose TEXT LAYER carries the
+// labelled lines the deterministic fake provider reads. Any extraction job,
+// suggestion, model run, rendering or plan data from a previous run is removed,
+// so the browser journey always starts from an empty extraction slot.
+//
+// The note deliberately contains an Amoxicillin line with no frequency or
+// duration (a MISSING field) and two Paracetamol lines with different doses (a
+// CONFLICT), so the review experience can be exercised with real gaps rather
+// than invented ones.
+async function seedExtractionJourney(clinic) {
+  const coordinator = await User.findOne({ email: 'plan.coordinator@synthetic.invalid' });
+  const reviewer = await User.findOne({ email: 'plan.reviewer@synthetic.invalid' });
+  const patientUser = await User.findOne({ email: 'ai.patient@synthetic.invalid' });
+  if (!coordinator || !reviewer || !patientUser) {
+    throw new Error('extraction journey accounts were not seeded');
+  }
+
+  const membership = await ClinicMembership.findOne({ clinic: clinic.id, user: coordinator.id });
+  const reviewerMembership = await ClinicMembership.findOne({ clinic: clinic.id, user: reviewer.id });
+
+  const profile = await upsertProfile(clinic, coordinator, {
+    reference: 'PT-AIJRNY',
+    fullName: 'Synthetic Extraction Journey Patient',
+    linkedUserId: patientUser.id,
+  });
+  const episode = await upsertEpisode(clinic, coordinator, profile, {
+    reference: 'EP-AIJRNY',
+    status: 'draft',
+  });
+
+  // Clean slate: plan data, jobs and renderings from a previous run.
+  const versions = await CarePlanVersion.find({ clinic: clinic.id, episode: episode.id })
+    .select('_id')
+    .lean();
+  const versionIds = versions.map((v) => v._id);
+  if (versionIds.length) {
+    await SourceReference.deleteMany({ version: { $in: versionIds } });
+    await CarePlanItem.deleteMany({ version: { $in: versionIds } });
+    await ReviewEvent.collection.deleteMany({ version: { $in: versionIds } });
+  }
+  await ReviewedLanguageVariant.deleteMany({ clinic: clinic.id, episode: episode.id });
+  const jobs = await ExtractionJob.find({ clinic: clinic.id, episode: episode.id })
+    .select('_id')
+    .lean();
+  const jobIds = jobs.map((job) => job._id);
+  if (jobIds.length) {
+    const suggestionIds = (
+      await DraftSuggestion.find({ job: { $in: jobIds } }).select('_id').lean()
+    ).map((row) => row._id);
+    if (suggestionIds.length) {
+      await ExtractedField.deleteMany({ suggestion: { $in: suggestionIds } });
+      await SourceCitation.deleteMany({ suggestion: { $in: suggestionIds } });
+    }
+    await DraftSuggestion.deleteMany({ job: { $in: jobIds } });
+    await ModelRun.deleteMany({ job: { $in: jobIds } });
+    await ExtractionJob.deleteMany({ _id: { $in: jobIds } });
+  }
+  await CarePlanVersion.deleteMany({ clinic: clinic.id, episode: episode.id });
+  await RecoveryEpisode.updateOne(
+    { _id: episode.id },
+    { $set: { planState: 'none', approvedPlanVersion: null } }
+  );
+
+  await PatientAssignment.updateOne(
+    { clinic: clinic.id, patient: profile.id, memberUser: coordinator.id, status: 'active' },
+    {
+      $setOnInsert: {
+        clinic: clinic.id,
+        patient: profile.id,
+        membership: membership ? membership.id : undefined,
+        memberUser: coordinator.id,
+        status: 'active',
+        assignedBy: coordinator.id,
+        assignedByRole: 'staff',
+        assignedAt: new Date(),
+      },
+    },
+    { upsert: true }
+  );
+
+  for (const [member, memberMembership, responsibility] of [
+    [coordinator, membership, 'care_coordinator'],
+    [reviewer, reviewerMembership, 'clinical_reviewer'],
+  ]) {
+    await CareTeamAssignment.updateOne(
+      { clinic: clinic.id, episode: episode.id, memberUser: member.id, status: 'active' },
+      {
+        $setOnInsert: {
+          clinic: clinic.id,
+          patient: episode.patient,
+          episode: episode.id,
+          membership: memberMembership ? memberMembership.id : undefined,
+          memberUser: member.id,
+          responsibility,
+          status: 'active',
+          assignedBy: coordinator.id,
+          assignedByRole: 'staff',
+          assignedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+  }
+
+  // The source note: a real (synthetic) text layer, one content stream per page.
+  const bytes = pdfWithTextPages([
+    [
+      'Synthetic discharge note - fabricated content only',
+      'Medication: Paracetamol 500 mg orally every 6 hours for 3 days',
+      'Home care: Keep the dressing dry for 48 hours',
+    ],
+    [
+      'Synthetic discharge note - page 2 - fabricated content only',
+      'Activity: Walk for 10 minutes three times a day',
+      'Follow-up: Clinic review in 2 weeks',
+      'Warning: Contact the clinic if the wound becomes hot or red',
+      'Medication: Amoxicillin 250 mg orally',
+      'Medication: Paracetamol 1000 mg orally every 8 hours for 2 days',
+    ],
+  ]);
+  const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+  const existing = await EpisodeDocument.findOne({
+    clinic: clinic.id,
+    episode: episode.id,
+    sha256: digest,
+  });
+  if (!existing) {
+    const storageKey = documentStorage.newStorageKey();
+    await documentStorage.put(storageKey, bytes);
+    await EpisodeDocument.create({
+      clinic: clinic.id,
+      patient: episode.patient,
+      episode: episode.id,
+      storageKey,
+      originalFilename: 'synthetic-discharge-note.pdf',
+      mediaType: 'application/pdf',
+      byteSize: bytes.length,
+      sha256: digest,
+      status: 'ready',
+      technical: { pages: 2 },
+      uploadedBy: coordinator.id,
+      uploadedByRole: 'staff',
+    });
+  } else {
+    existing.status = 'ready';
+    existing.rejectionCode = undefined;
+    await existing.save();
+  }
+
+  // eslint-disable-next-line no-console
+  console.log('Seeded the Part 6 extraction journey episode (draft, ready source, assigned reviewer).');
+}
+
 async function upsertProfile(clinic, creator, { reference, fullName, linkedUserId = null }) {
   await PatientProfile.updateOne(
     { clinic: clinic.id, reference },
@@ -389,6 +555,7 @@ async function run() {
 
   await seedDocumentJourney(clinic, passwordHash);
   await seedPlanJourney(clinic);
+  await seedExtractionJourney(clinic);
 
   // eslint-disable-next-line no-console
   console.log(`\nAll synthetic accounts share password: ${SEED_PASSWORD}`);

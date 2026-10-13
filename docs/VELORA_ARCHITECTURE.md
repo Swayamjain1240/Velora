@@ -203,6 +203,13 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   source and review panes sit side by side on wide screens and stack to a single primary panel on
   narrow ones. Every mutation sends the plan revision the screen holds; a 409 clears the stale editor
   and re-reads the plan, and a 403/404 clears the loaded clinical content entirely.
+- Part 6 adds `features/extraction` (`ExtractionPanel`, `LanguagePanel`, `extractionRules`) inside
+  the same plan workspace as two extra tabs (Extraction / Language), beside - never instead of - the
+  manual tabs. `ExtractionPanel` shows the source citation, the AI suggestion, the accepted value
+  and the decision as **switchable panels**, with paginated suggestion and field lists; the only
+  actions are apply (an ordinary draft edit) and dismiss, and there is no approve/publish/prescribe
+  control anywhere. `LanguagePanel` links each Hindi/English rendering to the instruction it renders,
+  shows the numeric-guard result, and requires an assigned reviewer's fidelity statement to approve.
 - A denied refresh or a lost authorization clears the loaded patient/consent/grant state before an
   error is shown, so stale clinical data never remains on screen.
 - All server errors surface through a safe envelope; the client never renders unsanitized HTML.
@@ -261,6 +268,20 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   enrolled role sessions (reviewer, admin, document coordinator, patient, caregiver) at all six
   sizes, and `detail-viewports.spec.js` walks into the staff patient detail, the staff episode detail
   and the caregiver's scoped patient detail at all six sizes.
+- **Integration (Part 6):** prompt injection in document text, malformed/oversized/unknown-key
+  output, wrong and outside-source citations, missing/conflicting dose, timeout, bounded retries,
+  deduplication and idempotency, provider failure and the provider-disabled fallback, stale draft,
+  revoked assignment, cross-clinic job, the current-approved-version race, translation review and
+  manual fallback. `languageVariants.test.js` covers the rendering lifecycle and reviewer authority.
+- **Browser (Part 6):** `extractions.spec.js` runs the AI journey with the deterministic local
+  provider (create draft -> job -> source/AI/missing/conflict panels -> accept-and-apply -> dismiss ->
+  Hindi draft/submit/approve -> prove the patient sees no AI text or rendering) and measures the
+  extraction and language panels at all six viewport sizes; a second test proves the **shipped
+default** (`EXTRACTION_PROVIDER=none`) fails closed while manual drafting keeps working.
+- **Evaluation (Part 6):** `scripts/evaluate-extraction.js` (and its unit gate) measures field
+  exact-match, missing-field detection, conflict detection, citation correctness, language-fidelity
+  guarding and injection detection on synthetic fixtures. This is **software behaviour on invented
+  values, not clinical accuracy**; a real provider requires a labelled clinical evaluation.
 - **Recovery:** `scripts/reconcile-documents.js` dry run is part of the part gate; `--apply` requires
   an explicit operator and audits every repair.
 - **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.

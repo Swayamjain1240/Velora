@@ -58,6 +58,12 @@ const CarePlanVersion = require('../../src/models/CarePlanVersion');
 const CarePlanItem = require('../../src/models/CarePlanItem');
 const SourceReference = require('../../src/models/SourceReference');
 const ReviewEvent = require('../../src/models/ReviewEvent');
+const ExtractionJob = require('../../src/models/ExtractionJob');
+const DraftSuggestion = require('../../src/models/DraftSuggestion');
+const ExtractedField = require('../../src/models/ExtractedField');
+const SourceCitation = require('../../src/models/SourceCitation');
+const ModelRun = require('../../src/models/ModelRun');
+const ReviewedLanguageVariant = require('../../src/models/ReviewedLanguageVariant');
 
 let counter = 0;
 function uniq(prefix) {
@@ -100,6 +106,8 @@ async function resetDb() {
     PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
     RecoveryEpisode, CareTeamAssignment, EpisodeCorrection, EpisodeDocument,
     CarePlanVersion, CarePlanItem, SourceReference, ReviewEvent,
+    ExtractionJob, DraftSuggestion, ExtractedField, SourceCitation, ModelRun,
+    ReviewedLanguageVariant,
   ];
   // Remove every stored object so a test can never observe a prior test's bytes.
   const objectsDir = path.join(process.env.DOCUMENT_STORAGE_ROOT, 'objects');
@@ -296,5 +304,7 @@ module.exports = {
     PatientProfile, PatientAssignment, PatientConsent, CaregiverGrant, AccessInvitation,
     RecoveryEpisode, CareTeamAssignment, EpisodeCorrection, EpisodeDocument,
     CarePlanVersion, CarePlanItem, SourceReference, ReviewEvent,
+    ExtractionJob, DraftSuggestion, ExtractedField, SourceCitation, ModelRun,
+    ReviewedLanguageVariant,
   },
 };

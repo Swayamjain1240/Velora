@@ -81,7 +81,7 @@ describe('DocumentsPanel', () => {
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => {});
 
-    window.fetch = vi.fn(async (url, options = {}) => {
+    window.fetch = vi.fn(async (url) => {
       if (String(url).endsWith('/download')) {
         return new Response(BYTES, {
           status: 200,

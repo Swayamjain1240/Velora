@@ -10,6 +10,7 @@
 // no parser path, stack or diagnostic can reach a client.
 const { parentPort, workerData } = require('node:worker_threads');
 const { inspect } = require('../services/documentInspector');
+const { extractTextLayer } = require('../services/documentTextLayer');
 
 // Test-only stall hook: lets the suite prove the parent's time limit and worker
 // termination. It is inert unless the parent set NODE_ENV=test for this thread,
@@ -24,11 +25,20 @@ try {
   if (workerData && workerData.stallMs && process.env.NODE_ENV === 'test') {
     stall(workerData.stallMs);
   }
-  const result = inspect(workerData.bytes, {
-    filename: workerData.filename,
-    declaredMediaType: workerData.declaredMediaType,
-    maxBytes: workerData.maxBytes,
-  });
+  // Two modes share this worker so untrusted bytes are always parsed in the
+  // reduced environment: structural validation (Part 4) and text-layer reading
+  // (Part 6). Neither mode can reach a secret, the database or the network.
+  const result =
+    workerData && workerData.mode === 'text'
+      ? extractTextLayer(workerData.bytes, {
+          mediaType: workerData.mediaType,
+          maxChars: workerData.maxChars,
+        })
+      : inspect(workerData.bytes, {
+          filename: workerData.filename,
+          declaredMediaType: workerData.declaredMediaType,
+          maxBytes: workerData.maxBytes,
+        });
   parentPort.postMessage(result);
 } catch {
   parentPort.postMessage({ ok: false, code: 'PARSER_ERROR' });
