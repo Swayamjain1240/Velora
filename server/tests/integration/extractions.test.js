@@ -870,22 +870,33 @@ test('no task, reminder, schedule or message is created by any extraction path',
     .set('X-CSRF-Token', ctx.coordCtx.csrf)
     .send({ expectedRevision: list.planRevision });
 
-  // Part 7 adds schedule/task/occurrence models, so the invariant is stated as
-  // a STRONGER fact than "the model does not exist": even now that they exist,
-  // the extraction path created none of them, and no reminder/notification/
-  // message/delivery collection exists at all.
-  const names = Object.keys(require('mongoose').models);
-  for (const name of names) {
+  // Part 6 stated this as "no such model exists". Parts 7 and 8 legitimately
+  // added the schedule, task, reminder, check-in, clarification and delivery
+  // models, so the model-NAME loop is no longer the invariant - and a future
+  // model addition must not be mistaken for an extraction write. The invariant
+  // is what the extraction path WROTE: after a full job, a suggestion list and
+  // an applied suggestion, every downstream workflow collection is still empty.
+  const downstream = [
+    'MedicationSchedule',
+    'RecoveryTask',
+    'ScheduleOccurrence',
+    'ActivityLog',
+    'CheckInTemplateVersion',
+    'CheckInResponse',
+    'ClarificationThread',
+    'ClarificationMessage',
+    'Notification',
+    'DeliveryAttempt',
+    'QueueAssignment',
+    'FollowUpPlan',
+  ];
+  for (const name of downstream) {
     assert.equal(
-      /reminder|notification|message|delivery/i.test(name),
-      false,
-      `unexpected downstream model: ${name}`
+      await harness.models[name].countDocuments({}),
+      0,
+      `extraction wrote a downstream document: ${name}`
     );
   }
-  assert.equal(await harness.models.MedicationSchedule.countDocuments({}), 0);
-  assert.equal(await harness.models.RecoveryTask.countDocuments({}), 0);
-  assert.equal(await harness.models.ScheduleOccurrence.countDocuments({}), 0);
-  assert.equal(await harness.models.ActivityLog.countDocuments({}), 0);
   const episode = await ctx.coordCtx.a.get(`/api/episodes/${ctx.episode.id}`);
   assert.equal(episode.body.episode.status, 'draft');
   assert.equal(episode.body.episode.approvedPlanVersion, null);

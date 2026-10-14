@@ -1105,16 +1105,46 @@ test('approval activates no task, reminder, schedule, occurrence or log', async 
   const { planId } = await completeApproval(ctx);
   assert.equal((await approve(ctx, planId)).status, 200);
 
-  // Part 7 adds the schedule/task/occurrence/log models, so this asserts the
-  // real invariant directly - approval created NONE of them and still created
-  // no reminder, notification or message collection of any kind.
+  // Part 7 adds the schedule/task/occurrence/log models and Part 8 adds the
+  // reminder/check-in/clarification/delivery models, so those collections exist
+  // by construction (index build at init). The invariant approval must keep is
+  // that it WRITES none of them: no schedule, task, occurrence, entry, check-in,
+  // thread, message, notification, delivery attempt, queue claim or follow-up
+  // may come into existence because a plan was approved.
+  const downstreamModels = [
+    'MedicationSchedule',
+    'RecoveryTask',
+    'ScheduleOccurrence',
+    'ActivityLog',
+    'CheckInTemplateVersion',
+    'CheckInResponse',
+    'ClarificationThread',
+    'ClarificationMessage',
+    'Notification',
+    'DeliveryAttempt',
+    'QueueAssignment',
+    'FollowUpPlan',
+  ];
+  for (const name of downstreamModels) {
+    // eslint-disable-next-line no-await-in-loop
+    assert.equal(
+      await harness.models[name].countDocuments({}),
+      0,
+      `approval created a downstream document: ${name}`
+    );
+  }
+  // Belt and braces: no collection matching the old downstream pattern holds a
+  // single document either.
   const names = (await mongoose.connection.db.listCollections().toArray()).map((c) => c.name);
-  const downstream = names.filter((n) => /reminder|notification|message|delivery|medication_log/i.test(n));
-  assert.deepEqual(downstream, [], `unexpected downstream collections: ${downstream.join(', ')}`);
-  assert.equal(await harness.models.MedicationSchedule.countDocuments({}), 0);
-  assert.equal(await harness.models.RecoveryTask.countDocuments({}), 0);
-  assert.equal(await harness.models.ScheduleOccurrence.countDocuments({}), 0);
-  assert.equal(await harness.models.ActivityLog.countDocuments({}), 0);
+  for (const name of names) {
+    if (!/reminder|notification|message|delivery|medication_log/i.test(name)) continue;
+    // eslint-disable-next-line no-await-in-loop
+    assert.equal(
+      await mongoose.connection.db.collection(name).countDocuments({}),
+      0,
+      `unexpected downstream collection: ${name}`
+    );
+  }
 
   const episodes = await harness.models.RecoveryEpisode.find({}).lean();
   assert.equal(episodes.length, 1);
