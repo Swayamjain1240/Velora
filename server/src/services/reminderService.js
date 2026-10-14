@@ -21,6 +21,7 @@ const { errors } = require('./errors');
 const audit = require('./auditService');
 const policy = require('../policies/reminderPolicy');
 const checkInService = require('./checkInService');
+const followUpService = require('./followUpService');
 const zonedTime = require('./zonedTime');
 const providerRegistry = require('../providers/notificationProvider');
 const { getEnv } = require('../config/env');
@@ -164,7 +165,7 @@ async function queueBatch({ clinicId, user, roleKey, episodeId, kinds, ip, userA
     throw errors.conflict('This episode is closed. No new reminders are queued for it.');
   }
 
-  const wanted = kinds && kinds.length ? kinds : ['check_in_due', 'task_due'];
+  const wanted = kinds && kinds.length ? kinds : ['check_in_due', 'task_due', 'follow_up'];
   const created = [];
   const skipped = [];
 
@@ -225,6 +226,49 @@ async function queueBatch({ clinicId, user, roleKey, episodeId, kinds, ip, userA
             timezone: slot.timezone,
           },
         });
+      }
+    }
+  }
+
+  // 1b. Prescribed follow-ups whose reminder date has arrived. A follow-up is a
+  //     date, a place and a contact, so the reminder states exactly that.
+  if (wanted.includes('follow_up')) {
+    const followUps = await followUpService.dueForReminder({ clinicId, episode, now });
+    if (followUps.length) {
+      const recipients = await recipientsFor({ episode, requiredScope: 'view_tasks' });
+      for (const followUp of followUps) {
+        for (const recipient of recipients) {
+          const key = policy.dedupeKey({
+            recipientUser: recipient.recipientUser,
+            recipientRole: recipient.recipientRole,
+            channel: 'in_app',
+            kind: 'follow_up',
+            eventVersion: followUp.revision,
+            eventId: followUp._id,
+            localDate: followUp.date,
+          });
+          created.push({
+            dedupeKey: key,
+            doc: {
+              clinic: clinicId,
+              patient: episode.patient,
+              episode: episode._id,
+              kind: 'follow_up',
+              channel: 'in_app',
+              title: 'Follow-up appointment coming up',
+              body: `You have a follow-up on ${followUp.date} at ${followUp.location}.`,
+              recipientUser: recipient.recipientUser,
+              recipientLabel: recipient.recipientLabel,
+              recipientRole: recipient.recipientRole,
+              recipientGrant: recipient.recipientGrant,
+              sourceType: 'follow_up',
+              source: followUp._id,
+              localDate: followUp.date,
+              localTime: (followUp.reminder && followUp.reminder.localTime) || null,
+              timezone: followUp.timezone,
+            },
+          });
+        }
       }
     }
   }

@@ -25,6 +25,7 @@ const checkInRoutes = require('./routes/checkIns');
 const clarificationRoutes = require('./routes/clarifications');
 const reminderRoutes = require('./routes/reminders');
 const dashboardRoutes = require('./routes/dashboard');
+const followUpRoutes = require('./routes/followUps');
 
 function buildApp() {
   const app = express();
@@ -109,6 +110,10 @@ function buildApp() {
   // task and the recipient first, retries are bounded, and a delivery is not an
   // acknowledgement.
   app.use('/api/episodes', reminderRoutes);
+  // Part 8: BASIC prescribed follow-ups - a date, a location, a contact and an
+  // optional in-app reminder. Test results, report matching and referrals are not
+  // modelled, and the strict schema leaves them nowhere to arrive.
+  app.use('/api/episodes', followUpRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

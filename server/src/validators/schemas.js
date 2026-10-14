@@ -791,8 +791,65 @@ const assignmentIdParam = z.object({ assignmentId: objectIdSchema }).strict();
 
 const releaseAssignmentSchema = z.object({ reason: clinicalText(300).optional() }).strict();
 
+// ---- Part 8: basic prescribed follow-ups ---------------------------------------
+//
+// The field list is CLOSED and strict. A test result, a report reference or a
+// referral destination has no field to arrive in, so the request is refused
+// rather than quietly stored.
+// A follow-up reuses the shared calendar-date schema and the same HH:MM rule the
+// clinic response hours use, so the bounds cannot drift apart.
+const timeOnlySchema = z
+  .string()
+  .trim()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM');
+
+const followUpReminderSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    localTime: timeOnlySchema.optional(),
+    daysBefore: z.coerce.number().int().min(0).max(30).optional(),
+  })
+  .strict();
+
+const createFollowUpSchema = z
+  .object({
+    date: dateOnlySchema,
+    time: timeOnlySchema.optional(),
+    timezone: z.string().trim().min(1).max(64),
+    location: clinicalText(200).refine((v) => v.length >= 3, 'State where the follow-up is'),
+    contactName: clinicalText(120).optional(),
+    contactPhone: z.string().trim().regex(/^[0-9+()\-\s]{3,40}$/, 'Use a reachable number').optional(),
+    note: clinicalText(500).optional(),
+    reminder: followUpReminderSchema.optional(),
+  })
+  .strict();
+
+const updateFollowUpSchema = z
+  .object({
+    date: dateOnlySchema.optional(),
+    time: timeOnlySchema.optional(),
+    timezone: z.string().trim().min(1).max(64).optional(),
+    location: clinicalText(200).optional(),
+    contactName: clinicalText(120).optional(),
+    contactPhone: z.string().trim().regex(/^[0-9+()\-\s]{3,40}$/, 'Use a reachable number').optional(),
+    note: clinicalText(500).optional(),
+    reminder: followUpReminderSchema.optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, { message: 'Provide a field to update.' });
+
+const followUpParams = z
+  .object({ episodeId: objectIdSchema, followUpId: objectIdSchema })
+  .strict();
+
+const cancelFollowUpSchema = z.object({ reason: clinicalText(300).optional() }).strict();
+
 module.exports = {
   loginSchema,
+  createFollowUpSchema,
+  updateFollowUpSchema,
+  cancelFollowUpSchema,
+  followUpParams,
   reminderParams,
   notificationIdParam,
   dashboardQuery,

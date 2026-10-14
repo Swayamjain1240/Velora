@@ -11,6 +11,7 @@ const carePlanController = require('../controllers/carePlanController');
 const checkInController = require('../controllers/checkInController');
 const clarificationController = require('../controllers/clarificationController');
 const reminderController = require('../controllers/reminderController');
+const followUpController = require('../controllers/followUpController');
 const { validate } = require('../middleware/validate');
 const { mongoRateLimit } = require('../middleware/rateLimit');
 const { downloadLimit, readLimit } = require('../middleware/documentLimits');
@@ -134,6 +135,14 @@ router.post(
   '/me/reminders/:notificationId/acknowledge',
   validate({ params: schemas.notificationIdParam }),
   reminderController.acknowledge
+);
+
+// Part 8: the patient's own prescribed follow-ups (a date, a place, a contact and
+// the clinic's own instructions).
+router.get(
+  '/me/follow-ups',
+  validate({ query: schemas.paginationQuery }),
+  followUpController.ownList
 );
 
 router.get(
