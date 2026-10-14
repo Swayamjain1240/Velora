@@ -522,8 +522,112 @@ const recordEntrySchema = z
     message: 'Explain why the entry is being corrected.',
   });
 
+// ---- Part 8: clinic check-in templates -----------------------------------------
+
+const templateKeySchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z][a-z0-9-]{1,39}$/, 'Template key must be a short slug');
+
+const checkInQuestionSchema = z
+  .object({
+    id: z.string().trim().regex(/^[a-z][a-z0-9_]{0,39}$/, 'Question id must be a short slug'),
+    prompt: clinicalText(300).refine((v) => v.length >= 3, 'Enter the question'),
+    kind: z.enum(['text', 'choice', 'scale', 'confirm']),
+    required: z.boolean().optional(),
+    options: z.array(clinicalText(120)).max(12).optional(),
+    scaleMin: z.coerce.number().int().min(0).max(10).optional(),
+    scaleMax: z.coerce.number().int().min(0).max(10).optional(),
+  })
+  .strict();
+
+const checkInCadenceSchema = z
+  .object({
+    startOffsetDays: z.coerce.number().int().min(0).max(180),
+    everyDays: z.coerce.number().int().min(1).max(90),
+    horizonDays: z.coerce.number().int().min(1).max(90),
+  })
+  .strict();
+
+// A rule may ONLY ask a person to look; the enum makes any other action
+// impossible to express, and the wording guard in the service rejects a label
+// that reads as a clinical conclusion.
+const checkInRuleSchema = z
+  .object({
+    id: z.string().trim().regex(/^[a-z][a-z0-9_]{0,39}$/, 'Rule id must be a short slug'),
+    label: clinicalText(160).refine((v) => v.length >= 3, 'Describe what the reviewer will read'),
+    when: z
+      .object({
+        questionId: z.string().trim().min(1).max(40),
+        operator: z.enum([
+          'answered',
+          'no_answer',
+          'equals',
+          'not_equals',
+          'includes_any',
+          'at_least',
+          'at_most',
+        ]),
+        values: z.array(clinicalText(120)).max(12).optional(),
+        value: z.coerce.number().min(0).max(10).optional(),
+      })
+      .strict(),
+    action: z.literal('queue_review').optional(),
+  })
+  .strict();
+
+const createCheckInTemplateSchema = z
+  .object({
+    key: templateKeySchema,
+    title: clinicalText(160).refine((v) => v.length >= 3, 'Give the template a title'),
+    description: clinicalText(500).optional(),
+    questions: z.array(checkInQuestionSchema).min(1).max(30),
+    cadence: checkInCadenceSchema,
+    responseWindowHours: z.coerce.number().int().min(1).max(168).optional(),
+    reviewRules: z.array(checkInRuleSchema).max(20).optional(),
+  })
+  .strict();
+
+const updateCheckInTemplateSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    title: clinicalText(160).optional(),
+    description: clinicalText(500).optional(),
+    questions: z.array(checkInQuestionSchema).min(1).max(30).optional(),
+    cadence: checkInCadenceSchema.optional(),
+    responseWindowHours: z.coerce.number().int().min(1).max(168).optional(),
+    reviewRules: z.array(checkInRuleSchema).max(20).optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 1, { message: 'Provide a field to update.' });
+
+const activateCheckInTemplateSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    note: clinicalText(500).optional(),
+  })
+  .strict();
+
+const checkInTemplateParam = z.object({ templateId: objectIdSchema }).strict();
+
+const checkInTemplateQuery = z
+  .object({
+    page: pageSchema,
+    limit: limitSchema,
+    state: z.enum(['draft', 'active', 'superseded']).optional(),
+  })
+  .strict();
+
 module.exports = {
   loginSchema,
+  checkInQuestionSchema,
+  checkInCadenceSchema,
+  checkInRuleSchema,
+  createCheckInTemplateSchema,
+  updateCheckInTemplateSchema,
+  activateCheckInTemplateSchema,
+  checkInTemplateParam,
+  checkInTemplateQuery,
   scheduleParams,
   prepareSchedulesSchema,
   activateScheduleSchema,

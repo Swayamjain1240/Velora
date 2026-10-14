@@ -20,6 +20,7 @@ const planRoutes = require('./routes/plans');
 const extractionRoutes = require('./routes/extractions');
 const scheduleRoutes = require('./routes/schedules');
 const todayRoutes = require('./routes/today');
+const checkInTemplateRoutes = require('./routes/checkInTemplates');
 
 function buildApp() {
   const app = express();
@@ -84,6 +85,10 @@ function buildApp() {
   // activation; recording an entry is an append-only, actor-attributed fact.
   app.use('/api/episodes', scheduleRoutes);
   app.use('/api/today', todayRoutes);
+  // Part 8: clinic-defined check-in templates. Clinic configuration, so an
+  // administrator (who holds no clinical permission) is refused, a coordinator
+  // drafts and a clinic-verified reviewer activates - the same split as plans.
+  app.use('/api/check-in-templates', checkInTemplateRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
