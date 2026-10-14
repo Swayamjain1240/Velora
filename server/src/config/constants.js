@@ -42,6 +42,26 @@ const PERMISSIONS = Object.freeze({
   // patient-visible only through a verified clinical reviewer (enforced again in
   // the service, which requires the reviewer's current assignment).
   SCHEDULE_ACTIVATE: 'schedule.activate',
+  // Part 8 - check-ins. A clinic defines its own templates and review rules, so
+  // drafting one is operational work and ACTIVATING it is a clinical decision:
+  // the same split as plan drafting versus plan review.
+  CHECKIN_TEMPLATE_DRAFT: 'checkin.template.draft',
+  CHECKIN_TEMPLATE_ACTIVATE: 'checkin.template.activate',
+  // Part 8: reviewing a check-in response whose clinic rule asked for
+  // attention. This is workflow review - it never classifies recovery.
+  CHECKIN_REVIEW: 'checkin.review',
+  // Part 8 - clarification. Anyone in scope may ASK; only the assigned verified
+  // reviewer may answer a CLINICAL question, and the coordinator may answer
+  // OPERATIONAL questions. The two answer permissions are deliberately separate.
+  QUESTION_ASK: 'question.ask',
+  QUESTION_ASSIGN: 'question.assign',
+  QUESTION_ANSWER_OPERATIONAL: 'question.answer.operational',
+  QUESTION_ANSWER_CLINICAL: 'question.answer.clinical',
+  // Part 8 - the assigned-team dashboard. Holding this is not enough on its own:
+  // every queue is re-scoped to the caller's active assignments server-side.
+  DASHBOARD_READ: 'dashboard.read',
+  // Part 8: running the bounded in-app reminder delivery batch for an episode.
+  REMINDER_RUN: 'reminder.run',
 });
 
 const ROLES = Object.freeze({
@@ -60,6 +80,9 @@ const ROLES = Object.freeze({
 //   view_profile - the patient's basic profile (Part 2)
 //   view_tasks   - the approved medication/task day view (Part 7)
 //   log_tasks    - recording an entry against that day view (Part 7)
+//   view_checkins - reading the patient's due check-ins (Part 8)
+//   log_checkins  - answering a check-in on the patient's behalf (Part 8)
+//   ask_questions - opening a clarification question in scope (Part 8)
 // Declared but still INERT (they grant nothing): view_episodes,
 // view_documents, view_plan.
 const CAREGIVER_SCOPES = Object.freeze([
@@ -69,10 +92,20 @@ const CAREGIVER_SCOPES = Object.freeze([
   'view_plan',
   'view_tasks',
   'log_tasks',
+  'view_checkins',
+  'log_checkins',
+  'ask_questions',
 ]);
 // The single source of truth for "which scopes the code actually honours", so a
 // future scope cannot be assumed live just because it is in the catalog.
-const HONOURED_CAREGIVER_SCOPES = Object.freeze(['view_profile', 'view_tasks', 'log_tasks']);
+const HONOURED_CAREGIVER_SCOPES = Object.freeze([
+  'view_profile',
+  'view_tasks',
+  'log_tasks',
+  'view_checkins',
+  'log_checkins',
+  'ask_questions',
+]);
 
 // Consent categories recorded in the append-only consent history.
 const CONSENT_CATEGORIES = Object.freeze([
@@ -115,6 +148,16 @@ const SYSTEM_ROLES = Object.freeze([
       // reviewer for that, exactly as plan approval requires one.
       PERMISSIONS.SCHEDULE_PREPARE,
       PERMISSIONS.SCHEDULE_ACTIVATE,
+      // Part 8: the coordinator DRAFTS clinic check-in templates, asks and
+      // assigns questions, answers OPERATIONAL questions only, reads the
+      // assigned-team dashboard and runs the bounded reminder batch. Template
+      // activation and clinical answers stay with the reviewer (below).
+      PERMISSIONS.CHECKIN_TEMPLATE_DRAFT,
+      PERMISSIONS.QUESTION_ASK,
+      PERMISSIONS.QUESTION_ASSIGN,
+      PERMISSIONS.QUESTION_ANSWER_OPERATIONAL,
+      PERMISSIONS.DASHBOARD_READ,
+      PERMISSIONS.REMINDER_RUN,
     ],
     // The coordinator can draft a manual plan but can never review, clarify or
     // approve one: that requires the separately verified reviewer role.
@@ -131,6 +174,14 @@ const SYSTEM_ROLES = Object.freeze([
       // Part 7: the reviewer is the only role that can activate a medication
       // schedule. No drafting/preparation permission: activation is not drafting.
       PERMISSIONS.SCHEDULE_ACTIVATE,
+      // Part 8: the reviewer ACTIVATES a clinic check-in template, reviews a
+      // response that a clinic rule flagged for attention, and is the only role
+      // that may answer a CLINICAL clarification question.
+      PERMISSIONS.CHECKIN_TEMPLATE_ACTIVATE,
+      PERMISSIONS.CHECKIN_REVIEW,
+      PERMISSIONS.QUESTION_ASK,
+      PERMISSIONS.QUESTION_ANSWER_CLINICAL,
+      PERMISSIONS.DASHBOARD_READ,
     ],
   },
   {
@@ -148,6 +199,90 @@ const SYSTEM_ROLES = Object.freeze([
     permissions: [],
   },
 ]);
+
+// ---- Part 8: check-ins, clarification, dashboard and in-app reminders --------
+
+// A check-in template is clinic-defined and versioned. Only ONE version may be
+// active per (clinic, key): activating a new version supersedes the previous.
+const CHECKIN_TEMPLATE_STATES = Object.freeze({
+  DRAFT: 'draft',
+  ACTIVE: 'active',
+  SUPERSEDED: 'superseded',
+});
+
+// A response slot is materialised as `open` when it becomes due. `no_response`
+// is the absence of an answer and is NEVER interpreted as recovery status.
+const CHECKIN_RESPONSE_STATES = Object.freeze({
+  OPEN: 'open',
+  SUBMITTED: 'submitted',
+});
+const CHECKIN_NO_RESPONSE = 'no_response';
+
+// Workflow attention only: a clinic rule asked a human to look. Not a clinical
+// classification and never surfaced as normal/abnormal.
+const CHECKIN_REVIEW_STATES = Object.freeze({
+  NONE: 'none',
+  NEEDS_REVIEW: 'needs_review',
+  REVIEWED: 'reviewed',
+});
+
+const CHECKIN_QUESTION_KINDS = Object.freeze(['text', 'choice', 'scale', 'confirm']);
+
+// Clarification thread lifecycle (VEL-016). Reopening is explicit and audited.
+const THREAD_STATES = Object.freeze({
+  OPEN: 'open',
+  ASSIGNED: 'assigned',
+  ANSWERED: 'answered',
+  CLOSED: 'closed',
+});
+const THREAD_KINDS = Object.freeze({ CLINICAL: 'clinical', OPERATIONAL: 'operational' });
+const MESSAGE_KINDS = Object.freeze({
+  QUESTION: 'question',
+  ANSWER: 'answer',
+  NOTE: 'note',
+  SYSTEM: 'system',
+});
+
+// The five assigned queues of the Part 8 dashboard.
+const QUEUE_KEYS = Object.freeze({
+  PENDING_APPROVALS: 'pending_approvals',
+  OPEN_QUESTIONS: 'open_questions',
+  CHECKIN_REVIEWS: 'check_in_reviews',
+  FAILED_REMINDERS: 'failed_reminders',
+  MISSING_OWNERS: 'missing_owners',
+});
+const QUEUE_TARGETS = Object.freeze({
+  PLAN_VERSION: 'care_plan_version',
+  THREAD: 'clarification_thread',
+  CHECKIN_RESPONSE: 'check_in_response',
+  NOTIFICATION: 'notification',
+  EPISODE: 'recovery_episode',
+});
+
+// Notification delivery (VEL-014). `delivered` and `acknowledged` are separate
+// facts: an in-app reminder appearing in a list is NOT an acknowledgement.
+const NOTIFICATION_STATES = Object.freeze({
+  QUEUED: 'queued',
+  DELIVERED: 'delivered',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled',
+});
+const DELIVERY_OUTCOMES = Object.freeze({
+  DELIVERED: 'delivered',
+  FAILED: 'failed',
+  SKIPPED: 'skipped',
+});
+// The only channel this part ships. Email/SMS/WhatsApp/push require their own
+// disclosure and are refused by the provider registry until authorized.
+const NOTIFICATION_CHANNELS = Object.freeze(['in_app']);
+const REMINDER_MAX_ATTEMPTS = 3;
+const REMINDER_BATCH_LIMIT = 100;
+// Safe, non-clinical wording: a failed reminder is a delivery fact, not a
+// statement about the patient.
+const REMINDER_FAILURE_NOTE =
+  'A reminder that could not be delivered is a delivery problem, not a missed dose or a clinical finding.';
+const DELIVERY_NOT_ACKNOWLEDGED_NOTE =
+  'A delivered reminder has not been read or acknowledged by the recipient.';
 
 const INVITATION_TTL_DAYS = 7;
 const CAREGIVER_INVITATION_TTL_DAYS = 7;
@@ -167,6 +302,23 @@ module.exports = {
   CAREGIVER_SCOPES,
   HONOURED_CAREGIVER_SCOPES,
   CONSENT_CATEGORIES,
+  CHECKIN_TEMPLATE_STATES,
+  CHECKIN_RESPONSE_STATES,
+  CHECKIN_NO_RESPONSE,
+  CHECKIN_REVIEW_STATES,
+  CHECKIN_QUESTION_KINDS,
+  THREAD_STATES,
+  THREAD_KINDS,
+  MESSAGE_KINDS,
+  QUEUE_KEYS,
+  QUEUE_TARGETS,
+  NOTIFICATION_STATES,
+  DELIVERY_OUTCOMES,
+  NOTIFICATION_CHANNELS,
+  REMINDER_MAX_ATTEMPTS,
+  REMINDER_BATCH_LIMIT,
+  REMINDER_FAILURE_NOTE,
+  DELIVERY_NOT_ACKNOWLEDGED_NOTE,
   CAREGIVER_INVITATION_TTL_DAYS,
   PATIENT_ACTIVATION_TTL_DAYS,
   INVITATION_TTL_DAYS,

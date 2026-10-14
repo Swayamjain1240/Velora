@@ -105,6 +105,19 @@ const envSchema = z
           return false;
         }
       }, 'SCHEDULE_FALLBACK_TIMEZONE must be a valid IANA timezone'),
+    // Part 8: in-app reminders ship first, so the default provider is `in_app`
+    // and it needs no key. Email/SMS/WhatsApp/push need their own disclosure and
+    // a real credential before they may be named here (control #22); the
+    // provider REGISTRY (src/providers/notificationProvider.js) is what actually
+    // refuses an unknown or unauthorized name, so this field only bounds shape.
+    REMINDER_PROVIDER: z
+      .string()
+      .regex(/^[a-z][a-z0-9_-]{0,31}$/, 'REMINDER_PROVIDER must be a short lowercase slug')
+      .default('in_app'),
+    // Server-only, optional: only a real (disclosed) provider would use it.
+    REMINDER_API_KEY: z.string().min(1).max(4096).optional(),
+    // Bounded retries for one delivery attempt chain (control #8).
+    REMINDER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(3),
   })
   .superRefine((value, ctx) => {
     if (

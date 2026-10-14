@@ -32,9 +32,18 @@ const SCRIPT = `
   if (mode === 'short-pepper') env.SESSION_PEPPER = 'short';
   if (mode === 'http-prod') { env.NODE_ENV = 'production'; env.CLIENT_ORIGIN = 'http://insecure.example'; }
   if (mode === 'ok') env.PORT = '5000';
+  if (mode === 'bad-reminder-provider') env.REMINDER_PROVIDER = 'Email Gateway';
+  if (mode === 'zero-reminder-attempts') env.REMINDER_MAX_ATTEMPTS = '0';
+  if (mode === 'too-many-reminder-attempts') env.REMINDER_MAX_ATTEMPTS = '9';
+  if (mode === 'bad-timezone') env.SCHEDULE_FALLBACK_TIMEZONE = 'Mars/Olympus';
   try {
     const parsed = loadEnv(env);
-    console.log('OK ' + JSON.stringify({ port: parsed.PORT, trust: parsed.TRUST_PROXY }));
+    console.log('OK ' + JSON.stringify({
+      port: parsed.PORT,
+      trust: parsed.TRUST_PROXY,
+      reminderProvider: parsed.REMINDER_PROVIDER,
+      reminderAttempts: parsed.REMINDER_MAX_ATTEMPTS,
+    }));
   } catch (e) {
     console.log('FAIL ' + e.message);
   }
@@ -110,4 +119,28 @@ test('a document storage root inside the repository is rejected', () => {
   const out = run('in-repo-root');
   assert.match(out, /^FAIL /, out);
   assert.match(out, /DOCUMENT_STORAGE_ROOT/);
+});
+
+test('the in-app reminder provider is the default and needs no key', () => {
+  const out = run('ok');
+  assert.match(out, /"reminderProvider":"in_app"/);
+  assert.match(out, /"reminderAttempts":3/);
+});
+
+test('a malformed REMINDER_PROVIDER is refused rather than coerced', () => {
+  const out = run('bad-reminder-provider');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /REMINDER_PROVIDER/);
+  assert.ok(!out.includes('Email Gateway'), 'must not echo the rejected value');
+});
+
+test('REMINDER_MAX_ATTEMPTS is bounded and refuses 0 or an unbounded chain', () => {
+  assert.match(run('zero-reminder-attempts'), /^FAIL /);
+  assert.match(run('too-many-reminder-attempts'), /^FAIL /);
+});
+
+test('an invalid scheduling timezone fails closed', () => {
+  const out = run('bad-timezone');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /SCHEDULE_FALLBACK_TIMEZONE/);
 });

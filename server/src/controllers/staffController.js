@@ -1,14 +1,13 @@
 'use strict';
 
 const staffService = require('../services/staffService');
-const Clinic = require('../models/Clinic');
+const clinicService = require('../services/clinicService');
 
 async function getClinic(req, res, next) {
   try {
-    const clinic = await Clinic.findById(req.clinicId).lean();
-    if (!clinic) return next();
+    const clinic = await clinicService.getClinic({ clinicId: req.clinicId });
     return res.json({
-      clinic: { id: clinic.id, name: clinic.name, code: clinic.code, status: clinic.status },
+      clinic,
       roleKey: req.roleKey,
       reviewerEligibility: req.membership.reviewerEligibility.status,
     });
@@ -19,12 +18,14 @@ async function getClinic(req, res, next) {
 
 async function updateClinic(req, res, next) {
   try {
-    const clinic = await Clinic.findByIdAndUpdate(
-      req.clinicId,
-      { $set: { name: req.body.name } },
-      { new: true }
-    ).lean();
-    return res.json({ clinic: { id: clinic.id, name: clinic.name, code: clinic.code } });
+    const clinic = await clinicService.updateClinic({
+      clinicId: req.clinicId,
+      changes: req.body,
+      actor: req.user,
+      ip: req.clientIp,
+      userAgent: req.clientUserAgent,
+    });
+    return res.json({ clinic });
   } catch (err) {
     return next(err);
   }

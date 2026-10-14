@@ -84,9 +84,40 @@ const reviewerEligibilitySchema = z
   .object({ action: z.enum(['verify', 'revoke']) })
   .strict();
 
-const updateClinicSchema = z
-  .object({ name: nameSchema })
+// Part 8: a clinic publishes its own response hours and emergency guidance.
+// `monitoredContinuously` is explicit and defaults to false - the product must
+// never imply continuous monitoring the clinic has not stated.
+const responseHoursSchema = z
+  .object({
+    display: z.string().trim().min(5).max(200),
+    timezone: z.string().trim().min(1).max(64),
+    weekdays: z.string().trim().max(120).optional(),
+    from: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM'),
+    to: z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM'),
+    monitoredContinuously: z.boolean().optional(),
+  })
   .strict();
+
+const emergencyInstructionsSchema = z
+  .object({
+    display: z.string().trim().min(5).max(500),
+    contactPhone: z
+      .string()
+      .trim()
+      .max(40)
+      .regex(/^[0-9+()\-\s]{3,40}$/, 'Use a plain phone number')
+      .optional(),
+  })
+  .strict();
+
+const updateClinicSchema = z
+  .object({
+    name: nameSchema.optional(),
+    responseHours: responseHoursSchema.optional(),
+    emergencyInstructions: emergencyInstructionsSchema.optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: 'Provide a setting to update.' });
 
 // ---------- Part 2: patients, consent and caregiver access ----------
 
@@ -512,6 +543,8 @@ module.exports = {
   invitationIdParam,
   reviewerEligibilitySchema,
   updateClinicSchema,
+  responseHoursSchema,
+  emergencyInstructionsSchema,
   createPatientSchema,
   updatePatientSchema,
   patientIdParam,
