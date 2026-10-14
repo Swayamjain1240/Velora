@@ -18,6 +18,8 @@ const episodeRoutes = require('./routes/episodes');
 const documentRoutes = require('./routes/documents');
 const planRoutes = require('./routes/plans');
 const extractionRoutes = require('./routes/extractions');
+const scheduleRoutes = require('./routes/schedules');
+const todayRoutes = require('./routes/today');
 
 function buildApp() {
   const app = express();
@@ -76,6 +78,12 @@ function buildApp() {
   // A provider is optional; with none selected the manual Part 5 workflow is
   // the only path and these routes answer with a stable "not enabled" code.
   app.use('/api/episodes', extractionRoutes);
+  // Part 7: approved medication schedules, recovery tasks and the day view.
+  // Preparation reads ONLY the current approved plan version and a medication
+  // schedule becomes patient-visible only through an explicit clinical
+  // activation; recording an entry is an append-only, actor-attributed fact.
+  app.use('/api/episodes', scheduleRoutes);
+  app.use('/api/today', todayRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -870,11 +870,22 @@ test('no task, reminder, schedule or message is created by any extraction path',
     .set('X-CSRF-Token', ctx.coordCtx.csrf)
     .send({ expectedRevision: list.planRevision });
 
-  // No such collections exist, and none were created by this module.
+  // Part 7 adds schedule/task/occurrence models, so the invariant is stated as
+  // a STRONGER fact than "the model does not exist": even now that they exist,
+  // the extraction path created none of them, and no reminder/notification/
+  // message/delivery collection exists at all.
   const names = Object.keys(require('mongoose').models);
   for (const name of names) {
-    assert.equal(/task|reminder|schedule|message/i.test(name), false, `unexpected model: ${name}`);
+    assert.equal(
+      /reminder|notification|message|delivery/i.test(name),
+      false,
+      `unexpected downstream model: ${name}`
+    );
   }
+  assert.equal(await harness.models.MedicationSchedule.countDocuments({}), 0);
+  assert.equal(await harness.models.RecoveryTask.countDocuments({}), 0);
+  assert.equal(await harness.models.ScheduleOccurrence.countDocuments({}), 0);
+  assert.equal(await harness.models.ActivityLog.countDocuments({}), 0);
   const episode = await ctx.coordCtx.a.get(`/api/episodes/${ctx.episode.id}`);
   assert.equal(episode.body.episode.status, 'draft');
   assert.equal(episode.body.episode.approvedPlanVersion, null);

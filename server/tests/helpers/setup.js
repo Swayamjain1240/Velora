@@ -64,6 +64,10 @@ const ExtractedField = require('../../src/models/ExtractedField');
 const SourceCitation = require('../../src/models/SourceCitation');
 const ModelRun = require('../../src/models/ModelRun');
 const ReviewedLanguageVariant = require('../../src/models/ReviewedLanguageVariant');
+const MedicationSchedule = require('../../src/models/MedicationSchedule');
+const RecoveryTask = require('../../src/models/RecoveryTask');
+const ScheduleOccurrence = require('../../src/models/ScheduleOccurrence');
+const ActivityLog = require('../../src/models/ActivityLog');
 
 let counter = 0;
 function uniq(prefix) {
@@ -108,6 +112,7 @@ async function resetDb() {
     CarePlanVersion, CarePlanItem, SourceReference, ReviewEvent,
     ExtractionJob, DraftSuggestion, ExtractedField, SourceCitation, ModelRun,
     ReviewedLanguageVariant,
+    MedicationSchedule, RecoveryTask, ScheduleOccurrence, ActivityLog,
   ];
   // Remove every stored object so a test can never observe a prior test's bytes.
   const objectsDir = path.join(process.env.DOCUMENT_STORAGE_ROOT, 'objects');
@@ -306,5 +311,6 @@ module.exports = {
     CarePlanVersion, CarePlanItem, SourceReference, ReviewEvent,
     ExtractionJob, DraftSuggestion, ExtractedField, SourceCitation, ModelRun,
     ReviewedLanguageVariant,
+    MedicationSchedule, RecoveryTask, ScheduleOccurrence, ActivityLog,
   },
 };

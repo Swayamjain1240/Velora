@@ -71,8 +71,8 @@ Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no
 | 3 | Recovery episodes and care-team assignment | Implemented / verified locally |
 | 4 | Private discharge-document intake | Implemented / verified locally |
 | 5 | Manual care plans, review, approval and versioning | Implemented / verified locally - completes synthetic M1 |
-| 6 | AI extraction, source citations and reviewed language | Planned |
-| 7 | Medication schedules, daily tasks and actor-attributed logs | Planned |
+| 6 | AI extraction, source citations and reviewed language | Implemented / verified locally |
+| 7 | Medication schedules, daily tasks and actor-attributed logs | Implemented / verified locally |
 | 8 | Check-ins, clarification queue, dashboard and reminders | Planned |
 | 9 | Closure, audit, privacy requests, retention and metrics | Planned |
 | 10 | Production hardening, restore and clinical-readiness gate | Planned |
@@ -167,6 +167,16 @@ mandatory external-API disclosure table, the strict schema, the job/missing/conf
 threat model and the evaluation limits are documented in
 [docs/VELORA_EXTRACTION.md](docs/VELORA_EXTRACTION.md).
 
+Part 7 turns the **current approved plan version** into medication schedules, recovery tasks, UTC
+dated occurrences and an append-only, actor-attributed log, plus the one-viewport **Today** screen the
+patient, a scoped caregiver and the assigned team all read. Only approved, clinically confirmed plan
+items can generate a schedule; a conditional/PRN item never gets a repeating time list; an
+instruction whose approved wording states no timing stays `needs_details` and generates nothing. A
+medication schedule becomes patient-visible only through the assigned, verified clinical reviewer's
+explicit activation, and an entry with nothing recorded is never shown as a missed dose. The states,
+safety wording, authority matrix, HTTP contract, DST rules and reconciliation behaviour are documented
+in [docs/VELORA_SCHEDULES.md](docs/VELORA_SCHEDULES.md).
+
 The example `MONGODB_URI` points at the local replica set (`mongodb://127.0.0.1:27019/velora?replicaSet=rs0`),
 which the `mongo:test-rs` script serves; the same instance hosts the `velora_test` database.
 
@@ -176,11 +186,11 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 182 unit + integration tests (replica-set MongoDB test DB)
-npm test -w client               # 30 client unit tests (Vitest)
+npm test -w server               # 220 unit + integration tests (replica-set MongoDB test DB)
+npm test -w client               # 50 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
-npx playwright test              # 52 browser journeys at six viewport sizes (2 opt-in/skipped)
+npx playwright test              # 61 browser journeys at six viewport sizes (2 opt-in/skipped)
 npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
 npm run evaluate:extraction -w server   # synthetic extraction evaluation (software behaviour, not clinical)
 npm audit --omit=dev             # production dependency audit
@@ -198,12 +208,13 @@ npx playwright test              # in another (Chromium is installed via npx pla
 ```
 
 The suite makes many requests in a minute, so the API is started the way CI starts it for browser
-journeys: `NODE_ENV=test PORT=4100 node server/src/index.js` (and the API port must be exported for
-the seed/session setup: `PORT=4100 npx playwright test`). That switches off only the in-process
-blanket limiter; the durable Mongo-backed per-route limits stay active. The journeys upload synthetic
-PDFs byte-for-byte, compare the downloaded bytes with the original, and measure the list routes, the
-detail screens (patient, episode, documents), the care-plan screens (draft, sources, review) and the
-patient's approved-plan view at all six required viewport sizes.
+journeys: `EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js` (and the API port
+must be exported for the seed/session setup: `PORT=4100 npx playwright test`). `NODE_ENV=test` switches
+off only the in-process blanket limiter; the durable Mongo-backed per-route limits stay active. The
+journeys upload synthetic PDFs byte-for-byte, compare the downloaded bytes with the original, and
+measure the list routes, the detail screens (patient, episode, documents), the care-plan screens
+(draft, sources, review), the patient's approved-plan view and the Part 7 **Today** screen plus the
+staff schedule workspace at all six required viewport sizes.
 
 Part 5 seeds a dedicated M1 journey fixture: episode `EP-PLANJRNY` with an assigned coordinator, an
 assigned clinic-verified reviewer and one ready source document, and no plan data. `e2e/plans.spec.js`
@@ -219,6 +230,13 @@ panels, accept one value and apply it as an ordinary draft item, dismiss another
 Hindi rendering, and prove the patient sees no AI text and no rendering. The same file also proves the
 **shipped default** fails closed: run it with no provider (`EXTRACTION_PROVIDER=none`) and the job
 reports `PROVIDER_DISABLED` while drafting by hand keeps working.
+
+Part 7 seeds a dedicated schedule journey fixture: episode `EP-SCHEDJRNY` with an assigned
+coordinator, an assigned clinic-verified reviewer, a linked patient (`PT-SCHEDJRNY`) and a caregiver
+holding `view_tasks` + `log_tasks`. `e2e/today.spec.js` records a past-day entry as the patient and
+asserts the self-report wording (never a missed dose), records one as the scoped caregiver, walks the
+staff schedule workspace (prepared schedules, the UTC instant column, the recorded-entry history) and
+measures the day view at all six viewport sizes.
 
 One journey is opt-in because it needs an API with a tiny parser budget: start the API with
 `DOCUMENT_PARSER_TIMEOUT_MS=50` and run `E2E_QUARANTINE=1 npx playwright test

@@ -146,9 +146,19 @@ const inviteCaregiverSchema = z
   .object({
     email: emailSchema,
     // Omitted scopes default to view_profile ONLY - never a silent widening.
+    // `log_tasks` is a WRITE scope and is never implied by `view_tasks`.
     scopes: z
-      .array(z.enum(['view_profile', 'view_episodes', 'view_documents', 'view_plan', 'view_tasks']))
-      .max(5)
+      .array(
+        z.enum([
+          'view_profile',
+          'view_episodes',
+          'view_documents',
+          'view_plan',
+          'view_tasks',
+          'log_tasks',
+        ])
+      )
+      .max(6)
       .optional(),
   })
   .strict();
@@ -411,8 +421,84 @@ const rejectVariantSchema = z
   .object({ reason: z.string().trim().min(5, 'Explain what is wrong').max(500) })
   .strict();
 
+// ---- Part 7: schedules, recovery tasks, day view and activity logs ------------
+
+const scheduleParams = z
+  .object({ episodeId: objectIdSchema, scheduleId: objectIdSchema })
+  .strict();
+
+// An explicit IANA zone is validated for real in the service (Intl); this only
+// bounds the string so a huge value never reaches it.
+const timezoneField = z.string().trim().min(1).max(64);
+
+const prepareSchedulesSchema = z
+  .object({
+    timezone: timezoneField.optional(),
+    startDate: dateOnlySchema.optional(),
+    horizonDays: z.coerce.number().int().min(1).max(60).optional(),
+  })
+  .strict();
+
+const activateScheduleSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    note: z.string().trim().max(300).optional(),
+  })
+  .strict();
+
+const endScheduleSchema = z
+  .object({ reason: z.string().trim().min(3, 'Give a short reason').max(300) })
+  .strict();
+
+// The day view takes ONE tab at a time so a panel stays a single bounded list.
+const todayQuery = z
+  .object({
+    patientId: objectIdSchema.optional(),
+    episodeId: objectIdSchema.optional(),
+    date: dateOnlySchema.optional(),
+    timezone: timezoneField.optional(),
+    tab: z.enum(['medication', 'task']).default('medication'),
+    page: pageSchema,
+    limit: z.coerce.number().int().min(1).max(25).default(10),
+  })
+  .strict();
+
+const instantSchema = z
+  .string()
+  .trim()
+  .min(10)
+  .max(40)
+  .refine((value) => !Number.isNaN(Date.parse(value)), 'Enter a valid instant');
+
+// Recording an entry. `clientRequestId` makes a retry idempotent, so the client
+// is REQUIRED to send one rather than the server inventing one per attempt.
+const recordEntrySchema = z
+  .object({
+    entryState: z.enum(['taken', 'skipped', 'reported_done', 'needs_help']),
+    occurrenceId: objectIdSchema.optional(),
+    scheduleId: objectIdSchema.optional(),
+    occurredAt: instantSchema.optional(),
+    note: z.string().trim().max(500).optional(),
+    clientRequestId: z.string().trim().min(8).max(100),
+    correctsLogId: objectIdSchema.optional(),
+    correctionReason: z.string().trim().min(5, 'Explain the correction').max(300).optional(),
+  })
+  .strict()
+  .refine((v) => Boolean(v.occurrenceId) !== Boolean(v.scheduleId), {
+    message: 'Provide either an occurrence or an as-needed schedule.',
+  })
+  .refine((v) => !v.correctsLogId || Boolean(v.correctionReason), {
+    message: 'Explain why the entry is being corrected.',
+  });
+
 module.exports = {
   loginSchema,
+  scheduleParams,
+  prepareSchedulesSchema,
+  activateScheduleSchema,
+  endScheduleSchema,
+  todayQuery,
+  recordEntrySchema,
   mfaVerifySchema,
   mfaEnrollVerifySchema,
   acceptInvitationSchema,

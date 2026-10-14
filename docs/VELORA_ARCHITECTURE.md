@@ -116,8 +116,25 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
   A non-member staff user gets a uniform 404. Team assignment of a clinical reviewer requires the
   reviewer's eligibility to be currently `verified`; the last active assignment can never be
   revoked.
+- Part 7 schedules and occurrences inherit Part 5 authority and add none. `POST
+  /episodes/:id/schedules/prepare` needs permission `schedule.prepare` on an ACTIVE care-team
+  assignment and, in the same request, re-checks that the episode is not closed and that the exact
+  `planVersion` is `approved` **and still current**; an administrator without a clinical assignment
+  is denied, and a patient or caregiver never reaches the route at all. Activation of a medication
+  schedule needs permission `schedule.activate` *and* the assigned, clinic-verified clinical
+  reviewer, so preparation can never activate itself. Ending a schedule follows preparation
+  authority. No Part 7 route edits clinical content: the schedule is a frozen copy, so this surface
+  can never widen what a clinician approved.
+- Part 7 day view and entry recording (`/today`) deliberately carry **no** clinic-wide permission.
+  A patient is recognised by ownership of their own profile (`linkedUserId`), a caregiver by the
+  scope of their ACTIVE, unexpired grant (`view_tasks` reads the day, `log_tasks` records an entry,
+  and neither is implied by the other or by `view_profile`), and staff by an ACTIVE care-team
+  assignment - the clinic is derived from the record or the grant, never from the request. A user
+  with no relationship to the patient gets the same uniform 404 as a caller from another clinic, a
+  closed episode is exposed as read-only, and a revoked grant or superseded plan version closes the
+  surface on the next request (the client keeps no clinical content cached).
 
-## 5. Data model (Parts 1-5)
+## 5. Data model (Parts 1-7)
 
 | Model | Purpose | Notable indexes |
 |---|---|---|
@@ -144,9 +161,14 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
 | `CarePlanItem` | one clinical instruction (verbatim original wording + structured fields + computed `unresolvedFields` + review state) | `(version,order)`; `(clinic,episode,version)` |
 | `SourceReference` | citation of one READY document of the same episode (page, quoted text, location) | `(item,createdAt)`; `(version,createdAt)` |
 | `ReviewEvent` | **append-only** plan timeline (actor, transition, bounded reason) | `(clinic,episode,at)`; `(version,at)` |
+| `MedicationSchedule` | verbatim copy of ONE approved medication item + generation inputs and lifecycle | unique `(planVersion,item)`; `(clinic,episode,status)` |
+| `RecoveryTask` | verbatim copy of ONE approved task item + generation inputs and lifecycle | unique `(planVersion,item)`; `(clinic,episode,status)` |
+| `ScheduleOccurrence` | one due slot: UTC instant + local date/time + zone + offset; **no adherence column** | unique `(owner,scheduledAtUtc)`; `(clinic,patient,localDate)` |
+| `ActivityLog` | **append-only** attributed entry: subject, actor, role/grant, occurrence time, recorded-at state, correction link | unique `(clinic,clientRequestId)`; `(occurrence,sequence)` |
 
-The Part 5 contract for these four collections - states, clinical-field rules, authority matrix, HTTP
-endpoints and the single approval transaction - is [VELORA_CARE_PLAN.md](VELORA_CARE_PLAN.md).
+The Part 5 contract for the plan collections and the Part 7 contract for these four collections -
+states, safety wording, authority matrix, HTTP endpoints and reconciliation - are
+[VELORA_CARE_PLAN.md](VELORA_CARE_PLAN.md) and [VELORA_SCHEDULES.md](VELORA_SCHEDULES.md).
 
 Timestamps are UTC. Compound unique indexes enforce clinic-scoped identifiers and active-grant
 invariants. Projections keep `tokenHash`, `csrfSecret`, internal audit payloads and unrelated PII
@@ -177,6 +199,11 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
 | care-plan read | 600 / hour per user |
 | care-plan draft mutation (version/item/source/submit/resubmit) | 240 / hour per user |
 | care-plan review mutation (item decision, clarification, approve) | 60 / hour per user |
+| schedule read (schedules, occurrences, activity log) | 600 / hour per user |
+| schedule prepare / end | 60 / hour per user |
+| schedule activation | 120 / hour per user |
+| day view (`/api/today`) read | 600 / hour per user |
+| day view entry recording | 240 / hour per user |
 
 ## 7. Client architecture
 
@@ -210,6 +237,13 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   actions are apply (an ordinary draft edit) and dismiss, and there is no approve/publish/prescribe
   control anywhere. `LanguagePanel` links each Hindi/English rendering to the instruction it renders,
   shows the numeric-guard result, and requires an assigned reviewer's fidelity statement to approve.
+- Part 7 adds `features/today` (`TodayView`, `todayRules`) - the one-viewport day screen with a
+  Previous/Next/Today switcher, Medication/Task tabs (one category at a time), bounded paginated
+  panels, per-row record and correct actions and explicit self-report labels - and
+  `features/schedules` (`SchedulePanel`) as a new `Schedule` tab in the episode detail for the staff
+  workspace: prepared schedules, a paginated occurrence table showing local **and** UTC values, the
+  attributed recorded-entry history and the explicit **Prepare from approved plan** control. The
+  client never renders an entry as a missed dose and never calls a self-report a verification.
 - A denied refresh or a lost authorization clears the loaded patient/consent/grant state before an
   error is shown, so stale clinical data never remains on screen.
 - All server errors surface through a safe envelope; the client never renders unsanitized HTML.
@@ -282,6 +316,21 @@ default** (`EXTRACTION_PROVIDER=none`) fails closed while manual drafting keeps 
   exact-match, missing-field detection, conflict detection, citation correctness, language-fidelity
   guarding and injection detection on synthetic fixtures. This is **software behaviour on invented
   values, not clinical accuracy**; a real provider requires a labelled clinical evaluation.
+- **Integration (Part 7):** unapproved/draft/superseded source rejection, non-accepted items,
+  conditional/PRN items producing no occurrences, missing schedule details, unanchored intervals,
+  IANA/DST boundaries (spring-forward skip, fall-back earlier instant), duplicate and concurrent
+  logging, patient/caregiver/denied-scope/other-clinic/staff attribution, revoked and expired grants,
+  an inert (declared but unenforced) scope granting nothing, a field-by-field proof that every
+  clinical field - `timing` and `condition` included - is copied verbatim from the approved item and
+  cannot be rewritten afterwards, stale plan version, version reconciliation, historical immutability
+  and closed-episode read-only.
+- **Unit (Part 7):** `schedulePolicy.test.js` covers the kind gate, PRN detection, missing-detail and
+  interval rules, occurrence bounds, the five day-view states and the safety wording.
+- **Browser (Part 7):** `today.spec.js` records a past-day entry as a patient (asserting the
+  self-report label and the absence of any "missed dose" wording), records through a scoped
+  `log_tasks` caregiver grant, walks the staff schedule workspace (UTC instant column, recorded-entry
+  history, preparation control) and measures the day screen - medication and task tabs - at all six
+  viewport sizes.
 - **Recovery:** `scripts/reconcile-documents.js` dry run is part of the part gate; `--apply` requires
   an explicit operator and audits every repair.
 - **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.

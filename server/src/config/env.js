@@ -87,6 +87,24 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    // Part 7: the scheduling anchor used ONLY when an episode carries no IANA
+    // zone (episodes always store one, so this is a defensive default). It is
+    // validated with Intl at startup, so a typo fails closed instead of silently
+    // scheduling a patient in the wrong offset (control #2).
+    SCHEDULE_FALLBACK_TIMEZONE: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .default('UTC')
+      .refine((value) => {
+        try {
+          new Intl.DateTimeFormat('en-US', { timeZone: value });
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'SCHEDULE_FALLBACK_TIMEZONE must be a valid IANA timezone'),
   })
   .superRefine((value, ctx) => {
     if (

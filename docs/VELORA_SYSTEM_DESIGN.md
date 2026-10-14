@@ -253,7 +253,59 @@ suggestion to approval, publication, a prescription, a task or a reminder. The s
   env var, data sent, retention/region, cost) and owner/clinical/privacy review. Until then the
   boundary is clean and the product is fully functional without AI.
 
-## 9. Decision log (Parts 1-6)
+## 8f. Schedules, occurrences and attributed recording (Part 7)
+
+> The full contract - models, safety wording, authority matrix, HTTP endpoints, reconciliation and
+> time rules - lives in [VELORA_SCHEDULES.md](VELORA_SCHEDULES.md). This section records the design
+> decisions behind it.
+
+Part 7 is the first part that turns an approved plan into something operational, so every decision
+below is about keeping the *clinical* content frozen and the *operational* content explicit.
+
+- **A schedule is a frozen copy, not a live reference.** `MedicationSchedule`/`RecoveryTask` copy
+  dose, route, frequency, timing, condition, duration and the original wording verbatim at preparation
+  time, and pin the exact `planVersion` + `CarePlanItem` (both immutable, unique per pair). A later
+  approval can therefore never mutate an operational schedule; reconciliation supersedes it instead.
+- **Preparation is explicit and audited, and activation is a second, independent act.** Approving a
+  plan still activates nothing. `POST .../schedules/prepare` reconciles from the **current approved**
+  version under a coordinator's assignment; a *medication* schedule additionally needs the assigned,
+  clinic-verified clinical reviewer to activate it, so preparation can never activate clinical work
+  by itself. Task activation is an operational coordinator act - still explicit, still audited.
+- **Nothing clinical is inferred.** A `warning` item maps to nothing; an item that is not `accepted`
+  generates nothing and is reported back as unconfirmed; an item whose approved wording does not state
+  *when* becomes `needs_details` (an unanchored interval is `interval_without_anchor`) and can never be
+  activated. A default day-part time is a non-clinical convenience the reviewer sees before
+  activation, never a stored clinical value.
+- **Conditional medicine cannot become a repeating dose.** An explicit `condition` or PRN wording
+  anywhere in the frequency/timing/original wording marks the item conditional: it is created
+  `scheduleKind: 'as_needed'` with no times and **zero** generated occurrences. Conditional items can
+  be recorded when they happen; they never expand into an unconditional schedule.
+- **Time is UTC; the zone is explicit.** Instants are stored as UTC `Date`s with the IANA zone and the
+  local `YYYY-MM-DD`/`HH:MM` that produced them; the zone resolves request value -> episode zone ->
+  validated `SCHEDULE_FALLBACK_TIMEZONE`. An invalid zone is a 400, never a silent fallback.
+  `zonedTime.js` owns all conversion: a local time in a **spring-forward gap** produces *no* instant
+  and is reported as `dst_gap` rather than shifted, a **fall-back** duplicate resolves to the earlier
+  instant, and day arithmetic runs on the calendar string, never on the server's own zone.
+- **Generation is bounded.** At most 400 occurrences per schedule, a 30-day default horizon and a
+  1-60 day clamp, so no approved wording can produce an unbounded list.
+- **A day state is a recorded fact, and absence is not adherence.** `ScheduleOccurrence` has no
+  adherence column; `taken`, `skipped`, `reported_done`, `needs_help` and `not_recorded` are derived
+  by joining logs. `not_recorded` means no entry exists, and the shared safety wording (one constant in
+  `schedulePolicy`, used by server and client) states that nothing recorded is not a missed dose and
+  never implies an extra or replacement dose.
+- **Logging is attributed and append-only.** `ActivityLog` records the subject (from the record), the
+  acting user and role, the caregiver grant id when one applies, the instant the entry is *about* and
+  the instant it was *recorded*. The model refuses every update/delete operation and non-new `save()`;
+  a correction is a new row naming the row it corrects. Idempotency comes from a unique
+  `(clinic, clientRequestId)` index, so a retry or a concurrent duplicate resolves to one row.
+- **The patient's clinic is derived, never supplied.** `/api/today` carries no clinic-wide permission:
+  ownership (patient), grant scope (caregiver) or active assignment (staff) decide, and a revoked
+  grant, closed episode or superseded version closes the surface on the next request.
+- **History survives an approval.** Re-preparing after a new approval supersedes the previous
+  version's owners and only its *future* occurrences; past occurrences and every log row are untouched
+  and stay visible in the day view as earlier-plan history.
+
+## 9. Decision log (Parts 1-7)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -301,8 +353,19 @@ suggestion to approval, publication, a prescription, a task or a reminder. The s
 | D42 | Applying a suggestion is a separate Part 5 draft edit | write clinical state from the job | AI output must never change clinical state, approve or publish |
 | D43 | Reviewed renderings never patient-visible automatically | show an approved rendering to the patient | presentation approval must not bypass plan approval |
 | D44 | A `needs_review` suggestion is still decidable | disable apply/dismiss on flagged suggestions | a flagged suggestion is exactly the one a human must decide (found by the browser journey, fixed) |
+| D45 | Schedules copy approved fields verbatim and pin `(planVersion, item)` | reference the live item | an approval after preparation must never rewrite operational content |
+| D46 | No adherence column on occurrences; states are derived from logs | store a status/score per slot | `not_recorded` is the absence of a fact, not a value that can become a nonadherence metric |
+| D47 | A DST spring-forward gap occurrence is skipped and reported | shift the dose an hour | shifting a dose is a clinical change; the reviewer is told instead |
+| D48 | A fall-back duplicate resolves to the earlier instant | later instant/split dose | an extra clock hour must never push a dose later |
+| D49 | Conditional/PRN items are `as_needed` with zero occurrences | treat them as a fixed repeat | a PRN medicine must never become an unconditional repeating dose |
+| D50 | Medication activation needs the assigned verified reviewer | prepare implies activation | clinical activation is a reviewer act, distinct from operational preparation |
+| D51 | Unanchored intervals become `needs_details` | pick a default first-dose time | a detail is requested, never invented |
+| D52 | Idempotent logging via unique `(clinic, clientRequestId)` | rely on client dedupe | a retried or concurrent submission must not duplicate patient history |
+| D53 | Corrections append a new row that names the corrected row | edit the entry in place | recorded history must stay verifiable |
+| D54 | `/api/today` has no clinic-wide permission; authority comes from the record or grant | reuse a clinical permission | a patient and caregiver hold none, so the record and grant must decide |
+| D55 | Safety wording lives in one shared policy constant | duplicate the copy in each screen | server test and client screen can never drift apart |
 
-## 10. Known limitations (Parts 1-6)
+## 10. Known limitations (Parts 1-7)
 
 - No external AI/OCR provider is selected or called; a real provider needs the completed disclosure
   and owner/clinical/privacy review first (control #22). The evaluation is **software behaviour on
@@ -334,3 +397,15 @@ suggestion to approval, publication, a prescription, a task or a reminder. The s
 - Plans are never deleted; retention and privacy requests arrive in Part 9.
 - Items are authored and reviewed page by page (8 per page); there is no bulk edit or item import.
 - A plan is not versioned by a content hash, so two identical drafts are two versions.
+- Part 7 delivers VEL-012/VEL-013 at local scope only: it produces **no** notification, reminder or
+  delivery record (VEL-014 and the check-in requirements are Part 8), and there is no scheduler
+  daemon. Occurrences are materialised by explicit preparation over a bounded horizon (400 slots,
+  30-day default), not by a recurring job.
+- Derived day-part times are a non-clinical convenience; an approved instruction with no stated
+  timing stays `needs_details` and is never made schedulable by guessing.
+- `not_recorded` is deliberately not aggregated into any adherence percentage, and the day view is a
+  one-day view (bounded pagination per category, no weekly/monthly rollup).
+- The caregiver surface honours only the four declared scopes it needs (`view_medications`,
+  `log_medications`, `view_tasks`, `log_tasks`); a caregiver still cannot read the plan or episodes.
+- Scheduling evidence is local (development, synthetic data). No clinical validation, regulatory
+  claim or production readiness is implied.

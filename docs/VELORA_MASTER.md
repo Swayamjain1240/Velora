@@ -40,32 +40,69 @@ Code 2 (diagnostic tests/results) and Code 3 (insurance) are **out of active sco
 
 ## 3. Requirements (VEL-001 .. VEL-021)
 
-The numbered requirements below are grouped by delivery part. State values use the Duck evidence
-classes: `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, `BLOCKED`.
+The IDs, names and targets below are the **authority numbering** from the owner's
+`VELORA_MERN_MASTER.pdf` (§03/§04). State values use the Duck evidence classes: `VERIFIED`,
+`IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT`, `BLOCKED`.
 
-| ID | Requirement | Part | State (13 Oct 2026, through Part 6) |
-|---:|---|---:|---|
-| VEL-001 | Repository, documentation baseline and CI gate | 1 | VERIFIED (local scope) |
-| VEL-002 | Clinic, staff RBAC and reviewer-eligibility boundary | 1 | VERIFIED (local scope) |
-| VEL-003 | Authentication: Argon2id, sessions, MFA, CSRF, reset, invite | 1 | VERIFIED (local scope) |
-| VEL-004 | Patient onboarding, consent history and caregiver grants | 2 | VERIFIED (local scope) |
-| VEL-005 | Recovery episodes and care-team assignment | 3 | VERIFIED (local scope) |
-| VEL-006 | Private discharge-document intake | 4 | VERIFIED (local scope; no antivirus provider, quarantine has no review screen yet) |
-| VEL-007 | Manual source-linked care-plan drafting | 5 | VERIFIED (local scope; hand-authored items only, no extraction assistance) |
-| VEL-008 | Clinical review, approval and versioning (completes synthetic M1) | 5 | VERIFIED (local scope; approval activates no task or reminder) |
-| VEL-009 | AI extraction with source citations and reviewed language | 6 | VERIFIED (local scope; synthetic data, deterministic local provider only, **no external provider selected or called**; the manual Part 5 workflow is the shipped default) |
-| VEL-010 | Medication schedules, daily tasks and actor-attributed logs | 7 | PLANNED |
-| VEL-011 | Patient/caregiver check-ins and clarification queue | 8 | PLANNED |
-| VEL-012 | Staff/patient dashboard and reminders | 8 | PLANNED |
-| VEL-013 | Episode closure and history | 9 | PLANNED |
-| VEL-014 | Audit, privacy requests, retention and metrics | 9 | PLANNED |
-| VEL-015 | Production hardening and isolated restore testing | 10 | PLANNED |
-| VEL-016 | Clinical-readiness gate before real-patient pilot | 10 | PLANNED |
-| VEL-017 | One-viewport rule for every authenticated screen | all | VERIFIED (list, detail, documents, care-plan (draft/sources/review) and patient approved-plan screens at six sizes; chart panels arrive with later parts) |
-| VEL-018 | Safe error envelope, no tenant-existence leakage | all | VERIFIED (local scope) |
-| VEL-019 | Continuous secret scanning and dependency audit | all | VERIFIED (local scope) |
-| VEL-020 | Documentation synchronized with real code | all | VERIFIED through Part 5 |
-| VEL-021 | 50+ meaningful commits without padding | all | PARTIAL - 26 commits at Part 5 of 10; the target is for the completed project |
+> **Renumbering correction (Part 7 Duck).** Through Part 6 this file used a *local* numbering that
+> shifted from the authority at VEL-004 and renumbered the later requirements. The authority set is
+> now restored verbatim; every guarantee that the local table attached to VEL-004 .. VEL-021 is
+> mapped to its real ID below, and nothing was dropped or weakened. The mapping also records where
+> the deleted local IDs were really Security-25 controls rather than VEL requirements.
+>
+> | Local (Part 1-6) ID | Authority ID / control |
+> |---|---|
+> | local VEL-001 repository + CI | foundation (no VEL ID); control 20/24 |
+> | local VEL-002 clinic + RBAC | VEL-002 (clinic and record isolation) + VEL-001 (accounts) |
+> | local VEL-003 authentication | VEL-001 |
+> | local VEL-004 onboarding/consent/caregiver | VEL-011 (granular caregiver sharing) |
+> | local VEL-005 episodes | VEL-003 |
+> | local VEL-006 documents | VEL-004 |
+> | local VEL-007 manual drafting | VEL-005 |
+> | local VEL-008 approval + versioning | VEL-006 + VEL-010 |
+> | local VEL-009 AI extraction + Hindi/English | VEL-008 + VEL-009 |
+> | local VEL-010 schedules/tasks/logs | VEL-012 + VEL-013 |
+> | local VEL-011 check-ins/clarification | VEL-015 + VEL-016 |
+> | local VEL-012 dashboard/reminders | VEL-017 + VEL-014 |
+> | local VEL-013 closure/history | VEL-019 |
+> | local VEL-014 audit/privacy/retention/metrics | VEL-020 + VEL-021 |
+> | local VEL-015..016 hardening/readiness | before-real-patient-use gate (no VEL ID) |
+> | local VEL-017 one viewport | control 25 |
+> | local VEL-018 safe errors | control 9 |
+> | local VEL-019 audits/secret scans | controls 13/18 |
+> | local VEL-020 docs sync | control 24 |
+> | local VEL-021 50+ commits | control 20 |
+
+| ID | Requirement | Target | Part | State (14 Oct 2026, through Part 7) |
+|---:|---|---|---:|---|
+| VEL-001 | Account and invitation security | M1 / pilot | 1 | VERIFIED (local scope) |
+| VEL-002 | Clinic and record isolation | M1 | 1 | VERIFIED (local scope) |
+| VEL-003 | Recovery episodes and assigned team | M1 | 3 | VERIFIED (local scope) |
+| VEL-004 | Private validated document intake | M1 | 4 | VERIFIED (local scope; no antivirus provider, quarantine has no review screen yet) |
+| VEL-005 | Manual draft and source review | M1 | 5 | VERIFIED (local scope; hand-authored items only) |
+| VEL-006 | Clinical approval gate | M1 | 5 | VERIFIED (local scope; approval alone still activates nothing) |
+| VEL-007 | Patient current-approved plan view | M1 | 5 | VERIFIED (local scope) |
+| VEL-008 | AI extraction with source evidence | M2 | 6 | VERIFIED (local scope; synthetic data, deterministic local provider only, **no external provider selected or called**; the manual Part 5 workflow is the shipped default) |
+| VEL-009 | Reviewed Hindi/English presentation | M2 | 6 | VERIFIED (local scope; reviewer-approved renderings only) |
+| VEL-010 | Immutable care-plan versioning | M1 / later scheduling | 5 | VERIFIED (approved versions immutable, one current version per episode, superseded history retained; Part 7 schedule preparation reads the current approved version and never mutates it) |
+| VEL-011 | Granular caregiver sharing | Code 1 | 2 | VERIFIED (local scope; Part 7 adds the first honoured non-profile scopes - `view_tasks` and `log_tasks` - each enforced server-side per request) |
+| VEL-012 | Medication schedules and actor logs | M3 | 7 | VERIFIED (local scope; only the current approved, clinically accepted items produce a schedule, a medication schedule activates only through the assigned verified reviewer, occurrences are UTC with an explicit IANA zone, and entries are append-only and attributed with idempotent retries) |
+| VEL-013 | Daily recovery tasks | M3 | 7 | VERIFIED (local scope; task items use the same occurrence engine, an explicit audited activation and the same day view) |
+| VEL-014 | Notifications and delivery records | M3 / M4 | 8 | PLANNED - Part 7 generates no message, reminder or delivery attempt |
+| VEL-015 | Clinic-defined recovery check-ins | M4 | 8 | PLANNED |
+| VEL-016 | Clarification queue and history | M4 | 8 | PLANNED |
+| VEL-017 | Assigned team dashboard | M4 | 8 | PLANNED |
+| VEL-018 | Basic prescribed follow-up | M4 | 8 | PLANNED (Part 7 renders a follow-up item as an approved instruction only) |
+| VEL-019 | Operational closure and history | Code 1 | 9 | PLANNED - Part 7 already blocks new activity on a closed episode and never rewrites history |
+| VEL-020 | Privacy, audit, export/deletion and retention | foundation..M5 | 9 | PARTIAL - append-only audit history exists (Parts 1-7); export/deletion/retention are Part 9 |
+| VEL-021 | Workflow metrics without clinical inference | Code 1 | 9 | PLANNED (Part 7 exposes counts of recorded states only, and never an adherence judgement) |
+
+## 3a. Foundation items carried as Security-25 controls, not VEL IDs
+
+The table above no longer carries the old local VEL-017..VEL-021 rows. Their guarantees are live and
+covered by the controls named in section 6: one-viewport screens (25), the safe error envelope (9),
+dependency audit plus tree/history secret scans (13, 18), documentation synchronized with code (24)
+and meaningful commits without padding (20).
 
 ## 4. Ten-part roadmap
 

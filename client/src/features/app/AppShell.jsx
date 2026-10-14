@@ -34,6 +34,8 @@ export default function AppShell() {
           {isStaff && <NavLink to="/app/episodes">Episodes</NavLink>}
           {isPatient && <NavLink to="/app/me">My records</NavLink>}
           {isPatient && <NavLink to="/app/me/episodes">My recovery</NavLink>}
+          {/* Part 7: the day view for the people who actually record entries. */}
+          {(isPatient || isCaregiver) && <NavLink to="/app/today">Today</NavLink>}
           {isCaregiver && <NavLink to="/app/caregiver">Shared with me</NavLink>}
           {isAdmin && <NavLink to="/app/clinic">Clinic &amp; staff</NavLink>}
           <NavLink to="/app/profile">Profile</NavLink>

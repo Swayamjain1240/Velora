@@ -36,6 +36,7 @@ const SourceCitation = require('../src/models/SourceCitation');
 const ModelRun = require('../src/models/ModelRun');
 const ReviewedLanguageVariant = require('../src/models/ReviewedLanguageVariant');
 const { pdfWithTextPages } = require('./syntheticPdf');
+const { seedScheduleJourney } = require('./seedScheduleJourney');
 
 const SEED_PASSWORD = 'SyntheticDevPass!24';
 
@@ -62,6 +63,12 @@ const STAFF = [
   // Part 6 extraction journey: its OWN linked patient account, because a profile
   // links at most one account per clinic.
   { email: 'ai.patient@synthetic.invalid', name: 'Synthetic Extraction Journey Patient', roleKey: 'patient' },
+  // Part 7 schedule/task journey: its own coordinator, VERIFIED reviewer,
+  // patient account and scoped caregiver, so the day view has real rows.
+  { email: 'schedule.coordinator@synthetic.invalid', name: 'Synthetic Schedule Coordinator', roleKey: 'care_coordinator' },
+  { email: 'schedule.reviewer@synthetic.invalid', name: 'Synthetic Schedule Reviewer', roleKey: 'clinical_reviewer' },
+  { email: 'schedule.patient@synthetic.invalid', name: 'Synthetic Schedule Journey Patient', roleKey: 'patient' },
+  { email: 'schedule.caregiver@synthetic.invalid', name: 'Synthetic Schedule Caregiver', roleKey: 'caregiver' },
 ];
 
 // A technically valid one-page synthetic PDF: the only document the Part 5
@@ -556,6 +563,7 @@ async function run() {
   await seedDocumentJourney(clinic, passwordHash);
   await seedPlanJourney(clinic);
   await seedExtractionJourney(clinic);
+  await seedScheduleJourney(clinic);
 
   // eslint-disable-next-line no-console
   console.log(`\nAll synthetic accounts share password: ${SEED_PASSWORD}`);

@@ -36,6 +36,12 @@ const SESSIONS = [
   // Part 6 extraction journey: the linked patient of the AI-journey episode, so
   // the journey can prove no AI output and no rendering reaches them.
   { email: 'ai.patient@synthetic.invalid', file: 'ai-patient.json' },
+  // Part 7 schedule/task journey: the patient who records entries, the scoped
+  // caregiver who may also record, and the assigned coordinator who prepares and
+  // activates schedules from the episode detail.
+  { email: 'schedule.patient@synthetic.invalid', file: 'schedule-patient.json' },
+  { email: 'schedule.caregiver@synthetic.invalid', file: 'schedule-caregiver.json' },
+  { email: 'schedule.coordinator@synthetic.invalid', file: 'schedule-coordinator.json' },
 ];
 
 // Minimal .env reader so the seed uses the SAME database as the running API

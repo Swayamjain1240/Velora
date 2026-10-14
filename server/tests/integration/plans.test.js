@@ -1100,16 +1100,27 @@ test('the audit trail records the workflow without copying clinical text', async
   await assert.rejects(() => harness.models.ReviewEvent.deleteOne({ _id: events[0]._id }));
 });
 
-test('approval activates no task, reminder or schedule', async () => {
+test('approval activates no task, reminder, schedule, occurrence or log', async () => {
   const ctx = await setup();
   const { planId } = await completeApproval(ctx);
   assert.equal((await approve(ctx, planId)).status, 200);
 
+  // Part 7 adds the schedule/task/occurrence/log models, so this asserts the
+  // real invariant directly - approval created NONE of them and still created
+  // no reminder, notification or message collection of any kind.
   const names = (await mongoose.connection.db.listCollections().toArray()).map((c) => c.name);
-  const activation = names.filter((n) => /task|reminder|schedule|medication_log|notification/i.test(n));
-  assert.deepEqual(activation, [], `unexpected downstream collections: ${activation.join(', ')}`);
+  const downstream = names.filter((n) => /reminder|notification|message|delivery|medication_log/i.test(n));
+  assert.deepEqual(downstream, [], `unexpected downstream collections: ${downstream.join(', ')}`);
+  assert.equal(await harness.models.MedicationSchedule.countDocuments({}), 0);
+  assert.equal(await harness.models.RecoveryTask.countDocuments({}), 0);
+  assert.equal(await harness.models.ScheduleOccurrence.countDocuments({}), 0);
+  assert.equal(await harness.models.ActivityLog.countDocuments({}), 0);
 
   const episodes = await harness.models.RecoveryEpisode.find({}).lean();
   assert.equal(episodes.length, 1);
   assert.equal(episodes[0].status, 'draft');
+  // Approval moves ONLY the plan pointer/state; a schedule needs a separate,
+  // explicit prepare + activate by the authorized humans.
+  assert.equal(episodes[0].planState, 'approved');
+  assert.ok(episodes[0].approvedPlanVersion);
 });

@@ -17,6 +17,8 @@ const { errors } = require('./errors');
 const audit = require('./auditService');
 const { withTransaction } = require('./txService');
 const patientService = require('./patientService');
+// One IANA/zoned-time implementation for the whole server (Part 7).
+const zonedTime = require('./zonedTime');
 const RecoveryEpisode = require('../models/RecoveryEpisode');
 const CareTeamAssignment = require('../models/CareTeamAssignment');
 const EpisodeCorrection = require('../models/EpisodeCorrection');
@@ -35,16 +37,7 @@ function randomReference() {
   return `${EPISODE_PREFIX}-${out}`;
 }
 
-function isValidTimezone(tz) {
-  if (typeof tz !== 'string' || !tz.trim()) return false;
-  try {
-    // Throws for an unknown IANA zone.
-    new Intl.DateTimeFormat('en-US', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
+const isValidTimezone = zonedTime.isValidTimezone;
 
 // Strict calendar date -> a UTC-midnight Date. Rejecting datetimes keeps the
 // stored value independent of the caller's clock and offset.
@@ -66,14 +59,7 @@ function dateOnly(value) {
 
 // Today's calendar date AS SEEN IN the episode's timezone, so a discharge date
 // is judged against the correct local day at the timezone boundary.
-function todayInTimezone(tz, now = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now);
-}
+const todayInTimezone = zonedTime.todayInTimezone;
 
 function assertNotFuture(dateOnlyString, tz) {
   if (dateOnlyString > todayInTimezone(tz)) {

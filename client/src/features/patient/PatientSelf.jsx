@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
-const SCOPES = ['view_profile', 'view_episodes', 'view_documents', 'view_plan', 'view_tasks'];
+const SCOPES = ['view_profile', 'view_episodes', 'view_documents', 'view_plan', 'view_tasks', 'log_tasks'];
+// `log_tasks` is a WRITE scope (Part 7): recording an entry on the patient's
+// behalf. It is never implied by `view_tasks`, so it is labelled explicitly.
+const SCOPE_LABELS = { log_tasks: 'log tasks (record entries on my behalf)' };
 
 // The patient's own view. Access is by OWNERSHIP of the profile; there is no
 // clinic-wide permission here, so a patient can never browse other records.
@@ -92,7 +95,7 @@ export default function PatientSelf() {
                   scopes: e.target.checked ? [...form.scopes, s] : form.scopes.filter((x) => x !== s),
                 })}
               />
-              {s.replace(/_/g, ' ')}
+              {SCOPE_LABELS[s] || s.replace(/_/g, ' ')}
             </label>
           ))}
         </fieldset>

@@ -355,3 +355,28 @@ textarea {
   .recovery-codes { grid-template-columns: 1fr; }
   .table { font-size: .85rem; }
 }
+
+/* ---------- Part 7: the Today day view ---------- */
+.today { display: flex; flex-direction: column; min-height: 0; }
+.today__head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.today__head h1 { margin: 0; font-size: 1.25rem; }
+.today__picker { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
+.today__picker select { width: auto; min-width: 12rem; }
+.today__dates { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.today__dates input[type='date'] { width: auto; }
+.today__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.today__row { border: 1px solid var(--border); border-radius: 10px; padding: .5rem .75rem; }
+.today__row-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.today__instruction { margin: .25rem 0; font-size: .9rem; }
+.today__actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .35rem; }
+.today__correct { display: flex; flex-direction: column; gap: .35rem; margin-top: .4rem; }
+.today__history { list-style: none; margin: .25rem 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; font-size: .85rem; }
+.today__safety { margin-top: .25rem; }
+.today__safety p { margin: .15rem 0; font-size: .8rem; }
+
+.pill--taken { background: #e6f4ea; border-color: #a8d5b5; color: #14532d; }
+.pill--skipped { background: #f3f4f6; border-color: #c7ccd4; color: #444c56; }
+.pill--reported_done { background: #eef2f7; }
+.pill--needs_help { background: #fff4e5; border-color: #edc99a; color: #8a4b00; }
+.pill--none { background: #fafbfc; border-color: #d8dde3; color: #5b6470; }
+.pill--prn { background: #f5f0ff; border-color: #cdbdf0; color: #4a2c8a; }

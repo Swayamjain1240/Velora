@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import DocumentsPanel from '../documents/DocumentsPanel';
 import CarePlanPanel from '../plans/CarePlanPanel';
+import SchedulePanel from '../schedules/SchedulePanel';
 
 const PAGE_SIZE = 10;
-const TABS = ['overview', 'plan', 'corrections', 'team', 'documents'];
+const TABS = ['overview', 'plan', 'schedule', 'corrections', 'team', 'documents'];
 const COMMON_ZONES = [
   'Europe/London',
   'Europe/Paris',
@@ -285,6 +286,13 @@ export default function EpisodeDetail({ episodeId, onBack }) {
           />
         )}
 
+        {/* Part 7: approved medication schedules, recovery tasks and the
+            actor-attributed entries recorded against them. */}
+        {tab === 'schedule' && (
+          // A denial here is shown inside the panel rather than clearing the
+          // episode, because the caller already reads this episode.
+          <SchedulePanel episodeId={episodeId} episodePlanState={episode.planState} />
+        )}
         {tab === 'documents' && (
           <DocumentsPanel
             episodeId={episodeId}

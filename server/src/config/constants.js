@@ -33,6 +33,15 @@ const PERMISSIONS = Object.freeze({
   // clinical authority: an extraction job cannot approve, publish, prescribe,
   // change clinical state, activate a task or send a reminder.
   EXTRACTION_RUN: 'extraction.run',
+  // Part 7: preparing/ending schedules and recovery tasks from the CURRENT
+  // APPROVED plan version. This is operational preparation - it can only read an
+  // approved version and can never edit, approve or supersede one.
+  SCHEDULE_PREPARE: 'schedule.prepare',
+  // Part 7: clinical activation of a prepared MEDICATION schedule. A task-type
+  // schedule may be activated operationally, but a medication schedule becomes
+  // patient-visible only through a verified clinical reviewer (enforced again in
+  // the service, which requires the reviewer's current assignment).
+  SCHEDULE_ACTIVATE: 'schedule.activate',
 });
 
 const ROLES = Object.freeze({
@@ -43,18 +52,27 @@ const ROLES = Object.freeze({
   CAREGIVER: 'caregiver',
 });
 
-// Granular caregiver scopes. Only `view_profile` is honoured in Part 2; the
-// rest are declared so later parts extend the catalog rather than inventing
-// ad-hoc checks. Granting a caregiver view_profile must NEVER silently confer
-// episode, document, plan or task access (control #5).
+// Granular caregiver scopes. The catalog is deliberately wider than what is
+// enforced: a declared scope stays INERT until the part that enforces it lands,
+// and granting one scope must NEVER silently confer another (control #5).
+//
+// Enforced today:
+//   view_profile - the patient's basic profile (Part 2)
+//   view_tasks   - the approved medication/task day view (Part 7)
+//   log_tasks    - recording an entry against that day view (Part 7)
+// Declared but still INERT (they grant nothing): view_episodes,
+// view_documents, view_plan.
 const CAREGIVER_SCOPES = Object.freeze([
   'view_profile',
   'view_episodes',
   'view_documents',
   'view_plan',
   'view_tasks',
+  'log_tasks',
 ]);
-const PART2_HONOURED_SCOPES = Object.freeze(['view_profile']);
+// The single source of truth for "which scopes the code actually honours", so a
+// future scope cannot be assumed live just because it is in the catalog.
+const HONOURED_CAREGIVER_SCOPES = Object.freeze(['view_profile', 'view_tasks', 'log_tasks']);
 
 // Consent categories recorded in the append-only consent history.
 const CONSENT_CATEGORIES = Object.freeze([
@@ -91,6 +109,12 @@ const SYSTEM_ROLES = Object.freeze([
       PERMISSIONS.EPISODE_MANAGE,
       PERMISSIONS.PLAN_DRAFT,
       PERMISSIONS.EXTRACTION_RUN,
+      // Part 7: operational schedule preparation. NOTE that holding
+      // schedule.activate here does NOT let a coordinator activate a MEDICATION
+      // schedule: the service re-derives the assigned, verified clinical
+      // reviewer for that, exactly as plan approval requires one.
+      PERMISSIONS.SCHEDULE_PREPARE,
+      PERMISSIONS.SCHEDULE_ACTIVATE,
     ],
     // The coordinator can draft a manual plan but can never review, clarify or
     // approve one: that requires the separately verified reviewer role.
@@ -100,7 +124,14 @@ const SYSTEM_ROLES = Object.freeze([
     name: 'Clinical Reviewer',
     // Reads patient context for review; cannot create or administer patients.
     // Part 5 adds plan review, which is the only path to an approved plan.
-    permissions: [PERMISSIONS.PATIENT_READ, PERMISSIONS.CLINICAL_REVIEW, PERMISSIONS.PLAN_REVIEW],
+    permissions: [
+      PERMISSIONS.PATIENT_READ,
+      PERMISSIONS.CLINICAL_REVIEW,
+      PERMISSIONS.PLAN_REVIEW,
+      // Part 7: the reviewer is the only role that can activate a medication
+      // schedule. No drafting/preparation permission: activation is not drafting.
+      PERMISSIONS.SCHEDULE_ACTIVATE,
+    ],
   },
   {
     key: ROLES.PATIENT,
@@ -134,7 +165,7 @@ module.exports = {
   ROLES,
   SYSTEM_ROLES,
   CAREGIVER_SCOPES,
-  PART2_HONOURED_SCOPES,
+  HONOURED_CAREGIVER_SCOPES,
   CONSENT_CATEGORIES,
   CAREGIVER_INVITATION_TTL_DAYS,
   PATIENT_ACTIVATION_TTL_DAYS,

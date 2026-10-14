@@ -73,6 +73,16 @@ for (const size of VIEWPORTS) {
     await assertOneViewport(page, `patient detail @ ${size.name}`);
     await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
 
+    // ---- staff patient detail: caregivers tab ----------------------------------
+    // Part 7 added a caregiver grant form here (the explicit `log_tasks` write
+    // scope), so the tab is measured in its own right instead of riding on the
+    // overview measurement.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('tab', { name: 'Caregivers' }).click();
+    await expect(page.getByRole('button', { name: 'Invite caregiver' })).toBeVisible();
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await assertOneViewport(page, `patient caregivers tab @ ${size.name}`);
+
     // ---- staff episode detail (overview tab) ---------------------------------
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/app/episodes');

@@ -7,7 +7,8 @@ const PAGE_SIZE = 10;
 
 // The caregiver's scoped view. A caregiver holds no clinic-wide permission: the
 // server only returns patients an ACTIVE, unexpired grant authorises, and only
-// for scopes that were actually granted (Part 2 honours view_profile).
+// for scopes that were actually granted (Part 2 honours view_profile; Part 7
+// adds view_tasks and log_tasks, which are used on the Today screen).
 export default function CaregiverHome() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -54,7 +55,11 @@ export default function CaregiverHome() {
           <dt>Status</dt><dd>{selected.status}</dd>
           <dt>Scopes</dt><dd>{(selected.scopes || []).join(', ')}</dd>
         </dl>
-        <p className="muted">You are seeing the profile only. Episode, document, plan and task access require separate scopes.</p>
+        <p className="muted">
+          You are seeing the profile only. Episode, document and plan access require separate scopes,
+          and a <code>view tasks</code> grant lets you read the approved medication and task day view
+          on the Today screen.
+        </p>
       </section>
     );
   }

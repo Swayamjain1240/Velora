@@ -21,6 +21,7 @@ import PatientEpisodes from '../features/patient/PatientEpisodes';
 import CaregiverHome from '../features/caregiver/CaregiverHome';
 import EpisodeList from '../features/episodes/EpisodeList';
 import EpisodeDetail from '../features/episodes/EpisodeDetail';
+import TodayView from '../features/today/TodayView';
 
 // Route guard (UX only - the server is the real boundary, control #3).
 function Protected({ children }) {
@@ -74,6 +75,9 @@ export default function App() {
         <Route path="me" element={<PatientSelf />} />
         <Route path="me/episodes" element={<PatientEpisodes />} />
         <Route path="caregiver" element={<CaregiverHome />} />
+        {/* Part 7: the day view. One route for patients, caregivers and assigned
+            staff; the server resolves who is asking and what they may see. */}
+        <Route path="today" element={<TodayView />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

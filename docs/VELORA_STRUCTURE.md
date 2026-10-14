@@ -24,6 +24,7 @@ Velora/
     VELORA_DOCUMENT_STORAGE.md    # Part 4 document API, storage setup and recovery runbook
     VELORA_CARE_PLAN.md           # Part 5 care-plan API contract, states, authority and approval transaction
     VELORA_EXTRACTION.md          # Part 6 AI contract, provider disclosure, threat model, evaluation limits
+    VELORA_SCHEDULES.md           # Part 7 schedule/task/log contract, safety wording, authority and time rules
   e2e/
     auth.spec.js                  # login / MFA / staff journeys
     patients.spec.js              # Part 2-3 onboarding / consent / activation / episode journey
@@ -33,13 +34,17 @@ Velora/
                                   # plus six-size measurement of the plan screens
     extractions.spec.js           # Part 6 journey: source/AI/missing/conflict/apply/dismiss +
                                   # Hindi review + patient isolation, and the provider-disabled fallback
+    today.spec.js                 # Part 7 journeys: patient/self-report recording, scoped caregiver
+                                  # logging, the staff schedule workspace and six-size measurement
     detail-viewports.spec.js      # six-size one-viewport assertions for the detail screens
     viewports.spec.js             # six-size one-viewport assertions for the list routes
     global-setup.js               # seeds the synthetic clinic; enrols viewport sessions
   server/
     package.json
-    scripts/{seed.js,mongo-test-rs.js,reconcile-documents.js,syntheticPdf.js,evaluate-extraction.js}
-                                  # synthetic clinic + care teams; local replica set; document dry run/repair;
+    scripts/{seed.js,seedScheduleJourney.js,mongo-test-rs.js,reconcile-documents.js,
+             syntheticPdf.js,evaluate-extraction.js}
+                                  # synthetic clinic + care teams; Part 7 schedule journey fixture;
+                                  # local replica set; document dry run/repair;
                                   # synthetic PDF builder; deterministic extraction evaluation harness
     src/
       app.js                      # express app assembly
@@ -53,28 +58,36 @@ Velora/
               AccessInvitation,RecoveryEpisode,CareTeamAssignment,EpisodeCorrection,
               EpisodeDocument,CarePlanVersion,CarePlanItem,SourceReference,ReviewEvent,
               ExtractionJob,DraftSuggestion,ExtractedField,SourceCitation,ModelRun,
-              ReviewedLanguageVariant}.js
-      policies/{carePlanPolicy,extractionPolicy}.js
+              ReviewedLanguageVariant,MedicationSchedule,RecoveryTask,
+              ScheduleOccurrence,ActivityLog}.js
+      policies/{carePlanPolicy,extractionPolicy,schedulePolicy}.js
                                   # plan states/transitions, clinical fields, completeness rules;
-                                  # strict extraction schema, classification, injection detection, job limits
+                                  # strict extraction schema, classification, injection detection, job limits;
+                                  # item->schedule mapping, PRN/missing-detail gates, UTC/DST occurrence rules
       validators/schemas.js
       controllers/{authController,staffController,patientController,caregiverController,
-                   episodeController,documentController,carePlanController}.js
+                   episodeController,documentController,carePlanController,
+                   extractionController,scheduleController,todayController}.js
       services/{authService,sessionService,mfaService,passwordService,
                 crypto,staffService,rateLimitService,auditService,errors,txService,
                 patientService,consentService,caregiverService,episodeService,
                 documentStorage,documentValidator,documentInspector,documentService,
-                documentTextLayer,carePlanService,extractionService,languageVariantService}.js
-      providers/{extractionProvider,fakeExtractionProvider,index}.js
-                                  # provider-neutral interface, deterministic local fake,
-                                  # registry that fails closed on an unknown provider
+                documentTextLayer,carePlanService,extractionService,languageVariantService,
+                zonedTime,scheduleService,todayService,activityLogService}.js
+      providers/{extractionProvider,fakeExtractionProvider}.js
+                                  # provider-neutral interface + deterministic local fake, with the
+                                  # registry that fails closed on an unknown provider exported from
+                                  # extractionProvider.js
       workers/documentParser.js   # isolated, memory- and time-limited byte parser (no secrets)
-      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents,plans,extractions}.js
+      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents,plans,
+              extractions,schedules,today}.js
     tests/
       helpers/{setup,documents}.js  # harness: env, db, factories, agents; synthetic file fixtures
       fixtures/extraction-evaluation.json  # synthetic extraction evaluation set (no real data)
-      unit/{env,crypto-password,extraction-policy,document-text-layer,extraction-evaluation}.test.js
-      integration/{auth,staff,patients,episodes,documents,plans,extractions,languageVariants}.test.js
+      unit/{env,crypto-password,extraction-policy,document-text-layer,extraction-evaluation,
+            schedulePolicy}.test.js
+      integration/{auth,staff,patients,episodes,documents,plans,extractions,languageVariants,
+                   schedules}.test.js
   client/
     package.json
     vite.config.js                # dev proxy /api -> API (overridable)
@@ -93,11 +106,13 @@ Velora/
         documents/{DocumentsPanel,DocumentUpload}.jsx, documentRules.js
         plans/{CarePlanPanel,PlanItemForm,PlanSourcePanel,PlanReviewPanel}.jsx, planRules.js
         extraction/{ExtractionPanel,LanguagePanel}.jsx, extractionRules.js
+        schedules/SchedulePanel.jsx  # staff workspace: schedules, occurrences, recorded entries
+        today/{TodayView,todayRules}.jsx  # one-viewport day screen, tabs, bounded panels
         patient/{PatientSelf,PatientEpisodes,PatientPlan}.jsx
         caregiver/CaregiverHome.jsx
       styles.css
       test/{setup,api.test}.js, auth-flows.test.jsx, patients.test.jsx, episodes.test.jsx,
-           documents.test.jsx, plans.test.jsx, extractions.test.jsx
+           documents.test.jsx, plans.test.jsx, extractions.test.jsx, today.test.jsx
 ```
 
 ## Conventions

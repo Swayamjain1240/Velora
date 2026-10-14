@@ -6,7 +6,11 @@ import { api, ApiError } from '../../lib/api';
 const PAGE_SIZE = 10;
 const TABS = ['overview', 'consent', 'caregivers', 'team'];
 const CATEGORIES = ['care_coordination', 'caregiver_access', 'future_ai_assistance'];
-const SCOPES = ['view_profile', 'view_episodes', 'view_documents', 'view_plan', 'view_tasks'];
+const SCOPES = ['view_profile', 'view_episodes', 'view_documents', 'view_plan', 'view_tasks', 'log_tasks'];
+// `log_tasks` is a WRITE scope (Part 7): it lets a caregiver record an entry on
+// the patient's behalf and is never implied by `view_tasks`, so the label says
+// so plainly rather than reading like another read scope.
+const SCOPE_LABELS = { log_tasks: 'log tasks (record entries on the patient\u2019s behalf)' };
 
 // Staff patient detail. Each tab is a single scroll region inside the fixed
 // shell, so the authenticated page never scrolls (control #25).
@@ -295,7 +299,7 @@ export default function PatientDetail({ patientId, onBack }) {
                         scopes: e.target.checked ? [...caregiverForm.scopes, s] : caregiverForm.scopes.filter((x) => x !== s),
                       })}
                     />
-                    {s.replace(/_/g, ' ')}
+                    {SCOPE_LABELS[s] || s.replace(/_/g, ' ')}
                   </label>
                 ))}
               </fieldset>

@@ -896,3 +896,222 @@ validation or regulatory claim is made. Part 7 was not started.
   clinical set and clinical sign-off are required before a pilot.
 - A real provider's retention/region/cost terms are unreviewed and unconfigured.
 - No production deployment, backup/restore test or monitoring (Part 10).
+
+---
+
+## Session - 14 October 2026 - Part 7 (approved medication schedules, recovery tasks and attributed logs)
+
+### Duck review (start of session)
+
+**Files read:** the three authority PDFs and their markdown mirrors (`VELORA_MERN_MASTER.pdf`,
+`VELORA_MERN_ARCHITECTURE.pdf`, `VELORA_MERN_DUCK_LOG.pdf`), `VELORA_MERN_10_BUILD_PROMPTS.md`,
+`README.md`, the Parts 1-6 entries in this log, the Part 5 care-plan and Part 6 extraction
+contracts, and the current server / client / e2e trees.
+
+**One document-list correction:** `AGENTS.md` does **not** exist in this repository (the build prompt
+asks each part to read it "if present", and the Part 1-6 entries list it as if it had been read).
+Nothing was skipped because of that - the repository instructions that do exist (`README.md`, the
+contracts and this log) were read - but the claim is corrected here rather than repeated, and a
+repository-level `AGENTS.md` for future parts is left as an owner decision instead of being invented.
+
+**Observed repository state before changes:** branch `main`; Parts 1-6 committed and VERIFIED with
+Part 6's provider-disabled journey recorded. Part 7 did not exist as code, and the docs still
+described scheduling as future work. No `gh` on this host, so the pull-request and CI *run* state is
+**not observable locally** - the evidence below is the same local gate the workflow runs.
+
+**Classification on entry:** Part 6 = VERIFIED; VEL-010 (schedules/tasks/logs) = **PLANNED**;
+documentation = consistent with reality (no Part 7 claims). Part 7 therefore starts from a clean
+base, and the first job is to re-verify the foundations it would otherwise assume.
+
+| Foundation | Verification (re-derived from the database/code, not assumed) |
+|---|---|
+| Approved-version invariants | preparation reads **only** a version that is `approved` **and** `isCurrent`; the partial unique index `(episode)` where `isCurrent:true, state:'approved'` still makes two current versions impossible; a schedule/task pins immutable `(planVersion, item)` and copies the approved fields verbatim; draft, in_review, needs_clarification and superseded versions produce nothing (integration + unit) |
+| Caregiver scopes | only an ACTIVE, unexpired grant counts; `view_tasks` reads the day, `log_tasks` writes an entry, and neither implies the other; a revoked grant is refused on the very next request; the clinic comes from the grant, never the request |
+| Timezone handling | occurrence instants are UTC `Date`s with the IANA zone and the local date/time recorded beside them; the zone resolves request value -> episode zone -> validated `SCHEDULE_FALLBACK_TIMEZONE`; an unknown zone is a `400`; Part 3's duplicate `Intl` helpers were collapsed onto the one `zonedTime` module |
+| AI / manual boundary | the Part 6 extraction path still creates **no** schedule, task, occurrence, log, reminder or message - and the invariant is now asserted in its stronger form (the models exist and each count is zero) |
+| Git / CI state | branch `main`, Part 6 as the last commit; the workflow runs the same `npm test` in both workspaces, the browser gate, the production audit and the tree/history secret scans reproduced below |
+
+### Drift found and fixed
+
+1. **A caregiver `log_tasks` grant could not be created through the product.** The server catalog,
+   the strict `scopes` enum and `caregiverService` all accept `log_tasks`, and the Part 7 day view
+   enforces it - but both grant forms (`PatientSelf`, `PatientDetail`) listed only read scopes, so
+   the capability was unreachable for a real user and a caregiver could never be given the write
+   scope. Fixed in both forms with an explicit write-scope label, plus two client tests that prove
+   the scope is offered, is **not** implied by `view_tasks`, and is sent only when checked.
+2. **Part 7 was not measured where it changed.** The one-viewport gate measured the staff patient
+   detail's *overview* tab only, so the changed grant form had no measurement. `detail-viewports.spec.js`
+   now measures the caregivers tab at all six sizes.
+3. **The Part 6 "no downstream object" invariant had become misleading.** It asserted that no model
+   whose name matches `task|reminder|schedule|message` could exist. With the Part 7 models that
+   assertion would have been false for the right reason, so it was rewritten to the stronger fact:
+   the models exist, and every count is still zero after an approval plus an extraction run.
+4. **Documentation drift.** README, `.env.example`, `VELORA_STRUCTURE`, `VELORA_ARCHITECTURE`,
+   `VELORA_SYSTEM_DESIGN` (§8f + decision log D45-D55 + limitations), this log, and the new
+   [VELORA_SCHEDULES.md](VELORA_SCHEDULES.md) contract. `VELORA_MASTER.md` also carried the
+   authority-numbering correction this part's Duck found necessary (the local VEL-004..VEL-021
+   numbering is mapped onto the owner's real VEL-001..VEL-021 IDs).
+5. **Duplicated time logic.** `episodeService` carried its own `isValidTimezone`/`todayInTimezone`;
+   both now come from `zonedTime.js`, so the product has exactly one IANA conversion implementation.
+
+### Work performed (Part 7)
+
+| Area | Result |
+|---|---|
+| Models | `MedicationSchedule`, `RecoveryTask`, `ScheduleOccurrence`, `ActivityLog` (append-only guard, unique `(clinic, clientRequestId)`) |
+| Policy | `schedulePolicy.js`: kind gate, confirmation gate, PRN/conditional gate, missing-detail and unanchored-interval rules, derivation, bounded generation, the five day states and the shared safety wording |
+| Time | `zonedTime.js`: UTC<->zone conversion, DST gap/ambiguity rules, calendar day arithmetic, zone validation |
+| Service | `scheduleService.js` (prepare from the current approved version, activation, ending, reconciliation across versions) and `todayService.js` (day view + entry recording) |
+| API | `routes/schedules.js` (episode schedule workspace, occurrences, activation, end, activity history) and `routes/today.js` (day view, entries), each with its own durable rate-limit bucket |
+| Client | `today/TodayView.jsx` + `todayRules.js` day screen, `schedules/SchedulePanel.jsx` staff workspace inside the episode detail's new Schedule tab |
+| Seed / journeys | `seedScheduleJourney.js` (coordinator, verified reviewer, patient `PT-SCHEDJRNY`, scoped caregiver, episode `EP-SCHEDJRNY`) and `e2e/today.spec.js` |
+| Docs | `VELORA_SCHEDULES.md` contract; README, `.env.example`, structure, architecture, system design and master synced |
+
+### Key invariants enforced
+
+- Only the current approved, clinically accepted plan version produces a schedule; a `warning` item
+  and an unconfirmed item produce nothing.
+- A conditional/PRN medicine is `as_needed` with no times and **zero** occurrences; it can never
+  become an unconditional repeating dose.
+- Approved wording with no stated timing stays `needs_details`; an unanchored interval stays
+  `interval_without_anchor`. Neither may be activated.
+- A medication schedule becomes active only through the assigned, clinic-verified clinical reviewer;
+  preparation alone can never activate clinical work.
+- Occurrence instants are UTC. A spring-forward gap occurrence is skipped and reported; a fall-back
+  duplicate resolves to the earlier instant.
+- `not_recorded` is the absence of an entry, never a missed dose, and never a reason to take an extra
+  or replacement dose (one shared constant, asserted in both suites).
+- Every entry stores subject, acting user, role (and grant when it applies), the instant it is about
+  and the instant it was recorded; corrections append and never rewrite.
+- Re-preparing after a new approval supersedes the previous version's owners and their **future**
+  occurrences only; past occurrences and every log row survive.
+- A closed episode refuses new activity while keeping its history readable.
+
+### Evidence (re-run on this working tree)
+
+| Check | Command | Result |
+|---|---|---|
+| Server tests (unit + integration, replica-set MongoDB) | `npm test -w server` | **220 pass / 0 fail** (182 -> 220 = +38: 25 Part 7 integration + 13 Part 7 unit) |
+| Client tests | `npm test -w client` | **50 pass / 0 fail** (8 files) |
+| Client lint | `npm run lint -w client` | clean |
+| Client build | `npm run build -w client` | production build succeeds (`index-BUC4QDV4.js` 320.60 kB, 91.14 kB gzip) |
+| Browser journeys (full suite) | `EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js` + `PORT=4100 npx playwright test` | **59 pass / 2 skipped / 0 fail** (1.4 min); the two skips are the opt-in parser-timeout journey and the provider-disabled journey that only runs when the provider is off |
+| Provider-disabled journey | `EXTRACTION_PROVIDER=none ...` then `npx playwright test e2e/extractions.spec.js -g "no provider enabled"` | **1 pass** - the shipped default still fails closed while manual drafting works |
+| One-viewport (six sizes) | inside the suite | `today.spec.js` 6 sizes, `detail-viewports.spec.js` 6 sizes (now including the Part 7 grant form), `viewports.spec.js` 5 enrolled sessions x 6 sizes, `plans.spec.js`/`extractions.spec.js`/`documents.spec.js` panels |
+| Production dependency audit | `npm audit --omit=dev --audit-level=high` | 0 vulnerabilities |
+| Dependency change | manifest diff | Part 7 adds **no** dependency (zone handling uses `Intl` only) |
+| Secret scan (tree) | key/token/private-key/CERT patterns across the working tree | clean, no matches |
+| Secret scan (history) | the same patterns across all 38 commits | clean, no matches |
+| Clinical-text redaction | review of every Part 7 `audit.record` call | audit carries ids, counts, timezone and outcome only - never a dose, medicine name or instruction |
+
+**Verification note (environment, not a product defect).** Running the browser gate against an API
+started in *development* mode (`NODE_ENV` unset) makes the Part 6 AI journey fail: the in-process
+blanket limiter stays on and starves it long before the journey finishes, which surfaces as a
+4-minute timeout rather than a product error. The documented CI configuration (`NODE_ENV=test`,
+which switches off only the in-process blanket limiter while every durable per-route limit stays
+active) passes the same journey in seconds. Recorded here so the next session does not re-diagnose it.
+
+### Security-25 matrix (Part 7)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets server-only, redacted logs | VERIFIED | no new secret; no `VITE_` clinical value; schedule/entry payloads never logged |
+| 2 | Validate env at startup, fail closed | VERIFIED | `SCHEDULE_FALLBACK_TIMEZONE` validated with `Intl` at startup; an unknown zone fails closed |
+| 3 | Protect private routes on both layers | VERIFIED | every route behind `requireAuth` + CSRF + clinic/ownership/grant/assignment checks; router guard is UX only |
+| 4 | Proper authentication preserved | VERIFIED | Argon2id, MFA, revocable sessions and CSRF unchanged by Part 7 |
+| 5 | Server-side access control per request | VERIFIED | prepare/activate/end/read re-derive assignment, episode state and plan currency; caregiver scope per grant; uniform 404 for foreign scope |
+| 6 | Validate every input, reject unknown fields | VERIFIED | zod params/query/body for schedules, occurrences, day view and entries (unknown keys rejected, enums bounded, instants bounded) |
+| 7 | No unsafe HTML | VERIFIED | all clinical text rendered as text; no `dangerouslySetInnerHTML` |
+| 8 | Atomic rate limits on abuse-sensitive paths | VERIFIED | separate durable buckets: schedule read 600/h, prepare 60/h, activate 120/h, day read 600/h, entry 240/h |
+| 9 | Safe errors, no stack traces or clinical detail | VERIFIED | `errorHandler` envelope; conflicts and denials carry no clinical content |
+| 10 | Exact CORS allowlist | VERIFIED | unchanged, no wildcard |
+| 11 | CSP and `no-store` on personalised responses | VERIFIED | security middleware unchanged; day-view responses are private |
+| 12 | Debug/verbose logging off in production | VERIFIED | unchanged production gating |
+| 13 | Review dependencies/docs before adding | VERIFIED | no dependency added; deterministic local time service |
+| 14 | Remove unused dependencies | VERIFIED | no manifest change in either workspace |
+| 15 | Exclude secrets/fixtures/caches from the tree | VERIFIED | synthetic fixtures only; `.env` untracked and never read into a test |
+| 16 | `MONGODB_URI` and keys server-only | VERIFIED | no new client-visible variable; only `VITE_API_BASE_URL` reaches the browser |
+| 17 | Preserve Argon2id | VERIFIED | password service untouched |
+| 18 | Git tree/history secret scan | VERIFIED | both scans clean (above) |
+| 19 | Threat/security review of the new surface | VERIFIED | `VELORA_SCHEDULES.md` sections 5, 8, 9 and the authority matrix above |
+| 20 | Test, review the diff, commit meaningfully | VERIFIED | 220 + 50 tests, 59 journeys, one Part 7 commit |
+| 21 | Continuous security | VERIFIED | authority and time rules enforced and tested per request, not per screen |
+| 22 | External-service disclosure first | VERIFIED | Part 7 selects and calls **no** external service; no notification/reminder provider exists |
+| 23 | Test every state and adversarial path | VERIFIED | 25 integration tests: unapproved/superseded source, PRN, missing details, DST, duplicate and concurrent entries, every attribution, denied scope, other clinic, revoked grant, stale version, reconciliation, immutability, closed episode |
+| 24 | Sync docs and evidence | VERIFIED | `VELORA_SCHEDULES.md` plus README/`.env.example`/structure/architecture/system design/master/this log |
+| 25 | New screens fit one viewport | VERIFIED | day view measured at six sizes in `today.spec.js`; staff schedule workspace inside the episode detail; grant form now measured too |
+### Duck verdict: PASS (Part 7, local scope)
+
+Part 7 is implemented and verified end to end on **synthetic** data: approved plan items become
+medication schedules and recovery tasks, occurrences are UTC instants with an explicit IANA zone, and
+every recorded entry is attributed and append-only. Approval still activates nothing by itself, the
+day view never converts "nothing recorded" into nonadherence or double-dose advice, and no
+notification, reminder or delivery record exists. Evidence is local (development); no deployment,
+clinical validation or regulatory claim is made. Part 8 was not started.
+
+### Duck against VEL-010 .. VEL-014
+
+| ID | Requirement | Verdict | Evidence / caveat |
+|---:|---|---|---|
+| VEL-010 | Immutable care-plan versioning | **VERIFIED (local)** - re-verified, not assumed | Part 7 reads a version only when it is `approved` **and** current, copies approved fields verbatim into an immutable `(planVersion, item)` owner, and mutates no plan document; the partial unique index still forbids two current approved versions |
+| VEL-011 | Granular caregiver sharing | **VERIFIED (local)**, extended | `view_tasks` and `log_tasks` are the first honoured non-profile scopes; `log_tasks` is never implied by `view_tasks`, is enforced per request, and is now grantable through the product (drift fixed this session) |
+| VEL-012 | Medication schedules and actor logs | **VERIFIED (local scope)** | prepare from the current approved version, explicit reviewer activation, UTC occurrences with the local parts recorded, append-only attributed entries with idempotent retries and corrections; 25 integration tests |
+| VEL-013 | Daily recovery tasks | **VERIFIED (local scope)** | task items with timing/frequency/condition/duration, the same occurrence engine, an explicit operational activation and the same day view |
+| VEL-014 | Notifications and delivery records | **PLANNED - correctly not activated** | Part 7 generates no message, push, SMS, email or delivery attempt; no provider is selected and no such model exists in the tree - the assertion is part of the suite |
+
+Ducking VEL-014 was deliberate again: the temptation is to "finish" scheduled care by reminding
+someone. Part 7 therefore stops at *what is due, what was recorded and by whom*, and leaves every
+delivery attempt to the part that must disclose a provider first.
+
+### Remaining limits
+
+- **No reminders or notifications.** VEL-014, the clinic-defined check-ins, the clarification queue
+  and the dashboard are Part 8; there is no scheduler daemon, and occurrences are materialised by
+  explicit preparation over a bounded horizon (400 slots, 30-day default).
+- **Derived day-part times are a convenience, not clinical content**: an instruction with no stated
+  timing stays `needs_details` and cannot be activated.
+- **No adherence analytics.** `not_recorded` is never aggregated into a percentage, and the day view
+  is a single local day (bounded pagination per category, no weekly or monthly rollup).
+- **Caregiver access is still narrow:** `view_episodes`, `view_documents` and `view_plan` remain
+  declared but inert, so a caregiver cannot read the plan or the episode timeline.
+- **One active plan at a time.** Reconciliation supersedes a previous version's future occurrences;
+  there is no multi-plan or overlapping-regimen model.
+- **Evidence is local and synthetic.** No production deployment, restore test, monitoring, clinical
+  validation or regulatory claim (Parts 9-10).
+
+### Duck re-check (after the first verification pass)
+
+A second, adversarial pass read the Part 7 code against the *claims* in these docs rather than against
+the tests, and found four things the first pass had overstated or left unproven. All four are fixed
+in the same commit and the server suite was re-run afterwards (**220 pass / 0 fail**), together with
+the strengthened `schedules.test.js` on its own (25/25). This pass changed no client source, no
+server source and no browser specification, so the client suite, production build, browser gate,
+dependency audit and secret scans recorded above were not repeated - their inputs did not change.
+
+1. **Requirement 2 was asserted for four of the seven preserved fields.** The preservation test
+   checked dose, route, frequency and the original wording; `timing` and `condition` were stored but
+   never asserted anywhere, so a regression that dropped those copies would have passed. The test now
+   compares **every** clinical field against the approved `CarePlanItem` through an explicit field map
+   (the one rename, `item.medication` -> `medicationName`, is stated instead of assumed), and the PRN
+   case asserts the conditional wording it was judged on. Writing this check immediately caught a
+   bug in the check itself (it compared the wrong field name), which is exactly the class of mistake
+   it exists to prevent.
+2. **"Immutable" was a claim, not a test.** The same test now attempts to rewrite a verbatim field
+   and the plan version through the model and asserts the stored copy is unchanged, so "a schedule is
+   a frozen copy" is demonstrated rather than documented.
+3. **The architecture document claimed "revoked and expired grants" but only revocation was
+   tested.** The revoked-grant test now grants a second caregiver with `view_tasks` + `log_tasks`,
+   confirms it can read the day, sets `expiresAt` into the past, and asserts that the read **and** the
+   write then get the same uniform 404 as a stranger.
+4. **A declared-but-inert scope was untested, and the honoured-scope constant was dead code.** The
+   caregiver test now proves that granting only an inert scope (`view_documents`) does not open the
+   day view, and the exported `HONOURED_CAREGIVER_SCOPES` list is load-bearing: the suite asserts it
+   stays inside the catalog and that the two scopes the day view enforces are declared honoured, so a
+   future catalog addition can never be mistaken for live scope.
+
+Factual corrections were also made to this entry rather than left standing: the server-test delta was
+written as `188 -> 220` when Part 6 recorded **182**, the file list credited `AGENTS.md`, which does
+not exist in this repository (see the correction above), and the journey fixture was named
+`EP-SCHJRNY` when the seed and the specification both use `EP-SCHEDJRNY`. Verified counts are unchanged by
+the re-check because it strengthened existing tests instead of adding new ones: 25 Part 7 integration
+and 13 Part 7 unit tests, 220 server tests in total.
