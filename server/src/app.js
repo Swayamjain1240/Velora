@@ -21,6 +21,7 @@ const extractionRoutes = require('./routes/extractions');
 const scheduleRoutes = require('./routes/schedules');
 const todayRoutes = require('./routes/today');
 const checkInTemplateRoutes = require('./routes/checkInTemplates');
+const checkInRoutes = require('./routes/checkIns');
 
 function buildApp() {
   const app = express();
@@ -89,6 +90,10 @@ function buildApp() {
   // administrator (who holds no clinical permission) is refused, a coordinator
   // drafts and a clinic-verified reviewer activates - the same split as plans.
   app.use('/api/check-in-templates', checkInTemplateRoutes);
+  // Part 8: recovery check-in slots for an episode. A slot is materialised when
+  // it is due, an answer is append-only, a missing answer is DERIVED rather than
+  // stored, and a clinic rule can only ask a person to look.
+  app.use('/api/episodes', checkInRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

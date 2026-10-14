@@ -177,7 +177,8 @@ const inviteCaregiverSchema = z
   .object({
     email: emailSchema,
     // Omitted scopes default to view_profile ONLY - never a silent widening.
-    // `log_tasks` is a WRITE scope and is never implied by `view_tasks`.
+    // A WRITE scope (`log_tasks`, `log_checkins`) is never implied by its read
+    // counterpart, and Part 8 adds the check-in pair plus `ask_questions`.
     scopes: z
       .array(
         z.enum([
@@ -187,9 +188,12 @@ const inviteCaregiverSchema = z
           'view_plan',
           'view_tasks',
           'log_tasks',
+          'view_checkins',
+          'log_checkins',
+          'ask_questions',
         ])
       )
-      .max(6)
+      .max(9)
       .optional(),
   })
   .strict();
@@ -610,6 +614,18 @@ const activateCheckInTemplateSchema = z
 
 const checkInTemplateParam = z.object({ templateId: objectIdSchema }).strict();
 
+// Part 8: the patient's own queue addresses a slot directly (the slot is already
+// scoped to their episode), so no episode id is accepted from the client.
+const checkInResponseIdParam = z.object({ responseId: objectIdSchema }).strict();
+
+const patientCheckInQuery = z
+  .object({
+    page: pageSchema,
+    limit: limitSchema,
+    view: z.enum(['due', 'open', 'no_response', 'submitted']).optional(),
+  })
+  .strict();
+
 const checkInTemplateQuery = z
   .object({
     page: pageSchema,
@@ -618,8 +634,56 @@ const checkInTemplateQuery = z
   })
   .strict();
 
+// ---- Part 8: check-in response slots -------------------------------------------
+
+const checkInResponseParams = z
+  .object({ episodeId: objectIdSchema, responseId: objectIdSchema })
+  .strict();
+
+// One answer per question, expressed the same way the policy validates it: a
+// scalar `value`, or `values` for a multi-select choice. Unknown fields are
+// refused so a client cannot smuggle an extra question id past the validator.
+const checkInAnswerSchema = z
+  .object({
+    questionId: z.string().trim().regex(/^[a-z][a-z0-9_]{0,39}$/, 'Question id must be a short slug'),
+    value: z.union([z.string().trim().max(500), z.number(), z.boolean()]).optional(),
+    values: z.array(z.string().trim().max(120)).max(12).optional(),
+  })
+  .strict()
+  .refine((v) => v.value !== undefined || (v.values && v.values.length > 0), {
+    message: 'Give an answer for each question.',
+  });
+
+const submitCheckInSchema = z
+  .object({
+    answers: z.array(checkInAnswerSchema).min(1).max(30),
+  })
+  .strict();
+
+const reviewCheckInSchema = z
+  .object({
+    note: clinicalText(1000).optional(),
+  })
+  .strict();
+
+const checkInListQuery = z
+  .object({
+    page: pageSchema,
+    limit: limitSchema,
+    // `due` counts an answerable slot as available; `no_response` is the derived
+    // missing view and is never a stored state.
+    view: z.enum(['due', 'open', 'no_response', 'submitted', 'needs_review']).optional(),
+  })
+  .strict();
+
 module.exports = {
   loginSchema,
+  checkInResponseParams,
+  checkInResponseIdParam,
+  submitCheckInSchema,
+  reviewCheckInSchema,
+  checkInListQuery,
+  patientCheckInQuery,
   checkInQuestionSchema,
   checkInCadenceSchema,
   checkInRuleSchema,

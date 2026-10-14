@@ -8,6 +8,7 @@ const caregiverController = require('../controllers/caregiverController');
 const episodeController = require('../controllers/episodeController');
 const documentController = require('../controllers/documentController');
 const carePlanController = require('../controllers/carePlanController');
+const checkInController = require('../controllers/checkInController');
 const { validate } = require('../middleware/validate');
 const { mongoRateLimit } = require('../middleware/rateLimit');
 const { downloadLimit, readLimit } = require('../middleware/documentLimits');
@@ -70,6 +71,20 @@ router.get(
   readLimit,
   validate({ params: schemas.episodeIdParam }),
   carePlanController.patientCurrentPlan
+);
+
+// Part 8: the patient's OWN check-in queue and the one-viewport answer form.
+// Access is by ownership of the profile; there is no route that reads another
+// patient's check-ins.
+router.get(
+  '/me/check-ins',
+  validate({ query: schemas.patientCheckInQuery }),
+  checkInController.ownList
+);
+router.post(
+  '/me/check-ins/:responseId/submit',
+  validate({ params: schemas.checkInResponseIdParam, body: schemas.submitCheckInSchema }),
+  checkInController.ownSubmit
 );
 
 router.get(
