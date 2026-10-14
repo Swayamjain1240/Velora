@@ -676,8 +676,74 @@ const checkInListQuery = z
   })
   .strict();
 
+// ---- Part 8: the clarification queue -------------------------------------------
+
+const clarificationThreadParams = z
+  .object({ episodeId: objectIdSchema, threadId: objectIdSchema })
+  .strict();
+
+const clarificationThreadIdParam = z.object({ threadId: objectIdSchema }).strict();
+
+// Plain text only: the policy refuses markup, and the bound here keeps a huge
+// body from ever reaching the service or the database.
+const threadBody = z.string().trim().min(2).max(2000);
+
+const openThreadSchema = z
+  .object({
+    // The KIND decides which authority may answer, so it is part of the request
+    // rather than inferred from the wording.
+    kind: z.enum(['clinical', 'operational']),
+    subject: z.string().trim().min(3).max(160),
+    body: threadBody,
+    // Optional link to the check-in response the question came from.
+    responseId: objectIdSchema.optional(),
+  })
+  .strict();
+
+const assignThreadSchema = z
+  .object({
+    assigneeUserId: objectIdSchema,
+    note: clinicalText(300).optional(),
+  })
+  .strict();
+
+const answerThreadSchema = z
+  .object({
+    body: threadBody,
+    note: clinicalText(300).optional(),
+  })
+  .strict();
+
+const threadNoteSchema = z.object({ body: threadBody }).strict();
+const threadReplySchema = z.object({ body: threadBody }).strict();
+
+const threadStateSchema = z
+  .object({
+    page: pageSchema,
+    limit: limitSchema,
+    state: z.enum(['open', 'assigned', 'answered', 'closed', 'reopened']).optional(),
+    // A query string is text, and `z.coerce.boolean()` would read "false" as
+    // true; the enum keeps the filter honest.
+    assignedToMe: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+const threadTransitionSchema = z.object({ note: clinicalText(300).optional() }).strict();
+
 module.exports = {
   loginSchema,
+  clarificationThreadParams,
+  clarificationThreadIdParam,
+  openThreadSchema,
+  assignThreadSchema,
+  answerThreadSchema,
+  threadNoteSchema,
+  threadReplySchema,
+  threadStateSchema,
+  threadTransitionSchema,
   checkInResponseParams,
   checkInResponseIdParam,
   submitCheckInSchema,

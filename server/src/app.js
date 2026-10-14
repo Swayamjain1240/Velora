@@ -22,6 +22,7 @@ const scheduleRoutes = require('./routes/schedules');
 const todayRoutes = require('./routes/today');
 const checkInTemplateRoutes = require('./routes/checkInTemplates');
 const checkInRoutes = require('./routes/checkIns');
+const clarificationRoutes = require('./routes/clarifications');
 
 function buildApp() {
   const app = express();
@@ -94,6 +95,10 @@ function buildApp() {
   // it is due, an answer is append-only, a missing answer is DERIVED rather than
   // stored, and a clinic rule can only ask a person to look.
   app.use('/api/episodes', checkInRoutes);
+  // Part 8: the clarification queue. A clinical question is answered only by the
+  // assigned, clinic-verified reviewer, an operational one by the assigned
+  // coordinator, and every transition appends actor/time/history.
+  app.use('/api/episodes', clarificationRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

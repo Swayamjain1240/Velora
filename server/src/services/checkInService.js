@@ -606,6 +606,26 @@ async function review({ clinicId, user, roleKey, episodeId, responseId, note, ip
 // clinic-wide permission), so the clinic is derived from their own ACTIVE grant
 // on the slot's patient. A missing or out-of-scope grant is a 404: the caregiver
 // learns nothing about whether the record exists.
+// Shared lookups for the surfaces that arrive without a clinic context (a
+// caregiver holds no clinic-wide permission), so the clarification service can
+// derive the tenant from the caregiver's own grant instead of a parameter.
+async function loadEpisode({ episodeId }) {
+  const episode = await RecoveryEpisode.findById(episodeId).lean();
+  if (!episode) throw errors.notFound('Episode not found.');
+  return episode;
+}
+
+async function caregiverGrantFor({ user, patientId }) {
+  const grant = await CaregiverGrant.findOne({
+    patient: patientId,
+    caregiverUser: user.id,
+    status: 'active',
+  });
+  if (!grant) return null;
+  if (!grant.isUsable || !grant.isUsable()) return null;
+  return grant;
+}
+
 async function caregiverScope({ user, patientId, requiredScope }) {
   const grant = await CaregiverGrant.findOne({
     patient: patientId,
@@ -647,6 +667,8 @@ module.exports = {
   listForPatient,
   listForCaregiver,
   submitAsCaregiver,
+  loadEpisode,
+  caregiverGrantFor,
   getResponse,
   submit,
   review,

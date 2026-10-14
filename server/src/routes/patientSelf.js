@@ -9,6 +9,7 @@ const episodeController = require('../controllers/episodeController');
 const documentController = require('../controllers/documentController');
 const carePlanController = require('../controllers/carePlanController');
 const checkInController = require('../controllers/checkInController');
+const clarificationController = require('../controllers/clarificationController');
 const { validate } = require('../middleware/validate');
 const { mongoRateLimit } = require('../middleware/rateLimit');
 const { downloadLimit, readLimit } = require('../middleware/documentLimits');
@@ -85,6 +86,40 @@ router.post(
   '/me/check-ins/:responseId/submit',
   validate({ params: schemas.checkInResponseIdParam, body: schemas.submitCheckInSchema }),
   checkInController.ownSubmit
+);
+
+// Part 8: the patient's own clarification threads. A patient may ASK and reply,
+// close and reopen their own question - never answer it, and never see a
+// care-team internal note.
+router.get(
+  '/me/questions',
+  validate({ query: schemas.paginationQuery }),
+  clarificationController.ownList
+);
+router.get(
+  '/me/questions/:threadId',
+  validate({ params: schemas.clarificationThreadIdParam }),
+  clarificationController.ownGet
+);
+router.post(
+  '/me/episodes/:episodeId/questions',
+  validate({ params: schemas.episodeIdParam, body: schemas.openThreadSchema }),
+  clarificationController.ownOpen
+);
+router.post(
+  '/me/questions/:threadId/messages',
+  validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadReplySchema }),
+  clarificationController.ownReply
+);
+router.post(
+  '/me/questions/:threadId/close',
+  validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadTransitionSchema }),
+  clarificationController.ownClose
+);
+router.post(
+  '/me/questions/:threadId/reopen',
+  validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadTransitionSchema }),
+  clarificationController.ownReopen
 );
 
 router.get(

@@ -5,6 +5,7 @@
 const express = require('express');
 const caregiverController = require('../controllers/caregiverController');
 const checkInController = require('../controllers/checkInController');
+const clarificationController = require('../controllers/clarificationController');
 const { validate } = require('../middleware/validate');
 const { requireAuth } = require('../middleware/auth');
 const schemas = require('../validators/schemas');
@@ -37,6 +38,29 @@ router.post(
   '/me/check-ins/:responseId/submit',
   validate({ params: schemas.checkInResponseIdParam, body: schemas.submitCheckInSchema }),
   checkInController.caregiverSubmit
+);
+
+// Part 8: clarification threads the caregiver may raise or follow up while their
+// ACTIVE grant carries `ask_questions`. The clinic is derived from the grant.
+router.get(
+  '/me/patients/:patientId/questions',
+  validate({ params: schemas.patientIdParam, query: schemas.paginationQuery }),
+  clarificationController.caregiverList
+);
+router.post(
+  '/me/episodes/:episodeId/questions',
+  validate({ params: schemas.episodeIdParam, body: schemas.openThreadSchema }),
+  clarificationController.caregiverOpen
+);
+router.get(
+  '/me/questions/:threadId',
+  validate({ params: schemas.clarificationThreadIdParam }),
+  clarificationController.caregiverGet
+);
+router.post(
+  '/me/questions/:threadId/messages',
+  validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadReplySchema }),
+  clarificationController.caregiverReply
 );
 
 module.exports = router;
