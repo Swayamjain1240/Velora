@@ -228,12 +228,24 @@ const CHECKIN_REVIEW_STATES = Object.freeze({
 
 const CHECKIN_QUESTION_KINDS = Object.freeze(['text', 'choice', 'scale', 'confirm']);
 
-// Clarification thread lifecycle (VEL-016). Reopening is explicit and audited.
+// Clarification thread lifecycle (VEL-016). Reopening is an EXPLICIT, audited
+// transition with its own state, so a thread that came back is never mistaken for
+// one that was never answered. Every transition appends actor/time/history.
 const THREAD_STATES = Object.freeze({
   OPEN: 'open',
   ASSIGNED: 'assigned',
   ANSWERED: 'answered',
   CLOSED: 'closed',
+  REOPENED: 'reopened',
+});
+const THREAD_ACTIONS = Object.freeze({
+  OPEN: 'open',
+  ASSIGN: 'assign',
+  ANSWER: 'answer',
+  CLOSE: 'close',
+  REOPEN: 'reopen',
+  RECLASSIFY: 'reclassify',
+  NOTE: 'note',
 });
 const THREAD_KINDS = Object.freeze({ CLINICAL: 'clinical', OPERATIONAL: 'operational' });
 const MESSAGE_KINDS = Object.freeze({
@@ -308,6 +320,7 @@ module.exports = {
   CHECKIN_REVIEW_STATES,
   CHECKIN_QUESTION_KINDS,
   THREAD_STATES,
+  THREAD_ACTIONS,
   THREAD_KINDS,
   MESSAGE_KINDS,
   QUEUE_KEYS,
