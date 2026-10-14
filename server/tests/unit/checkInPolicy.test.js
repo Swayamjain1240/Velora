@@ -208,3 +208,138 @@ test('the clinic-hours note never promises continuous monitoring', () => {
   assert.match(policy.CLINIC_HOURS_NOTE, /not monitored continuously/i);
   assert.match(policy.TEMPLATE_WORDING_NOTE, /do not diagnose/i);
 });
+
+test('answers are validated against the frozen version that asked them', () => {
+  const problems = policy.validateAnswers(GOOD, [
+    { questionId: 'pain_level', value: '4' },
+    { questionId: 'wound_state', value: 'leaking' },
+    { questionId: 'walking', value: 'true' },
+  ]);
+  assert.deepEqual(problems, []);
+});
+
+test('an answer to a question this version never asked is refused', () => {
+  const problems = policy.validateAnswers(GOOD, [
+    { questionId: 'pain_level', value: '4' },
+    { questionId: 'invented_question', value: 'x' },
+    { questionId: 'wound_state', value: 'red' },
+    { questionId: 'walking', value: 'true' },
+  ]);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /not part of this check-in/i);
+});
+
+test('a required question left blank, a duplicated question and out-of-range values are refused', () => {
+  const blank = policy.validateAnswers(GOOD, [
+    { questionId: 'wound_state', value: 'red' },
+    { questionId: 'walking', value: 'true' },
+  ]);
+  assert.match(blank.join(' '), /pain_level.*needs an answer/i);
+
+  const twice = policy.validateAnswers(GOOD, [
+    { questionId: 'pain_level', value: '4' },
+    { questionId: 'pain_level', value: '9' },
+    { questionId: 'wound_state', value: 'no' },
+    { questionId: 'walking', value: 'false' },
+  ]);
+  assert.match(twice.join(' '), /answered twice/i);
+
+  const offScale = policy.validateAnswers(GOOD, [
+    { questionId: 'pain_level', value: '11' },
+    { questionId: 'wound_state', value: 'no' },
+    { questionId: 'walking', value: 'false' },
+  ]);
+  assert.match(offScale.join(' '), /whole number from 0 to 10/i);
+
+  const offList = policy.validateAnswers(GOOD, [
+    { questionId: 'pain_level', value: '4' },
+    { questionId: 'wound_state', value: 'infected' },
+    { questionId: 'walking', value: 'false' },
+  ]);
+  assert.match(offList.join(' '), /one of its listed options/i);
+});
+
+test('answers are stored as comparison-ready strings so a rule is never tripped by coercion', () => {
+  const stored = policy.normaliseAnswers(GOOD, [
+    { questionId: 'pain_level', value: 0 },
+    { questionId: 'wound_state', values: ['red', 'hot'] },
+    { questionId: 'walking', value: true },
+  ]);
+  const byId = Object.fromEntries(stored.map((a) => [a.questionId, a]));
+  assert.strictEqual(byId.pain_level.value, '0');
+  assert.equal(typeof byId.pain_level.value, 'string');
+  assert.deepEqual(byId.wound_state.values, ['red', 'hot']);
+  assert.strictEqual(byId.walking.value, 'true');
+});
+
+test('a zero answer still triggers a numeric rule, but a missing one never does', () => {
+  const zero = policy.evaluateRules(GOOD, {
+    answers: [{ questionId: 'pain_level', value: '0' }],
+  });
+  assert.deepEqual(zero, []);
+
+  const atMost = {
+    questions: GOOD.questions,
+    reviewRules: [
+      {
+        id: 'low',
+        label: 'A clinician should look at this score',
+        when: { questionId: 'pain_level', operator: 'at_most', value: 5 },
+      },
+    ],
+  };
+  assert.equal(
+    policy.evaluateRules(atMost, { answers: [{ questionId: 'pain_level', value: '0' }] }).length,
+    1,
+    'an answered zero is a real answer'
+  );
+  assert.equal(
+    policy.evaluateRules(atMost, { answers: [] }).length,
+    0,
+    'a question nobody answered must never satisfy a threshold rule'
+  );
+});
+
+test('an open slot is open, a closed unanswered slot is missing, and a late answer is still an answer', () => {
+  const now = new Date('2026-03-10T12:00:00Z');
+  const open = policy.slotView(
+    { state: 'open', dueAt: new Date('2026-03-10T09:00:00Z'), windowEndsAt: new Date('2026-03-11T09:00:00Z') },
+    now
+  );
+  assert.equal(open.state, 'open');
+  assert.equal(open.isMissing, false);
+
+  const missing = policy.slotView(
+    { state: 'open', dueAt: new Date('2026-03-08T09:00:00Z'), windowEndsAt: new Date('2026-03-09T09:00:00Z') },
+    now
+  );
+  assert.equal(missing.state, 'no_response');
+  assert.equal(missing.isMissing, true);
+  assert.match(missing.note, /nothing is inferred/i);
+
+  const late = policy.slotView(
+    {
+      state: 'submitted',
+      isLate: true,
+      submittedAt: new Date('2026-03-09T10:00:00Z'),
+      windowEndsAt: new Date('2026-03-09T09:00:00Z'),
+      reviewState: 'none',
+      triggeredRules: [],
+      answers: [{ questionId: 'pain_level', value: '3' }],
+    },
+    now
+  );
+  assert.equal(late.state, 'submitted');
+  assert.equal(late.isLate, true);
+  assert.match(late.note, /timing fact/i);
+  assert.match(late.note, /not a clinical finding/i);
+
+  assert.equal(
+    policy.isLateSubmission(new Date('2026-03-09T10:00:00Z'), new Date('2026-03-09T09:00:00Z')),
+    true
+  );
+  assert.equal(
+    policy.isLateSubmission(new Date('2026-03-09T08:00:00Z'), new Date('2026-03-09T09:00:00Z')),
+    false
+  );
+});

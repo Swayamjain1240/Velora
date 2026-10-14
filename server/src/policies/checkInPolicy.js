@@ -41,6 +41,10 @@ const RULE_ATTENTION_NOTE =
   'A clinic rule asked for a staff member to look at this response. It is workflow attention, not a diagnosis and not a clinical interpretation.';
 const TEMPLATE_WORDING_NOTE =
   'Clinic check-in questions and rules are workflow aids. They do not diagnose, score recovery or replace clinical judgement.';
+const LATE_RESPONSE_NOTE =
+  'This response arrived after the check-in window closed. The answers are recorded exactly as given; being late is a timing fact about delivery, not a clinical finding.';
+const OPEN_SLOT_NOTE = 'This check-in is due and has not been answered yet.';
+const SUBMITTED_SLOT_NOTE = 'This check-in was answered.';
 const CLINIC_HOURS_NOTE =
   'Check-ins are reviewed during the clinic response hours shown with this record. They are not monitored continuously unless the clinic states otherwise.';
 
@@ -239,8 +243,165 @@ function missingResponseSummary() {
   };
 }
 
+// ---- answer validation -------------------------------------------------------
+
+// A question is required unless it explicitly says otherwise: the model's
+// default is `true`, so an unset flag must be read the same way here or a stored
+// template would be validated more loosely than it was written.
+function isRequired(question) {
+  return !question || question.required !== false;
+}
+
+// Validates submitted answers against the FROZEN template version that asked
+// them. An answer to a question this version never asked is refused, so a client
+// cannot widen its own scope by inventing a question id.
+function validateAnswers(templateVersion, answers = []) {
+  const problems = [];
+  const questions = (templateVersion && templateVersion.questions) || [];
+  if (!Array.isArray(answers)) problems.push('Answers must be a list.');
+  if (answers.length > 30) problems.push('A response may answer at most 30 questions.');
+
+  const seen = new Set();
+  const byId = new Map(questions.map((q) => [q.id, q]));
+
+  for (const answer of Array.isArray(answers) ? answers : []) {
+    const question = byId.get(answer && answer.questionId);
+    if (!question) {
+      problems.push('An answer refers to a question that is not part of this check-in.');
+      continue;
+    }
+    if (seen.has(question.id)) {
+      problems.push(`Question "${question.id}" was answered twice.`);
+      continue;
+    }
+    seen.add(question.id);
+
+    const list = Array.isArray(answer.values) ? answer.values : null;
+    const raw = answer.value === undefined || answer.value === null ? '' : String(answer.value).trim();
+    const given = list && list.length ? list : raw ? [raw] : [];
+
+    if (!given.length) {
+      if (isRequired(question)) problems.push(`Question "${question.id}" needs an answer.`);
+      continue;
+    }
+
+    if (question.kind === 'text') {
+      if (raw.length < 1 || raw.length > 500) {
+        problems.push(`Question "${question.id}" accepts 1-500 characters.`);
+      }
+    } else if (question.kind === 'choice') {
+      const options = (question.options || []).map((o) => String(o).trim().toLowerCase());
+      for (const value of given) {
+        if (!options.includes(String(value).trim().toLowerCase())) {
+          problems.push(`Question "${question.id}" only accepts one of its listed options.`);
+          break;
+        }
+      }
+      if (given.length > 1 && question.kind !== 'choice') {
+        problems.push(`Question "${question.id}" accepts a single answer.`);
+      }
+    } else if (question.kind === 'scale') {
+      const numeric = Number(given[0]);
+      if (!Number.isInteger(numeric) || numeric < question.scaleMin || numeric > question.scaleMax) {
+        problems.push(
+          `Question "${question.id}" accepts a whole number from ${question.scaleMin} to ${question.scaleMax}.`
+        );
+      }
+    } else if (question.kind === 'confirm') {
+      if (!['true', 'false'].includes(String(given[0]).trim().toLowerCase())) {
+        problems.push(`Question "${question.id}" accepts yes or no.`);
+      }
+    }
+  }
+
+  // Required questions are enforced here, not in the client, so a partial answer
+  // set cannot be stored as complete.
+  for (const question of questions) {
+    if (isRequired(question) && !seen.has(question.id)) {
+      problems.push(`Question "${question.id}" needs an answer.`);
+    }
+  }
+  return problems;
+}
+
+// Canonical, comparison-ready storage shape: `value` is ALWAYS a string so the
+// rule language cannot be tripped by a numeric coercion, and a confirm answer is
+// stored as 'true'/'false' rather than a boolean that Mongoose might relax.
+function normaliseAnswers(templateVersion, answers = []) {
+  const questions = (templateVersion && templateVersion.questions) || [];
+  const byId = new Map(questions.map((q) => [q.id, q]));
+  return (Array.isArray(answers) ? answers : [])
+    .map((answer) => {
+      const question = byId.get(answer && answer.questionId);
+      if (!question) return null;
+      const list = Array.isArray(answer.values)
+        ? answer.values.map((v) => String(v).trim()).filter((v) => v.length)
+        : [];
+      const raw = answer.value === undefined || answer.value === null ? '' : String(answer.value).trim();
+      if (question.kind === 'confirm') {
+        return { questionId: question.id, kind: question.kind, value: raw.toLowerCase() };
+      }
+      if (list.length > 1 || (question.kind === 'choice' && list.length === 1)) {
+        return { questionId: question.id, kind: question.kind, values: list, value: list[0] };
+      }
+      if (!raw && isRequired(question)) return null;
+      return { questionId: question.id, kind: question.kind, value: raw || null };
+    })
+    .filter(Boolean);
+}
+
+// ---- slot view ---------------------------------------------------------------
+
+// The single read path for a slot. `no_response` is a statement about the
+// RECORD, not about the patient: it is derived from the window closing with no
+// submission, and it carries the missing-response wording so no caller can
+// accidentally re-label it as normal or abnormal recovery.
+function slotView(slot, now = new Date()) {
+  if (!slot) return null;
+  const submitted = slot.state === 'submitted';
+  if (submitted) {
+    return {
+      state: 'submitted',
+      isMissing: false,
+      isLate: Boolean(slot.isLate),
+      note: slot.isLate ? LATE_RESPONSE_NOTE : SUBMITTED_SLOT_NOTE,
+      review: reviewSummary(slot),
+    };
+  }
+  const windowEndsAt = slot.windowEndsAt ? new Date(slot.windowEndsAt) : null;
+  if (windowEndsAt && now.getTime() >= windowEndsAt.getTime()) {
+    return {
+      state: MISSING_RESPONSE_STATE,
+      isMissing: true,
+      isLate: false,
+      note: MISSING_RESPONSE_NOTE,
+      windowClosedAt: windowEndsAt,
+    };
+  }
+  return {
+    state: 'open',
+    isMissing: false,
+    isLate: false,
+    note: OPEN_SLOT_NOTE,
+    dueAt: slot.dueAt || null,
+    windowEndsAt,
+  };
+}
+
+// A late submission is still a submission: the timing fact is recorded next to
+// the answers instead of rejecting what the patient actually said.
+function isLateSubmission(submittedAt, windowEndsAt) {
+  if (!submittedAt || !windowEndsAt) return false;
+  return new Date(submittedAt).getTime() > new Date(windowEndsAt).getTime();
+}
+
 module.exports = {
   validateTemplateDefinition,
+  validateAnswers,
+  normaliseAnswers,
+  isRequired,
+  slotView,
+  isLateSubmission,
   evaluateRules,
   reviewSummary,
   missingResponseSummary,
@@ -251,4 +412,7 @@ module.exports = {
   RULE_ATTENTION_NOTE,
   TEMPLATE_WORDING_NOTE,
   CLINIC_HOURS_NOTE,
+  LATE_RESPONSE_NOTE,
+  OPEN_SLOT_NOTE,
+  SUBMITTED_SLOT_NOTE,
 };
