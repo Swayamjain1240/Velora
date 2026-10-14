@@ -123,11 +123,29 @@ function assertThreadVisibleToCaregiver(grant) {
   }
 }
 
+// Every mutation returns the refreshed thread WITH its conversation, so the
+// client can render a compact thread view from the response it just received.
 async function guidanceAndThread(thread, capacity) {
-  return publicThread(thread.toObject ? thread.toObject() : thread, {
-    guidance: await clinicGuidance(thread.clinic),
+  const doc = thread.toObject ? thread.toObject() : thread;
+  const filter = { thread: doc._id };
+  if (capacity !== 'team') filter.patientVisible = true;
+  const messages = await ClarificationMessage.find(filter)
+    .sort({ createdAt: 1, _id: 1 })
+    .limit(policy.THREAD_MAX_MESSAGES)
+    .lean();
+  return publicThread(doc, {
+    messages,
+    guidance: await clinicGuidance(doc.clinic),
     viewer: { canAnswer: false, capacity },
   });
+}
+
+// Refuse an impossible move BEFORE any side effect: a rejected answer must not
+// leave a stray message behind, which is exactly what an early version did.
+function assertAction(thread, action) {
+  if (!policy.canTransition(thread.state, action)) {
+    throw errors.conflict(`A question that is ${thread.state} cannot be ${action}ed.`);
+  }
 }
 
 // ---- messages ----------------------------------------------------------------
@@ -177,7 +195,14 @@ async function addMessage({
 // entry and writes the system line, so no route can change a thread without
 // leaving actor/time/history behind.
 async function transition({ thread, action, actor, capacity, note, extra = {}, at = new Date() }) {
-  const to = policy.assertTransition(thread.state, action);
+  // The policy throws for a move the state machine does not allow; a caller sees
+  // that as a conflict about the thread's state, never as a server fault.
+  let to;
+  try {
+    to = policy.assertTransition(thread.state, action);
+  } catch {
+    throw errors.conflict(`A question that is ${thread.state} cannot be ${action}ed.`);
+  }
 
   const entry = {
     from: thread.state,
@@ -431,6 +456,7 @@ async function assign({ clinicId, user, permissions, roleKey, threadId, assignee
   if (!permissions.has(ASSIGN_PERMISSION)) {
     throw errors.forbidden('Assigning a question requires the assignment permission.');
   }
+  assertAction(thread, THREAD_ACTIONS.ASSIGN);
 
   let assigneeLabel = null;
   if (thread.kind === THREAD_KINDS.CLINICAL) {
@@ -502,6 +528,7 @@ async function answer({ clinicId, user, roleKey, permissions, threadId, body, no
     );
   }
 
+  assertAction(thread, THREAD_ACTIONS.ANSWER);
   const problems = policy.validateBody(body);
   if (problems.length) throw errors.badRequest(problems.join(' '));
 
@@ -578,6 +605,7 @@ async function close({ clinicId, user, threadId, capacity, note, ip, userAgent, 
     throw errors.forbidden('You cannot close this question.');
   }
   if (capacity === 'caregiver') assertThreadVisibleToCaregiver(scope.grant);
+  assertAction(thread, THREAD_ACTIONS.CLOSE);
 
   const updated = await transition({
     thread,
@@ -614,6 +642,7 @@ async function reopen({ clinicId, user, threadId, capacity, note, ip, userAgent,
   });
   if (scope.capacity !== capacity) throw errors.forbidden('You cannot reopen this question.');
   if (capacity === 'caregiver') assertThreadVisibleToCaregiver(scope.grant);
+  assertAction(thread, THREAD_ACTIONS.REOPEN);
 
   const updated = await transition({
     thread,
@@ -656,6 +685,7 @@ async function reclassify({ clinicId, user, roleKey, permissions, threadId, note
   if (thread.kind === THREAD_KINDS.CLINICAL) {
     throw errors.conflict('This question is already in the clinical queue.');
   }
+  assertAction(thread, THREAD_ACTIONS.RECLASSIFY);
 
   const updated = await transition({
     thread,
