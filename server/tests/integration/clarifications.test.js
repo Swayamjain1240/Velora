@@ -491,3 +491,28 @@ test('a clinic with no published hours says so instead of implying cover', async
   assert.equal(detail.body.thread.guidance.monitoredContinuously, false);
   assert.match(detail.body.thread.guidance.emergency.fallback, /not an emergency service/i);
 });
+
+test('the patient question surface carries the same durable budget as the staff one', async () => {
+  // Control #8: the ask budget (60 per caller per hour) lives in MongoDB, not in
+  // process memory, so it survives a restart and holds across server instances.
+  // The patient side of "asking a question" shares the staff route's bucket,
+  // which is exactly the point: the role decides what you may do, never how
+  // often you may do it.
+  const ctx = await setup();
+  let accepted = 0;
+  let last;
+  for (let i = 0; i < 61; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    last = await openAsPatient(ctx, { subject: `Budget probe ${i}` });
+    if (last.status === 201) accepted += 1;
+  }
+  assert.equal(accepted, 60, 'the first 60 asks fit inside the hourly budget');
+  assert.equal(last.status, 429, JSON.stringify(last.body));
+  assert.equal(last.body.error.code, 'RATE_LIMITED');
+
+  // The refusal is a safe, single envelope (control #9) and the reads keep
+  // working: the budget is per operation class, not a lockout of the surface.
+  const stillReading = await ctx.patientCtx.a.get('/api/patient/me/questions?page=1&limit=10');
+  assert.equal(stillReading.status, 200, JSON.stringify(stillReading.body));
+  assert.ok(stillReading.body.total >= 60);
+});

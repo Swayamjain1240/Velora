@@ -30,6 +30,54 @@ const inviteLimit = mongoRateLimit({
   keyFn: (req) => (req.user ? req.user.id : req.clientIp),
 });
 
+// Part 8 durable buckets (control #8). The patient side of a check-in, a
+// question or a reminder is the SAME operation as its staff counterpart, so it
+// carries the same per-caller budget under the same key: the role decides what
+// you may do, never how often you may do it. These hold across processes and
+// restarts, which the coarse in-process blanket limiter does not.
+const checkinReadLimit = mongoRateLimit({
+  keyPrefix: 'checkin-read',
+  limit: 600,
+  windowMs: 60 * 60 * 1000,
+  keyFn: (req) => (req.user ? req.user.id : req.clientIp),
+});
+const checkinWriteLimit = mongoRateLimit({
+  keyPrefix: 'checkin-write',
+  limit: 120,
+  windowMs: 60 * 60 * 1000,
+  keyFn: (req) => (req.user ? req.user.id : req.clientIp),
+});
+const clarificationReadLimit = mongoRateLimit({
+  keyPrefix: 'clarification-read',
+  limit: 600,
+  windowMs: 60 * 60 * 1000,
+  keyFn: (req) => (req.user ? req.user.id : req.clientIp),
+});
+const clarificationAskLimit = mongoRateLimit({
+  keyPrefix: 'clarification-ask',
+  limit: 60,
+  windowMs: 60 * 60 * 1000,
+  keyFn: (req) => (req.user ? req.user.id : req.clientIp),
+});
+const reminderReadLimit = mongoRateLimit({
+  keyPrefix: 'reminder-read',
+  limit: 600,
+  windowMs: 60 * 60 * 1000,
+  keyFn: (req) => (req.user ? req.user.id : req.clientIp),
+});
+const reminderAckLimit = mongoRateLimit({
+  keyPrefix: 'reminder-ack',
+  limit: 120,
+  windowMs: 60 * 60 * 1000,
+  keyFn: (req) => (req.user ? req.user.id : req.clientIp),
+});
+const followupReadLimit = mongoRateLimit({
+  keyPrefix: 'followup-read',
+  limit: 600,
+  windowMs: 60 * 60 * 1000,
+  keyFn: (req) => (req.user ? req.user.id : req.clientIp),
+});
+
 router.get('/me/profile', caregiverController.ownProfile);
 
 // Part 3: the patient's own recovery episodes (ownership, not a clinic role).
@@ -81,11 +129,13 @@ router.get(
 // patient's check-ins.
 router.get(
   '/me/check-ins',
+  checkinReadLimit,
   validate({ query: schemas.patientCheckInQuery }),
   checkInController.ownList
 );
 router.post(
   '/me/check-ins/:responseId/submit',
+  checkinWriteLimit,
   validate({ params: schemas.checkInResponseIdParam, body: schemas.submitCheckInSchema }),
   checkInController.ownSubmit
 );
@@ -95,31 +145,37 @@ router.post(
 // care-team internal note.
 router.get(
   '/me/questions',
+  clarificationReadLimit,
   validate({ query: schemas.paginationQuery }),
   clarificationController.ownList
 );
 router.get(
   '/me/questions/:threadId',
+  clarificationReadLimit,
   validate({ params: schemas.clarificationThreadIdParam }),
   clarificationController.ownGet
 );
 router.post(
   '/me/episodes/:episodeId/questions',
+  clarificationAskLimit,
   validate({ params: schemas.episodeIdParam, body: schemas.openThreadSchema }),
   clarificationController.ownOpen
 );
 router.post(
   '/me/questions/:threadId/messages',
+  clarificationAskLimit,
   validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadReplySchema }),
   clarificationController.ownReply
 );
 router.post(
   '/me/questions/:threadId/close',
+  clarificationAskLimit,
   validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadTransitionSchema }),
   clarificationController.ownClose
 );
 router.post(
   '/me/questions/:threadId/reopen',
+  clarificationAskLimit,
   validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadTransitionSchema }),
   clarificationController.ownReopen
 );
@@ -128,11 +184,13 @@ router.post(
 // acknowledging is an explicit action by the recipient.
 router.get(
   '/me/reminders',
+  reminderReadLimit,
   validate({ query: schemas.paginationQuery }),
   reminderController.mine
 );
 router.post(
   '/me/reminders/:notificationId/acknowledge',
+  reminderAckLimit,
   validate({ params: schemas.notificationIdParam }),
   reminderController.acknowledge
 );
@@ -141,6 +199,7 @@ router.post(
 // the clinic's own instructions).
 router.get(
   '/me/follow-ups',
+  followupReadLimit,
   validate({ query: schemas.paginationQuery }),
   followUpController.ownList
 );
