@@ -1,6 +1,7 @@
 'use strict';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
 
 const PAGE_SIZE = 10;
@@ -59,6 +60,13 @@ export default function CaregiverHome() {
           You are seeing the profile only. Episode, document and plan access require separate scopes,
           and a <code>view tasks</code> grant lets you read the approved medication and task day view
           on the Today screen.
+        </p>
+        <p>
+          {/* Part 8: the scoped care panel. Every call it makes is re-authorised
+              against the ACTIVE grant for this patient. */}
+          <Link className="btn btn--primary" to={`/app/caregiver/${selected.id}/care`}>
+            Check-ins, questions and follow-ups
+          </Link>
         </p>
       </section>
     );

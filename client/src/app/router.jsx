@@ -1,7 +1,7 @@
 'use strict';
 
 import { useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import Landing from '../features/public/Landing';
 import Login from '../features/auth/Login';
@@ -22,6 +22,8 @@ import CaregiverHome from '../features/caregiver/CaregiverHome';
 import EpisodeList from '../features/episodes/EpisodeList';
 import EpisodeDetail from '../features/episodes/EpisodeDetail';
 import TodayView from '../features/today/TodayView';
+import AssignedQueues from '../features/queues/AssignedQueues';
+import MyCare from '../features/care/MyCare';
 
 // Route guard (UX only - the server is the real boundary, control #3).
 function Protected({ children }) {
@@ -48,6 +50,14 @@ function EpisodesRoute() {
   const [selectedId, setSelectedId] = useState(null);
   if (selectedId) return <EpisodeDetail episodeId={selectedId} onBack={() => setSelectedId(null)} />;
   return <EpisodeList onOpen={setSelectedId} />;
+}
+
+// Part 8: the caregiver's scoped version of the care panel. The patient is part
+// of the path because the server authorises each request against the ACTIVE
+// grant for THAT patient - the id is a request parameter, never a permission.
+function CaregiverCareRoute() {
+  const { patientId } = useParams();
+  return <MyCare mode="caregiver" patientId={patientId} />;
 }
 
 export default function App() {
@@ -78,6 +88,11 @@ export default function App() {
         {/* Part 7: the day view. One route for patients, caregivers and assigned
             staff; the server resolves who is asking and what they may see. */}
         <Route path="today" element={<TodayView />} />
+        {/* Part 8: the assigned-team dashboard (staff) and the patient's own care
+            panel (patient or, scoped by a grant, their caregiver). */}
+        <Route path="queues" element={<AssignedQueues />} />
+        <Route path="me/care" element={<MyCare mode="patient" />} />
+        <Route path="caregiver/:patientId/care" element={<CaregiverCareRoute />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

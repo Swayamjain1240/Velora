@@ -34,9 +34,14 @@ export default function AppShell() {
           {isStaff && <NavLink to="/app/episodes">Episodes</NavLink>}
           {isPatient && <NavLink to="/app/me">My records</NavLink>}
           {isPatient && <NavLink to="/app/me/episodes">My recovery</NavLink>}
+          {/* Part 8: the patient's own check-ins, questions and follow-ups. */}
+          {isPatient && <NavLink to="/app/me/care">My care</NavLink>}
           {/* Part 7: the day view for the people who actually record entries. */}
           {(isPatient || isCaregiver) && <NavLink to="/app/today">Today</NavLink>}
           {isCaregiver && <NavLink to="/app/caregiver">Shared with me</NavLink>}
+          {/* Part 8: the assigned-team queues. Only the coordinating and reviewing
+              roles reach it; the server scopes every list to their assignments. */}
+          {isStaff && <NavLink to="/app/queues">Queues</NavLink>}
           {isAdmin && <NavLink to="/app/clinic">Clinic &amp; staff</NavLink>}
           <NavLink to="/app/profile">Profile</NavLink>
         </nav>
