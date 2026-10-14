@@ -120,6 +120,20 @@ for (const size of VIEWPORTS) {
     await caregiverPage.setViewportSize({ width: size.width, height: size.height });
     await assertOneViewport(caregiverPage, `caregiver view @ ${size.name}`);
 
+    // ---- caregiver's scoped care panel (Part 8) ------------------------------
+    // The check-ins/questions/follow-ups panel is reached by a click because the
+    // grant-scoped patient id is part of the path; it is measured in its own
+    // right at each size like every other detail screen.
+    await caregiverPage.setViewportSize({ width: 1440, height: 900 });
+    await caregiverPage
+      .getByRole('link', { name: 'Check-ins, questions and follow-ups' })
+      .click();
+    await expect(
+      caregiverPage.getByRole('heading', { level: 1, name: 'Care you help with' })
+    ).toBeVisible();
+    await caregiverPage.setViewportSize({ width: size.width, height: size.height });
+    await assertOneViewport(caregiverPage, `caregiver care panel @ ${size.name}`);
+
     await caregiver.close();
   });
 }

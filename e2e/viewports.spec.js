@@ -17,13 +17,20 @@ function session(file) {
 
 // Each session covers the authenticated screens its role can actually reach.
 const SESSIONS = [
-  { file: 'viewport-reviewer.json', routes: ['/app', '/app/patients', '/app/episodes', '/app/profile'] },
+  {
+    file: 'viewport-reviewer.json',
+    // `/app/queues` is the Part 8 assigned-team dashboard: five queue tabs, a
+    // paginated list and an item panel, all inside one viewport.
+    routes: ['/app', '/app/patients', '/app/episodes', '/app/queues', '/app/profile'],
+  },
   { file: 'viewport-admin.json', routes: ['/app', '/app/clinic', '/app/profile'] },
   // Part 4: the documents screens (opened by documents.spec) and the detail
   // screens (opened by detail-viewports.spec) live under the episode detail, so
   // this session covers the list screens it can reach.
   { file: 'docs-coordinator.json', routes: ['/app', '/app/patients', '/app/episodes', '/app/profile'] },
-  { file: 'docs-patient.json', routes: ['/app', '/app/me/episodes', '/app/me'] },
+  // `/app/me/care` is the Part 8 patient panel: check-ins, questions and
+  // follow-ups with tabs and pagination.
+  { file: 'docs-patient.json', routes: ['/app', '/app/me/episodes', '/app/me', '/app/me/care'] },
   { file: 'docs-caregiver.json', routes: ['/app', '/app/caregiver'] },
 ];
 
