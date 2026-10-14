@@ -18,6 +18,10 @@ test.beforeEach(async () => {
   await harness.resetDb();
 });
 
+test.after(async () => {
+  await harness.shutdown();
+});
+
 async function setup() {
   const ctx = {};
   const a = await harness.makeClinic();
