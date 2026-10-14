@@ -72,6 +72,9 @@ const CheckInTemplateVersion = require('../../src/models/CheckInTemplateVersion'
 const CheckInResponse = require('../../src/models/CheckInResponse');
 const ClarificationThread = require('../../src/models/ClarificationThread');
 const ClarificationMessage = require('../../src/models/ClarificationMessage');
+const Notification = require('../../src/models/Notification');
+const DeliveryAttempt = require('../../src/models/DeliveryAttempt');
+const QueueAssignment = require('../../src/models/QueueAssignment');
 
 let counter = 0;
 function uniq(prefix) {
@@ -119,6 +122,7 @@ async function resetDb() {
     MedicationSchedule, RecoveryTask, ScheduleOccurrence, ActivityLog,
     CheckInTemplateVersion, CheckInResponse,
     ClarificationThread, ClarificationMessage,
+    Notification, DeliveryAttempt, QueueAssignment,
   ];
   // Remove every stored object so a test can never observe a prior test's bytes.
   const objectsDir = path.join(process.env.DOCUMENT_STORAGE_ROOT, 'objects');
@@ -320,5 +324,6 @@ module.exports = {
     MedicationSchedule, RecoveryTask, ScheduleOccurrence, ActivityLog,
     CheckInTemplateVersion, CheckInResponse,
     ClarificationThread, ClarificationMessage,
+    Notification, DeliveryAttempt, QueueAssignment,
   },
 };
