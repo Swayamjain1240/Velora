@@ -24,6 +24,7 @@ const checkInTemplateRoutes = require('./routes/checkInTemplates');
 const checkInRoutes = require('./routes/checkIns');
 const clarificationRoutes = require('./routes/clarifications');
 const reminderRoutes = require('./routes/reminders');
+const dashboardRoutes = require('./routes/dashboard');
 
 function buildApp() {
   const app = express();
@@ -88,6 +89,9 @@ function buildApp() {
   // activation; recording an entry is an append-only, actor-attributed fact.
   app.use('/api/episodes', scheduleRoutes);
   app.use('/api/today', todayRoutes);
+  // Part 8: the assigned-team dashboard. Every list and count is tenant- AND
+  // assignment-scoped, and an administrator cannot browse clinical queues.
+  app.use('/api/dashboard', dashboardRoutes);
   // Part 8: clinic-defined check-in templates. Clinic configuration, so an
   // administrator (who holds no clinical permission) is refused, a coordinator
   // drafts and a clinic-verified reviewer activates - the same split as plans.

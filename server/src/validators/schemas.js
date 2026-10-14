@@ -761,10 +761,45 @@ const deliverRemindersSchema = z
 const acknowledgeReminderSchema = z.object({}).strict();
 const notificationIdParam = z.object({ notificationId: objectIdSchema }).strict();
 
+// ---- Part 8: the assigned-team dashboard ---------------------------------------
+
+// The queue catalog comes from the constants module, so a renamed queue cannot
+// leave the validator accepting a key the service no longer has.
+const { QUEUE_KEYS } = require('../config/constants');
+const QUEUE_KEY_VALUES = Object.values(QUEUE_KEYS);
+
+const dashboardQuery = z
+  .object({
+    page: pageSchema,
+    limit: limitSchema,
+    // A caller may narrow to the items THEY are accountable for; they can never
+    // widen beyond their own assignment scope, which the service always applies.
+    mine: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+const queueKeyParam = z.object({ queueKey: z.enum(QUEUE_KEY_VALUES) }).strict();
+
+const queueTargetParams = z
+  .object({ queueKey: z.enum(QUEUE_KEY_VALUES), targetId: z.string().trim().min(1).max(120) })
+  .strict();
+
+const assignmentIdParam = z.object({ assignmentId: objectIdSchema }).strict();
+
+const releaseAssignmentSchema = z.object({ reason: clinicalText(300).optional() }).strict();
+
 module.exports = {
   loginSchema,
   reminderParams,
   notificationIdParam,
+  dashboardQuery,
+  queueKeyParam,
+  queueTargetParams,
+  assignmentIdParam,
+  releaseAssignmentSchema,
   queueRemindersSchema,
   deliverRemindersSchema,
   acknowledgeReminderSchema,

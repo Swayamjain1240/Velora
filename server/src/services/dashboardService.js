@@ -445,18 +445,16 @@ async function claim({ clinicId, user, roleKey, queueKey, targetId, ip, userAgen
 }
 
 async function release({ clinicId, user, assignmentId, reason, ip, userAgent }) {
+  // A caller may release their OWN assignment, and the query itself is scoped to
+  // them: an assignment owned by someone else is simply not theirs to see, which
+  // is a 404 rather than a confirmation that it exists.
   const assignment = await QueueAssignment.findOne({
     _id: assignmentId,
     clinic: clinicId,
+    assigneeUser: user.id,
     status: 'active',
   });
-  if (!assignment) throw errors.notFound('That assignment is not active.');
-
-  // A caller may release their OWN assignment. Handing work to someone else is an
-  // assignment, which the queue-specific routes own.
-  if (String(assignment.assigneeUser) !== String(user.id)) {
-    throw errors.forbidden('Only the current owner can release this item.');
-  }
+  if (!assignment) throw errors.notFound('That assignment is not active, or it is not yours.');
 
   const released = await QueueAssignment.findOneAndUpdate(
     { _id: assignment._id, status: 'active' },
