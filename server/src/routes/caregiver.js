@@ -6,6 +6,7 @@ const express = require('express');
 const caregiverController = require('../controllers/caregiverController');
 const checkInController = require('../controllers/checkInController');
 const clarificationController = require('../controllers/clarificationController');
+const reminderController = require('../controllers/reminderController');
 const { validate } = require('../middleware/validate');
 const { requireAuth } = require('../middleware/auth');
 const schemas = require('../validators/schemas');
@@ -61,6 +62,15 @@ router.post(
   '/me/questions/:threadId/messages',
   validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadReplySchema }),
   clarificationController.caregiverReply
+);
+
+// Part 8: the caregiver's own reminder inbox. The filter is by RECIPIENT, so a
+// caregiver only ever sees reminders the care team addressed to them.
+router.get('/me/reminders', validate({ query: schemas.paginationQuery }), reminderController.mine);
+router.post(
+  '/me/reminders/:notificationId/acknowledge',
+  validate({ params: schemas.notificationIdParam }),
+  reminderController.acknowledge
 );
 
 module.exports = router;

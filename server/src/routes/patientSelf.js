@@ -10,6 +10,7 @@ const documentController = require('../controllers/documentController');
 const carePlanController = require('../controllers/carePlanController');
 const checkInController = require('../controllers/checkInController');
 const clarificationController = require('../controllers/clarificationController');
+const reminderController = require('../controllers/reminderController');
 const { validate } = require('../middleware/validate');
 const { mongoRateLimit } = require('../middleware/rateLimit');
 const { downloadLimit, readLimit } = require('../middleware/documentLimits');
@@ -120,6 +121,19 @@ router.post(
   '/me/questions/:threadId/reopen',
   validate({ params: schemas.clarificationThreadIdParam, body: schemas.threadTransitionSchema }),
   clarificationController.ownReopen
+);
+
+// Part 8: the patient's own in-app reminders. Delivery is not acknowledgement, so
+// acknowledging is an explicit action by the recipient.
+router.get(
+  '/me/reminders',
+  validate({ query: schemas.paginationQuery }),
+  reminderController.mine
+);
+router.post(
+  '/me/reminders/:notificationId/acknowledge',
+  validate({ params: schemas.notificationIdParam }),
+  reminderController.acknowledge
 );
 
 router.get(

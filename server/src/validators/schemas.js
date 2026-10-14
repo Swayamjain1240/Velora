@@ -733,8 +733,41 @@ const threadStateSchema = z
 
 const threadTransitionSchema = z.object({ note: clinicalText(300).optional() }).strict();
 
+// ---- Part 8: in-app reminders --------------------------------------------------
+
+const reminderParams = z
+  .object({ episodeId: objectIdSchema, notificationId: objectIdSchema })
+  .strict();
+
+const queueRemindersSchema = z
+  .object({
+    // Which reminder sources to consider. The list is closed: a reminder is an
+    // OPERATIONAL event, and there is no "clinical alert" to ask for.
+    kinds: z
+      .array(z.enum(['check_in_due', 'task_due', 'medication_due', 'follow_up']))
+      .min(1)
+      .max(4)
+      .optional(),
+  })
+  .strict();
+
+const deliverRemindersSchema = z
+  .object({
+    // The batch size is bounded server-side as well, so this can only narrow it.
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  })
+  .strict();
+
+const acknowledgeReminderSchema = z.object({}).strict();
+const notificationIdParam = z.object({ notificationId: objectIdSchema }).strict();
+
 module.exports = {
   loginSchema,
+  reminderParams,
+  notificationIdParam,
+  queueRemindersSchema,
+  deliverRemindersSchema,
+  acknowledgeReminderSchema,
   clarificationThreadParams,
   clarificationThreadIdParam,
   openThreadSchema,

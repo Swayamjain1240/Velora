@@ -23,6 +23,7 @@ const todayRoutes = require('./routes/today');
 const checkInTemplateRoutes = require('./routes/checkInTemplates');
 const checkInRoutes = require('./routes/checkIns');
 const clarificationRoutes = require('./routes/clarifications');
+const reminderRoutes = require('./routes/reminders');
 
 function buildApp() {
   const app = express();
@@ -99,6 +100,11 @@ function buildApp() {
   // assigned, clinic-verified reviewer, an operational one by the assigned
   // coordinator, and every transition appends actor/time/history.
   app.use('/api/episodes', clarificationRoutes);
+  // Part 8: in-app reminders. Queueing is de-duplicated by recipient + event
+  // version + channel, delivery rechecks the episode, the approved version, the
+  // task and the recipient first, retries are bounded, and a delivery is not an
+  // acknowledgement.
+  app.use('/api/episodes', reminderRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
