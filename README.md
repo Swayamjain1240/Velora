@@ -174,8 +174,22 @@ items can generate a schedule; a conditional/PRN item never gets a repeating tim
 instruction whose approved wording states no timing stays `needs_details` and generates nothing. A
 medication schedule becomes patient-visible only through the assigned, verified clinical reviewer's
 explicit activation, and an entry with nothing recorded is never shown as a missed dose. The states,
-safety wording, authority matrix, HTTP contract, DST rules and reconciliation behaviour are documented
-in [docs/VELORA_SCHEDULES.md](docs/VELORA_SCHEDULES.md).
+safety wording, authority matrix, HTTP contract, DST rules andreconciliation behaviour are documented in
+[docs/VELORA_SCHEDULES.md](docs/VELORA_SCHEDULES.md).
+
+Part 8 adds clinic-defined recovery check-ins, the clarification queue, the assigned-team dashboard,
+in-app reminders and basic prescribed follow-ups. Check-in templates are versioned and only the
+assigned, clinic-verified reviewer can activate one or close a triggered review; a missing response
+stays missing (never a normal or abnormal result) and a clinic rule means workflow attention for a
+person, never a diagnosis. Clarification threads move through open/assigned/answered/closed/explicitly
+reopened with actor-time history: clinical answers need the assigned eligible reviewer, coordinators
+answer only operational questions, and every surface shows the clinic's published response hours
+without implying 24/7 monitoring. The dashboard's five queues (approvals, questions, check-in reviews,
+failed reminders, missing owners) are scoped to active care-team assignments, and an administrator is
+refused. Reminders are delivered **in-app first** through a provider registry that fails closed: dedupe
+by recipient/event/version/channel, a recheck of episode/plan/task/recipient state immediately before
+delivery, bounded retries with a visible failure, and delivery that is explicitly not acknowledgement.
+The domain model, authority matrix, HTTP contract, rate-limit buckets and reliability rules are	documented in [docs/VELORA_CARE_COORDINATION.md](docs/VELORA_CARE_COORDINATION.md).
 
 The example `MONGODB_URI` points at the local replica set (`mongodb://127.0.0.1:27019/velora?replicaSet=rs0`),
 which the `mongo:test-rs` script serves; the same instance hosts the `velora_test` database.
@@ -186,8 +200,8 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 220 unit + integration tests (replica-set MongoDB test DB)
-npm test -w client               # 50 client unit tests (Vitest)
+npm test -w server               # 315 unit + integration tests (replica-set MongoDB test DB)
+npm test -w client               # 56 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
 npx playwright test              # 61 browser journeys at six viewport sizes (2 opt-in/skipped)
@@ -208,13 +222,17 @@ npx playwright test              # in another (Chromium is installed via npx pla
 ```
 
 The suite makes many requests in a minute, so the API is started the way CI starts it for browser
-journeys: `EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js` (and the API port
-must be exported for the seed/session setup: `PORT=4100 npx playwright test`). `NODE_ENV=test` switches
+journeys: `EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js` (and the API
+port must be exported for the seed/session setup). Export BOTH to Playwright as well -
+`EXTRACTION_PROVIDER=fake PORT=4100 npx playwright test` - because the provider-disabled spec guards
+itself with that same variable: with the provider off in Playwright but on in the API, the "fails
+closed" journey runs against an enabled provider and fails. `NODE_ENV=test` switches
 off only the in-process blanket limiter; the durable Mongo-backed per-route limits stay active. The
 journeys upload synthetic PDFs byte-for-byte, compare the downloaded bytes with the original, and
 measure the list routes, the detail screens (patient, episode, documents), the care-plan screens
-(draft, sources, review), the patient's approved-plan view and the Part 7 **Today** screen plus the
-staff schedule workspace at all six required viewport sizes.
+(draft, sources, review), the patient's approved-plan view, the Part 7 **Today** screen plus the
+staff schedule workspace, and the Part 8 **Queues** screen, patient **My care** panel and caregiver
+care panel at all six required viewport sizes.
 
 Part 5 seeds a dedicated M1 journey fixture: episode `EP-PLANJRNY` with an assigned coordinator, an
 assigned clinic-verified reviewer and one ready source document, and no plan data. `e2e/plans.spec.js`
@@ -228,8 +246,9 @@ data). With the LOCAL deterministic provider enabled
 drives the whole slice through the browser: create a draft, run a job, read the source/AI/missing/conflict
 panels, accept one value and apply it as an ordinary draft item, dismiss another, draft and approve a
 Hindi rendering, and prove the patient sees no AI text and no rendering. The same file also proves the
-**shipped default** fails closed: run it with no provider (`EXTRACTION_PROVIDER=none`) and the job
-reports `PROVIDER_DISABLED` while drafting by hand keeps working.
+**shipped default** fails closed: restart the API and Playwright with no provider
+(`EXTRACTION_PROVIDER=none`) and the job reports `PROVIDER_DISABLED` while drafting by hand keeps
+working.
 
 Part 7 seeds a dedicated schedule journey fixture: episode `EP-SCHEDJRNY` with an assigned
 coordinator, an assigned clinic-verified reviewer, a linked patient (`PT-SCHEDJRNY`) and a caregiver

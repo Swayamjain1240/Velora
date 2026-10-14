@@ -85,14 +85,14 @@ The IDs, names and targets below are the **authority numbering** from the owner'
 | VEL-008 | AI extraction with source evidence | M2 | 6 | VERIFIED (local scope; synthetic data, deterministic local provider only, **no external provider selected or called**; the manual Part 5 workflow is the shipped default) |
 | VEL-009 | Reviewed Hindi/English presentation | M2 | 6 | VERIFIED (local scope; reviewer-approved renderings only) |
 | VEL-010 | Immutable care-plan versioning | M1 / later scheduling | 5 | VERIFIED (approved versions immutable, one current version per episode, superseded history retained; Part 7 schedule preparation reads the current approved version and never mutates it) |
-| VEL-011 | Granular caregiver sharing | Code 1 | 2 | VERIFIED (local scope; Part 7 adds the first honoured non-profile scopes - `view_tasks` and `log_tasks` - each enforced server-side per request) |
+| VEL-011 | Granular caregiver sharing | Code 1 | 2 | VERIFIED (local scope; the honoured non-profile scopes are `view_tasks`/`log_tasks` (Part 7) and `view_checkins`/`log_checkins`/`ask_questions` (Part 8), each enforced server-side per request; `view_episodes`/`view_documents`/`view_plan` stay deliberately inert) |
 | VEL-012 | Medication schedules and actor logs | M3 | 7 | VERIFIED (local scope; only the current approved, clinically accepted items produce a schedule, a medication schedule activates only through the assigned verified reviewer, occurrences are UTC with an explicit IANA zone, and entries are append-only and attributed with idempotent retries) |
 | VEL-013 | Daily recovery tasks | M3 | 7 | VERIFIED (local scope; task items use the same occurrence engine, an explicit audited activation and the same day view) |
-| VEL-014 | Notifications and delivery records | M3 / M4 | 8 | PLANNED - Part 7 generates no message, reminder or delivery attempt |
-| VEL-015 | Clinic-defined recovery check-ins | M4 | 8 | PLANNED |
-| VEL-016 | Clarification queue and history | M4 | 8 | PLANNED |
-| VEL-017 | Assigned team dashboard | M4 | 8 | PLANNED |
-| VEL-018 | Basic prescribed follow-up | M4 | 8 | PLANNED (Part 7 renders a follow-up item as an approved instruction only) |
+| VEL-014 | Notifications and delivery records | M3 / M4 | 8 | VERIFIED (local scope; in-app only: dedupe by recipient/event/version/channel under a unique index, a stored recheck immediately before delivery, bounded retry with a visible failure and delivery-is-not-acknowledgement; **no external provider selected or called** - email/SMS/WhatsApp/push stay refused until disclosed) |
+| VEL-015 | Clinic-defined recovery check-ins | M4 | 8 | VERIFIED (local scope; versioned templates, activation by the assigned verified reviewer only, idempotent slot materialisation, append-only answers, `no_response` never classified, clinic rules = workflow attention never a diagnosis) |
+| VEL-016 | Clarification queue and history | M4 | 8 | VERIFIED (local scope; open/assigned/answered/closed/explicitly-reopened with append-only actor-time history, clinical answers need the assigned verified reviewer, coordinators operational only, internal notes never patient-visible, response hours never imply 24/7 cover) |
+| VEL-017 | Assigned team dashboard | M4 | 8 | VERIFIED (local scope; five queues and counts derived from active care-team assignments only, administrator refused outright, explicit claim/release with history) |
+| VEL-018 | Basic prescribed follow-up | M4 | 8 | VERIFIED (local scope; prescribed date/location/contact/instructions only - results, reports and referrals refused at validation; caregiver reads require `view_tasks` on an active grant) |
 | VEL-019 | Operational closure and history | Code 1 | 9 | PLANNED - Part 7 already blocks new activity on a closed episode and never rewrites history |
 | VEL-020 | Privacy, audit, export/deletion and retention | foundation..M5 | 9 | PARTIAL - append-only audit history exists (Parts 1-7); export/deletion/retention are Part 9 |
 | VEL-021 | Workflow metrics without clinical inference | Code 1 | 9 | PLANNED (Part 7 exposes counts of recorded states only, and never an adherence judgement) |

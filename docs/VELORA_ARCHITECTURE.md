@@ -125,6 +125,14 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
   reviewer, so preparation can never activate itself. Ending a schedule follows preparation
   authority. No Part 7 route edits clinical content: the schedule is a frozen copy, so this surface
   can never widen what a clinician approved.
+- Part 8 (check-ins, clarifications, dashboard, reminders, follow-ups) adds no new way in: the
+  clinic still comes from the membership, the episode scope from an ACTIVE care-team assignment, and
+  the patient/caregiver surfaces from ownership or an ACTIVE scoped grant (`view_checkins`,
+  `log_checkins`, `ask_questions`, `view_tasks`). The dashboard is refused to administrators,
+  patients and caregivers outright; a clinical clarification or a triggered check-in review is
+  answerable only by the ASSIGNED, clinic-verified reviewer (eligibility alone is never enough),
+  while coordinators answer only operational questions; the patient side of a thread may ask, reply,
+  close and reopen but never answer, assign or read an internal note.
 - Part 7 day view and entry recording (`/today`) deliberately carry **no** clinic-wide permission.
   A patient is recognised by ownership of their own profile (`linkedUserId`), a caregiver by the
   scope of their ACTIVE, unexpired grant (`view_tasks` reads the day, `log_tasks` records an entry,
@@ -134,7 +142,7 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
   closed episode is exposed as read-only, and a revoked grant or superseded plan version closes the
   surface on the next request (the client keeps no clinical content cached).
 
-## 5. Data model (Parts 1-7)
+## 5. Data model (Parts 1-8)
 
 | Model | Purpose | Notable indexes |
 |---|---|---|
@@ -165,10 +173,20 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
 | `RecoveryTask` | verbatim copy of ONE approved task item + generation inputs and lifecycle | unique `(planVersion,item)`; `(clinic,episode,status)` |
 | `ScheduleOccurrence` | one due slot: UTC instant + local date/time + zone + offset; **no adherence column** | unique `(owner,scheduledAtUtc)`; `(clinic,patient,localDate)` |
 | `ActivityLog` | **append-only** attributed entry: subject, actor, role/grant, occurrence time, recorded-at state, correction link | unique `(clinic,clientRequestId)`; `(occurrence,sequence)` |
+| `CheckInTemplateVersion` | one immutable version of a clinic check-in template (questions, cadence, window, literal review rules) | unique `(clinic,key,version)`; `(clinic,updatedAt)` |
+| `CheckInResponse` | one materialised slot (template key + local date); append-only answers, derived `no_response` | unique `(clinic,episode,slotKey)`; `(clinic,patient,dueAt)` |
+| `ClarificationThread` | one question with kind, state machine and append-only transition history | `(clinic,episode,state,lastMessageAt)` |
+| `ClarificationMessage` | append-only plain-text message (`question`/`answer`/`note`/`system`), `patientVisible` | `(thread,createdAt)` |
+| `QueueAssignment` | explicit dashboard ownership of a queue target (claim/release, history) | partial unique active owner per target |
+| `Notification` | one reminder: recipient, event/version, channel, state, attempts, dedupe key | **unique `dedupeKey`**; `(clinic,recipientUser,state)` |
+| `DeliveryAttempt` | one bounded attempt: number, outcome, stored recheck verdict, safe reason | `(notification,attempt)` |
+| `FollowUpPlan` | prescribed follow-up: date, location, contact, instructions, active/cancelled | `(clinic,episode,scheduledFor)` |
 
-The Part 5 contract for the plan collections and the Part 7 contract for these four collections -
-states, safety wording, authority matrix, HTTP endpoints and reconciliation - are
-[VELORA_CARE_PLAN.md](VELORA_CARE_PLAN.md) and [VELORA_SCHEDULES.md](VELORA_SCHEDULES.md).
+The Part 5 contract for the plan collections, the Part 7 contract for these four collections and
+the Part 8 contract for the coordination collections - states, safety wording, authority matrix,
+HTTP endpoints, rate-limit buckets and reconciliation - are [VELORA_CARE_PLAN.md](VELORA_CARE_PLAN.md),
+[VELORA_SCHEDULES.md](VELORA_SCHEDULES.md) and
+[VELORA_CARE_COORDINATION.md](VELORA_CARE_COORDINATION.md).
 
 Timestamps are UTC. Compound unique indexes enforce clinic-scoped identifiers and active-grant
 invariants. Projections keep `tokenHash`, `csrfSecret`, internal audit payloads and unrelated PII
@@ -204,6 +222,12 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
 | schedule activation | 120 / hour per user |
 | day view (`/api/today`) read | 600 / hour per user |
 | day view entry recording | 240 / hour per user |
+| check-in / clarification / reminder / follow-up read | 600 / hour per user |
+| check-in submit, reminder acknowledge, follow-up write | 120 / hour per user |
+| ask/reply/close/reopen a clarification thread | 60 / hour per user |
+| answer a clarification thread / close a triggered check-in review | 120 / hour per user |
+| reminder delivery batch | 30 / hour per user |
+| dashboard read / dashboard claim-release | 300 / 120 per hour per user |
 
 ## 7. Client architecture
 
@@ -244,6 +268,12 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   workspace: prepared schedules, a paginated occurrence table showing local **and** UTC values, the
   attributed recorded-entry history and the explicit **Prepare from approved plan** control. The
   client never renders an entry as a missed dose and never calls a self-report a verification.
+- Part 8 adds `features/queues` (`AssignedQueues`, `ThreadView`, `CheckInForm`) - the staff queue
+  screen with five server-counted tabs, a paginated list inside its own scrolling panel, explicit
+  claim/release/retry actions and a thread/check-in detail pane - and `features/care` (`MyCare`), the
+  patient's own panel (and the caregiver's grant-scoped mirror) with check-ins, questions and
+  follow-ups behind tabs. Counts and lists always come from the server already scoped; a denied read
+  clears the panel and shows a safe sentence.
 - A denied refresh or a lost authorization clears the loaded patient/consent/grant state before an
   error is shown, so stale clinical data never remains on screen.
 - All server errors surface through a safe envelope; the client never renders unsanitized HTML.
@@ -331,6 +361,16 @@ default** (`EXTRACTION_PROVIDER=none`) fails closed while manual drafting keeps 
   `log_tasks` caregiver grant, walks the staff schedule workspace (UTC instant column, recorded-entry
   history, preparation control) and measures the day screen - medication and task tabs - at all six
   viewport sizes.
+- **Integration (Part 8):** template versioning and activation authority, idempotent slot
+  materialisation, duplicate/late/missing answers, rules meaning workflow attention (never a
+  diagnosis), clarification transitions with append-only history, clinical-versus-operational answer
+  authority, internal-note isolation, response-hours wording, assignment-scoped queues with the admin
+  denial, reminder dedupe/recheck/retry/revocation/stale-plan/closed-episode, delivery-versus-
+  acknowledgement separation, follow-up scope, and the durable per-route rate limits (a 60th ask
+  returns `RATE_LIMITED` on the patient surface too).
+- **Browser (Part 8):** `viewports.spec.js` measures the staff queues and the patient care panel at
+  all six sizes; `detail-viewports.spec.js` walks into the caregiver's grant-scoped care panel and
+  measures it at all six sizes.
 - **Recovery:** `scripts/reconcile-documents.js` dry run is part of the part gate; `--apply` requires
   an explicit operator and audits every repair.
 - **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.

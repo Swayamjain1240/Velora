@@ -305,7 +305,54 @@ below is about keeping the *clinical* content frozen and the *operational* conte
   version's owners and only its *future* occurrences; past occurrences and every log row are untouched
   and stay visible in the day view as earlier-plan history.
 
-## 9. Decision log (Parts 1-7)
+## 8g. Coordination: check-ins, clarifications, queues and reminders (Part 8)
+
+> The full contract - models, states, authority matrix, HTTP endpoints, rate-limit buckets and the
+> reliability rules - lives in [VELORA_CARE_COORDINATION.md](VELORA_CARE_COORDINATION.md). This
+> section records the design decisions behind it.
+
+Part 8 is the first part that makes the *clinic's own workflow* explicit, so every decision below is
+about keeping absence, attention and delivery as the plain facts they are:
+
+- **A missing answer is an absence, not a value.** `no_response` is derived from a closed response
+  window and is never classified, never opens a review, and carries the standing wording that
+  nothing is inferred - not a normal result, not an abnormal result. There is no code path that
+  turns silence into a recovery judgement.
+- **A clinic rule is data, evaluated literally.** `reviewRules` are stored per template version and
+  matched field-by-field (`at_least`, etc.); a match sets `needs_review` with the rule's own label
+  and "workflow attention, not a diagnosis". No model, no score and no severity is produced, and
+  closing the review requires the assigned, verified clinical reviewer.
+- **Templates are versioned so answers stay answerable against what was asked.** A slot pins its
+  template version; validation reads that version's questions, so editing a template can never
+  re-interpret a stored answer or block a historical read.
+- **Thread authority is split by kind, not by seniority.** `clinical` questions are answerable only
+  by the assigned, clinic-verified reviewer (eligibility alone is insufficient; a coordinator who
+  merely receives the question cannot answer it), `operational` answers belong to coordinators, and
+  reclassification only moves operational -> clinical. Reopening is an explicit, audited state so a
+  thread that came back is never mistaken for one that was never answered.
+- **The dashboard derives scope, it never accepts it.** Queue rows and counts are computed from the
+  caller's active `CareTeamAssignment` set; there is no query parameter that widens it, and admin
+  status is an explicit refusal because admin is not clinical work.
+- **Reminder identity includes the event version.** `dedupeKey` = channel : recipient role :
+  recipient : kind : v<version> : event : localDate under a unique index, so a new approved plan or
+  template version is a *new* event while the same version never queues twice - the race is closed
+  by the database, not by a check-then-insert.
+- **Delivery re-reads the world it is about to act on.** Immediately before delivery the episode
+  state, the current approved plan version, the source task's relevance and the recipient's
+  authorization are re-checked and the verdict is stored on the attempt; a refusal is a visible
+  `skipped` attempt and a cancellation with the standing note that nothing was sent and no
+  assumption is made about the patient.
+- **Retry is bounded and visible; delivery is not acknowledgement.** Exponential backoff capped at
+  one hour, at most `REMINDER_MAX_ATTEMPTS` (default 3), then a `failed` state a human can see and
+  retry. Only the recipient can acknowledge.
+- **One registry gates every external channel.** The shipped provider is in-app (nothing leaves the
+  process); email/SMS/WhatsApp/push are recognized but refused until a disclosure fills every
+  required field - there is no silent fallback to a different channel.
+- **Rate budgets are shared per operation, not per role surface.** The patient's ask and the
+  coordinator's ask consume the same `clarification-ask` bucket (keyed by caller), so a role can
+  never buy a larger budget by using its own endpoint.
+
+## 9. Decision log (Parts 1-8)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -364,8 +411,13 @@ below is about keeping the *clinical* content frozen and the *operational* conte
 | D53 | Corrections append a new row that names the corrected row | edit the entry in place | recorded history must stay verifiable |
 | D54 | `/api/today` has no clinic-wide permission; authority comes from the record or grant | reuse a clinical permission | a patient and caregiver hold none, so the record and grant must decide |
 | D55 | Safety wording lives in one shared policy constant | duplicate the copy in each screen | server test and client screen can never drift apart |
+| D56 | Reminder dedupe key includes the event **version** under a unique index | check-then-insert / content hash | a new plan or template version is a new event; the race is closed by the database |
+| D57 | Recheck episode/version/task/recipient immediately before delivery and store the verdict | check only at queue time | authorization and relevance can change between queueing and delivery |
+| D58 | The reminder provider registry refuses undisclosed channels with the exact disclosure list | default to email when configured | control #22; a silent channel fallback is worse than not sending |
+| D59 | Admin is explicitly refused the dashboard queues | reuse admin read permissions | admin is administration, not assigned clinical work (VEL-002 boundary) |
+| D60 | Durable rate buckets are shared per operation across staff/patient/caregiver surfaces | separate budget per endpoint | a role must not buy a larger budget by choosing its own endpoint |
 
-## 10. Known limitations (Parts 1-7)
+## 10. Known limitations (Parts 1-8)
 
 - No external AI/OCR provider is selected or called; a real provider needs the completed disclosure
   and owner/clinical/privacy review first (control #22). The evaluation is **software behaviour on
@@ -397,10 +449,10 @@ below is about keeping the *clinical* content frozen and the *operational* conte
 - Plans are never deleted; retention and privacy requests arrive in Part 9.
 - Items are authored and reviewed page by page (8 per page); there is no bulk edit or item import.
 - A plan is not versioned by a content hash, so two identical drafts are two versions.
-- Part 7 delivers VEL-012/VEL-013 at local scope only: it produces **no** notification, reminder or
-  delivery record (VEL-014 and the check-in requirements are Part 8), and there is no scheduler
-  daemon. Occurrences are materialised by explicit preparation over a bounded horizon (400 slots,
-  30-day default), not by a recurring job.
+- Part 7 delivers VEL-012/VEL-013 at local scope only: it produced no notification or reminder -
+  Part 8 now ships **in-app** reminders and delivery records (VEL-014), still with no scheduler
+  daemon: queueing and delivery are explicit bounded API calls, and occurrences are materialised by
+  explicit preparation over a bounded horizon (400 slots, 30-day default), not by a recurring job.
 - Derived day-part times are a non-clinical convenience; an approved instruction with no stated
   timing stays `needs_details` and is never made schedulable by guessing.
 - `not_recorded` is deliberately not aggregated into any adherence percentage, and the day view is a
@@ -409,3 +461,13 @@ below is about keeping the *clinical* content frozen and the *operational* conte
   `log_medications`, `view_tasks`, `log_tasks`); a caregiver still cannot read the plan or episodes.
 - Scheduling evidence is local (development, synthetic data). No clinical validation, regulatory
   claim or production readiness is implied.
+- Part 8 ships **in-app delivery only**: no email/SMS/WhatsApp/push provider is selected, disclosed
+  or called, and the reminder pipeline runs on explicit bounded API calls (no scheduler daemon), so
+  a deployment that needs unattended delivery must add a disclosed job runner first.
+- Check-in review rules are literal, clinic-authored conditions (`at_least`, etc.): there is no
+  scoring, trend detection or diagnostic interpretation, and none is claimed.
+- The Part 8 screens are covered by client unit tests and six-size viewport measurement; there is no
+  dedicated end-to-end browser journey fixture for check-ins/clarifications yet (the flows are
+  exercised through the API integration suite).
+- There is no per-thread attachment, no file sharing inside a clarification and no structured
+  clinical response inside a thread message: messages are bounded plain text.

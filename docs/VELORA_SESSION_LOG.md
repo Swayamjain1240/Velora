@@ -1115,3 +1115,168 @@ not exist in this repository (see the correction above), and the journey fixture
 `EP-SCHJRNY` when the seed and the specification both use `EP-SCHEDJRNY`. Verified counts are unchanged by
 the re-check because it strengthened existing tests instead of adding new ones: 25 Part 7 integration
 and 13 Part 7 unit tests, 220 server tests in total.
+
+---
+
+## Session - 14 October 2026 - Part 8 (check-ins, clarification queue, dashboard, in-app reminders, follow-ups)
+
+### Duck review (end-of-part gate)
+
+Read: the authority set (`VELORA_MERN_MASTER.pdf` / `_ARCHITECTURE.pdf` / `_DUCK_LOG.pdf` mirrors,
+`VELORA_MERN_10_BUILD_PROMPTS.md` Prompt 8), `README.md`, this log's Part 5-7 entries and the five
+`docs/VELORA_*` contracts, then the actual Part 8 source, tests and client screens. State on entry:
+branch `main` at `2204d1c` with 13 Part 8 server commits already made but **no completed gate run -
+the full suite had never once run to completion**, and the Part 8 client screens uncommitted.
+Classification on entry: Parts 1-7 `VERIFIED (local)`; Part 8 `IMPLEMENTED / UNVERIFIED`.
+
+### External service gate (control #22)
+
+**No provider selected or called.** Reminders are delivered in-app by the shipped `in_app`
+provider (nothing leaves the process). Email, SMS, WhatsApp and push are recognized by the
+registry and **refused** until a disclosure fills every required field; the fake provider is
+development/test-only and refuses to run in production. No new dependency and no new secret was
+added by Part 8.
+
+### Work performed (Part 8)
+
+Commits `ff60787`..`2204d1c` (server) and this session's five code commits:
+
+- **Check-ins (VEL-015):** versioned `CheckInTemplateVersion` (draft/active/superseded, activation
+  by the assigned verified reviewer), append-only `CheckInResponse` with idempotent slot
+  materialisation keyed `templateKey@localDate` in the episode's zone, derived `no_response` that is
+  never classified, literal clinic review rules that set `needs_review` with workflow-attention
+  wording only, and patient/caregiver/staff answer surfaces with `view_checkins`/`log_checkins`.
+- **Clarifications (VEL-016):** append-only `ClarificationThread`/`ClarificationMessage` with the
+  open/assigned/answered/closed/explicitly-reopened state machine, actor-time history, clinical
+  answers requiring the assigned verified reviewer, coordinator operational answers, internal notes
+  that never reach the patient, and clinic response-hours/emergency guidance on every surface.
+- **Dashboard (VEL-017):** five queues (approvals, questions, check-in reviews, failed reminders,
+  missing owners) whose lists and counts are computed from the caller's active
+  `CareTeamAssignment` set, explicit claim/release via `QueueAssignment`, and an outright refusal
+  for admins, patients and caregivers.
+- **Reminders (VEL-014):** `Notification`/`DeliveryAttempt` with a unique dedupe key over
+  recipient/event-version/channel, a four-input recheck stored on every attempt, bounded exponential
+  retry (`REMINDER_MAX_ATTEMPTS`, default 3), visible `failed` state, recipient-only acknowledgement
+  and the provider disclosure gate.
+- **Follow-ups (VEL-018):** `FollowUpPlan` restricted to prescribed date/time/location/contact/note
+  plus an optional in-app reminder; results, reports and referrals are refused at validation.
+- **Client:** `features/queues` (five-tab assigned queue, thread view, check-in review form) and
+  `features/care` (patient `My care` panel and the caregiver's grant-scoped mirror) wired behind
+  role-aware nav, one viewport each.
+- **Docs:** new `docs/VELORA_CARE_COORDINATION.md`, README Part 8 section, and structure/architecture/
+  system-design/master sync (below).
+
+### Drift found by this gate and fixed
+
+| # | Drift | Class | Fix / commit |
+|---:|---|---|---|
+| 1 | The full server suite **wedge stalled at test 50 twice**: `clinicSettings.test.js` (Part 8) opened the harness but never called `harness.shutdown()`, so the child process never exited and `--test-concurrency=1` waited forever | `DRIFT` (gate blocker) | missing `after` hook added; file now exits in ~8 s; suite runs to completion — `d3a1d6c` |
+| 2 | Two Part 5/6 gate tests asserted that no model/collection named reminder/notification/message/delivery **exists at all**; Part 8 legitimately added `Notification`, `DeliveryAttempt` and `ClarificationMessage`, so `extractions.test.js` and `plans.test.js` failed the moment they were finally re-run | `DRIFT` (stale invariant; Part 8 had never re-run those files) | both restated per **written document**: after extraction and after approval every downstream workflow model holds zero documents, plus a collection-level count — `e5dee3a` |
+| 3 | Control #8 gap: the patient and caregiver Part 8 mirrors (check-in submit, question open/reply/close/reopen, reminder acknowledge, and their reads) had **no durable per-route limits** while the staff twins did; only the coarse in-process limiter (disabled under test) covered them | `DRIFT` (control #8) | both mirrors now share the staff buckets per operation class keyed by caller; a new test drives the patient ask budget to `429 RATE_LIMITED` while reads keep working — `3744a03` |
+| 4 | Control #25 evidence gap: `/app/queues`, `/app/me/care` and the caregiver care panel were never measured at the six required sizes | `DRIFT` (evidence gap) | added to `viewports.spec.js` (staff + patient routes) and `detail-viewports.spec.js` (caregiver click-through) — `fc3aa39` |
+| 5 | README told you to export `PORT` to Playwright but not `EXTRACTION_PROVIDER`; the provider-disabled spec guards itself with that variable, so following the README literally makes its journey run against an enabled provider and fail (observed: 1 failed journey on the first full run) | `DRIFT` (doc vs behavior) | README now states exporting both, and the `none`-provider invocation for the fail-closed proof |
+
+### Key invariants enforced
+
+- A missing response is an **absence**: `no_response` is derived, never classified, never opens a
+  review, and its wording says nothing is inferred - not a normal result, not an abnormal result.
+- A clinic rule means **workflow attention for a person**, evaluated literally; no score, severity
+  or diagnosis exists anywhere in the payload, and only the assigned verified reviewer can close it.
+- Answers, thread history and messages are **append-only**; a duplicate submission is a 409.
+- Clinical vs operational answer authority is enforced per thread kind against the live assignment -
+  eligibility alone is never enough; internal notes never appear on a patient surface.
+- Dashboard scope is **derived from the server**; admin status is not a way in, and counts use the
+  same scope as lists.
+- Reminder identity includes the **event version** under a unique index; the recheck runs
+  immediately before delivery and a refusal is a visible skipped attempt; retry is bounded; delivery
+  is never acknowledgement; an undisclosed external channel cannot be selected.
+- Every external-communicating provider stays refused until the full disclosure is recorded.
+
+### Evidence (re-run on this working tree, after the fixes above)
+
+| Check | Command | Result |
+|---|---|---|
+| Server suite | `npm test -w server` | **315 pass / 0 fail**, exit 0 (~544 s, replica-set `velora_test`) |
+| Client suite | `npm test -w client` | **56 pass / 0 fail** (10 files, incl. `queues.test.jsx` and `care.test.jsx`) |
+| Client lint | `npm run lint -w client` | clean, exit 0 |
+| Client build | `npm run build -w client` | succeeds (342.92 kB js, 13.47 kB css) |
+| Browser journeys | `EXTRACTION_PROVIDER=fake PORT=4100 npx playwright test` | **59 passed / 2 skipped / 0 failed**, exit 0 (skips: the opt-in quarantine journey and the provider-disabled journey, which is disabled by design in this mode) |
+| Fail-closed proof | API and Playwright restarted with `EXTRACTION_PROVIDER=none`, `-g "with no provider"` | **1 passed** - job reports `PROVIDER_DISABLED`, manual drafting unaffected |
+| One-viewport (Part 8) | inside the runs above | queues, patient care panel and caregiver care panel measured green at all six sizes |
+| Production audit | `npm audit --omit=dev` | **0 vulnerabilities** |
+| Secret scan (tree) | `git grep` for keys/tokens/credentialed URIs | clean; only the localhost placeholder in `.env.example`; `.env` untracked |
+| Secret scan (history) | `git log -p --all` for key patterns and non-local `mongodb://` URIs | **0 matches** |
+| Dependencies | `git diff` on `package.json` files across Part 8 | **no** new dependency, no new env var beyond `REMINDER_PROVIDER`/`REMINDER_MAX_ATTEMPTS` with safe defaults |
+
+Part 8 test inventory: 56 integration tests (`checkInTemplates` 9, `checkIns` 11, `clarifications`
+10, `clinicSettings` 7, `dashboard` 6, `reminders` 8, `followUps` 5) and 38 unit tests across
+`checkInPolicy` (19), `clarificationPolicy` (9), `notificationProvider` (6) and `reminderPolicy` (4);
+315 server tests in total (220 at Part 7 close). Commits: 18 code commits for Part 8 (`ff60787`..
+`fc3aa39`) plus this docs commit; 58 commits project-wide against the 50+ target, without padding.
+
+### Security-25 matrix (Part 8)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets hidden | VERIFIED | no new secret; provider needs none; `no-store` on queue/thread reads |
+| 2 | Fail-closed env | VERIFIED | `REMINDER_PROVIDER` unknown names throw at use; budgets env-bounded (1..5) |
+| 3 | Private routes protected | VERIFIED | every route behind `requireAuth` + clinic context/ownership/grant; admin refused on queues |
+| 4 | Argon2id, MFA, sessions, CSRF preserved | VERIFIED | full suite and journeys green; no auth code changed |
+| 5 | Clinic + assignment + grant + message-kind + state access | VERIFIED | queue scope from active assignments, thread kind vs answer authority, grant scopes re-derived per request |
+| 6 | Validate templates/responses/messages/queries | VERIFIED | strict zod (`.strict()`), unknown fields and markup refused, bounded lengths |
+| 7 | No unsafe HTML | VERIFIED | messages rendered as text nodes only; `<script>` bodies rejected at write time |
+| 8 | Limits for check-ins/messages/reminders/dashboard | VERIFIED | durable Mongo buckets shared across staff/patient/caregiver surfaces (600/120/60/30/h by class); route-level 429 test |
+| 9 | Safe shared error envelope | VERIFIED | single `{error:{code,message}}`; scoped 404s; no provider diagnostics leak |
+| 10 | Exact CORS | VERIFIED | unchanged |
+| 11 | Headers/CSP/no-store | VERIFIED | helmet stack + `no-store, private` on queue and thread responses |
+| 12 | Debug off | VERIFIED | no stack/provider detail in any response |
+| 13 | Dependency/vendor review | VERIFIED | zero new dependencies; production audit 0 |
+| 14 | No unused packages | VERIFIED | dependency set unchanged |
+| 15 | Private file audit | VERIFIED | nothing new tracked; `.env` still ignored |
+| 16 | `MONGODB_URI` private | VERIFIED | no credentialed URI in tree or history |
+| 17 | Argon2id/bcrypt only | VERIFIED | unchanged |
+| 18 | Git history/tree secret scan | VERIFIED | both clean after all Part 8 commits |
+| 19 | End-of-part security audit | VERIFIED | this matrix + `VELORA_CARE_COORDINATION.md` |
+| 20 | Test/diff/meaningful commit | VERIFIED | six commits this session, each after its checks; diff inspected |
+| 21 | Continuous security | VERIFIED | unique dedupe index, pre-delivery recheck, append-only models, revision guards unchanged |
+| 22 | External APIs disclosed before use | VERIFIED | none used; registry refuses undisclosed channels with the disclosure field list |
+| 23 | Happy/denied/failure/retry paths | VERIFIED | 56 Part 8 integration + 38 unit + 6 client tests: dedupe, retry exhaustion, revocation, stale plan, closed episode, cross-clinic, admin, scope denials |
+| 24 | README/docs synchronised | VERIFIED | README, master, architecture, system design, structure, new coordination doc, this log |
+| 25 | One-viewport screens, six sizes | VERIFIED | queues, patient care panel and caregiver care panel measured at all six sizes in the browser gate |
+
+### Duck verdict: PASS (Part 8, local scope)
+
+All 25 controls are VERIFIED for the Part 8 scope with both suites, the full browser gate, the
+fail-closed provider proof, the production audit and both secret scans green - after the five drift
+items above were found by actually running the gate and fixed. Evidence is local (development) with
+synthetic data only: no deployment, no external message, no clinical validation and no regulatory
+claim. Part 9 was not started.
+
+### Duck against VEL-014 .. VEL-018
+
+| ID | Requirement | Verdict | Evidence / caveat |
+|---:|---|---|---|
+| VEL-014 | Notifications and delivery records | **VERIFIED (local scope)** - upgraded from `PLANNED` | in-app provider only; dedupe by recipient/event/version/channel under a unique index; the four-input recheck is stored on every attempt; bounded retry with visible failure; delivery is never acknowledgement; no external channel exists without a disclosure |
+| VEL-015 | Clinic-defined recovery check-ins | **VERIFIED (local scope)** | versioned templates activated only by the assigned verified reviewer; idempotent slots; append-only answers; late stays an answer; `no_response` never classified; rules are workflow attention, never a diagnosis |
+| VEL-016 | Clarification queue and history | **VERIFIED (local scope)** | explicit transitions with append-only actor-time history; clinical answers need the assigned verified reviewer; coordinators answer operational only; internal notes never patient-visible; response hours never imply 24/7 cover |
+| VEL-017 | Assigned team dashboard | **VERIFIED (local scope)** | five queues and counts derived from active assignments; admin/patient/caregiver refused; explicit claim/release with history |
+| VEL-018 | Basic prescribed follow-up | **VERIFIED (local scope)** | date/time/location/contact/note only, refused otherwise; caregiver reads need `view_tasks` on an active grant; reminder fires on the clinic's chosen day |
+
+### Remaining limits
+
+- **In-app delivery only.** No email/SMS/WhatsApp/push provider is disclosed or selected, and there
+  is **no scheduler daemon**: queueing and delivery are explicit bounded API calls (batch ≤ 100), so
+  unattended delivery needs a disclosed job runner first.
+- **No dedicated Part 8 browser journey.** The flows are exercised through the API integration
+  suite and client unit tests; the browser layer covers the three new screens at six viewport sizes.
+  A seeded check-in/clarification journey fixture is the obvious next hardening step.
+- **Review rules are literal conditions** (`at_least`, etc.): no scoring, trends or diagnostic
+  interpretation, and none is claimed.
+- **Follow-ups are single events** (one prescribed date/time); there is no recurring series, no
+  test-result review and no referral workflow.
+- **Threads are bounded plain text**: no attachments, no structured clinical payload inside a
+  message.
+- **Caregiver `view_episodes`/`view_documents`/`view_plan` remain inert**, so a caregiver still
+  cannot read the plan or episode timeline.
+- Evidence is local and synthetic: no production deployment, restore test or clinical validation
+  (Parts 9-10).
