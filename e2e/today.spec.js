@@ -23,6 +23,52 @@ async function contextFor(browser, file, size = { width: 1440, height: 900 }) {
   return browser.newContext({ storageState: session(file), viewport: size });
 }
 
+// The seeded journey's schedule runs in one fixed zone, and "a past day" is
+// computed the same way the client does (a calendar day in that zone).
+const ZONE = 'Europe/London';
+
+// The day the patient moves back to, as the day input value and as the friendly
+// line the server payload renders (`describeDay`).
+function previousDay() {
+  const base = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const iso = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(base);
+  const label = new Intl.DateTimeFormat('en-GB', {
+    timeZone: ZONE,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(`${iso}T12:00:00.000Z`));
+  return { iso, label };
+}
+
+// Moving back a day is a round trip, and both days carry a 09:00 Amoxicillin
+// row. Clicking as soon as the button responds can therefore land on TODAY's
+// row: every assertion below is satisfied by the previous render, so the click
+// was dispatched before the past day's payload was on screen. Wait for that
+// day's response, for the input to agree, and for the day line - which is
+// rendered FROM the payload - so the recording always targets the past day.
+async function goToPreviousDay(page) {
+  const previous = previousDay();
+  await Promise.all([
+    page.waitForResponse(
+      (res) =>
+        res.url().includes('/api/today?') &&
+        res.url().includes(`date=${previous.iso}`) &&
+        res.ok()
+    ),
+    page.getByRole('button', { name: /Previous/ }).first().click(),
+  ]);
+  await expect(page.getByRole('textbox', { name: 'Day' })).toHaveValue(previous.iso);
+  await expect(page.getByText(previous.label, { exact: true })).toBeVisible();
+  return previous;
+}
+
 async function assertOneViewport(page, label) {
   const metrics = await page.evaluate(() => {
     const doc = document.documentElement;
@@ -65,7 +111,7 @@ test('a patient records a past entry and sees self-report wording, never a misse
   ).toBeVisible();
 
   // Record against a PAST day, where every slot is already due.
-  await page.getByRole('button', { name: /Previous/ }).first().click();
+  await goToPreviousDay(page);
   await expect(page.getByText(/Amoxicillin 500 mg orally three times daily for 5 days/).first()).toBeVisible();
 
   const row = page.locator('.today__row', { hasText: 'Amoxicillin' }).first();
@@ -103,7 +149,7 @@ test('a caregiver with log_tasks records an entry, and attribution shows the sel
   await expect(page.getByLabel(/Shared record/)).toBeVisible();
   await expect(page.getByText(/Amoxicillin 500 mg orally three times daily for 5 days/).first()).toBeVisible();
 
-  await page.getByRole('button', { name: /Previous/ }).first().click();
+  await goToPreviousDay(page);
   const row = page.locator('.today__row', { hasText: 'Amoxicillin' }).first();
   await row.getByRole('button', { name: 'Skipped', exact: true }).click();
   await expect(page.getByText(/Recorded as “Skipped”/)).toBeVisible();
