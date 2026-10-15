@@ -14,7 +14,6 @@
 const AuditEvent = require('../models/AuditEvent');
 const { errors } = require('./errors');
 const { getEnv } = require('../config/env');
-const { ROLES } = require('../config/constants');
 
 // Key names that must never reach the trail, whatever the caller passes.
 const FORBIDDEN_KEYS = [
@@ -46,10 +45,6 @@ const FORBIDDEN_KEYS = [
   'messagebody',
   'answertext',
 ];
-
-// Categories only an administrator may read, because they describe staff
-// administration rather than a patient record.
-const ADMIN_ONLY_CATEGORIES = Object.freeze(['admin', 'membership', 'retention']);
 
 const FORBIDDEN = new Set(FORBIDDEN_KEYS);
 const MAX_STRING = 200;
@@ -171,16 +166,12 @@ function buildWindow({ from, to }) {
   return { from: windowFrom, to: windowTo };
 }
 
-// The audit trail is clinic-scoped and, crucially, RECORD-scoped for the caller.
-// An administrator may read the clinic's administrative trail; a clinical
-// reviewer only sees events about records they are assigned to; a patient /
-// caregiver never reaches this surface at all (the route refuses them).
-//
-// `adminOnlyCategories` are administrative and are shown only to a caller who
-// holds the administrative permission.
-async function search({ clinicId, user, roleKey, rolePermissions, filters = {}, page = 1, limit = 25 }) {
-  const isAdmin = roleKey === ROLES.ADMIN;
-  if (!isAdmin && roleKey !== ROLES.CLINICAL_REVIEWER && roleKey !== ROLES.CARE_COORDINATOR) {
+// The audit trail is clinic-scoped and permission-gated. Reading it requires the
+// dedicated `audit.read` permission, which only administration holds: a patient,
+// caregiver or clinical caller never reaches this surface at all. The service
+// re-checks the permission so the route is not the only guard.
+async function search({ clinicId, rolePermissions, filters = {}, page = 1, limit = 25 }) {
+  if (!rolePermissions || !rolePermissions.has('audit.read')) {
     throw errors.forbidden('The audit trail is not available to this role.');
   }
 
@@ -193,14 +184,6 @@ async function search({ clinicId, user, roleKey, rolePermissions, filters = {}, 
   if (filters.actorUser) query.actorUser = filters.actorUser;
   if (filters.outcome) query.outcome = filters.outcome;
 
-  // A non-administrative caller never sees the administrative trail, so scoped
-  // searches cannot become a back door into staff administration.
-  if (!isAdmin) {
-    if (filters.category && ADMIN_ONLY_CATEGORIES.includes(filters.category)) {
-      throw errors.forbidden('That audit category requires administrative access.');
-    }
-    if (!filters.category) query.category = { $nin: ADMIN_ONLY_CATEGORIES };
-  }
 
   const skip = (page - 1) * limit;
   const [rows, total] = await Promise.all([
