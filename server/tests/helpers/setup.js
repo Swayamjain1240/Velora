@@ -26,6 +26,13 @@ process.env.DOCUMENT_STORAGE_ROOT =
   path.join(os.tmpdir(), 'velora-documents-test');
 process.env.DOCUMENT_ENCRYPTION_KEY =
   process.env.DOCUMENT_ENCRYPTION_KEY || Buffer.alloc(32, 9).toString('base64');
+// Part 9 privacy exports: a dedicated key, distinct from the document and MFA
+// keys, so an integration run can exercise a real encrypted export artifact.
+process.env.PRIVACY_EXPORT_ENCRYPTION_KEY =
+  process.env.PRIVACY_EXPORT_ENCRYPTION_KEY || Buffer.alloc(32, 11).toString('base64');
+process.env.EXPORT_ARTIFACT_TTL_HOURS = process.env.EXPORT_ARTIFACT_TTL_HOURS || '72';
+process.env.EXPORT_DOWNLOAD_TTL_MINUTES = process.env.EXPORT_DOWNLOAD_TTL_MINUTES || '15';
+process.env.EXPORT_MAX_BYTES = process.env.EXPORT_MAX_BYTES || String(5 * 1024 * 1024);
 
 const mongoose = require('mongoose');
 const { loadEnv } = require('../../src/config/env');
@@ -76,6 +83,13 @@ const Notification = require('../../src/models/Notification');
 const DeliveryAttempt = require('../../src/models/DeliveryAttempt');
 const QueueAssignment = require('../../src/models/QueueAssignment');
 const FollowUpPlan = require('../../src/models/FollowUpPlan');
+const EpisodeClosure = require('../../src/models/EpisodeClosure');
+const DataRequest = require('../../src/models/DataRequest');
+const DataExport = require('../../src/models/DataExport');
+const ExportDownloadGrant = require('../../src/models/ExportDownloadGrant');
+const RetentionPolicy = require('../../src/models/RetentionPolicy');
+const RetentionRun = require('../../src/models/RetentionRun');
+const RetentionHold = require('../../src/models/RetentionHold');
 
 let counter = 0;
 function uniq(prefix) {
@@ -124,10 +138,15 @@ async function resetDb() {
     CheckInTemplateVersion, CheckInResponse,
     ClarificationThread, ClarificationMessage,
     Notification, DeliveryAttempt, QueueAssignment, FollowUpPlan,
+    EpisodeClosure, DataRequest, DataExport, ExportDownloadGrant,
+    RetentionPolicy, RetentionRun, RetentionHold,
   ];
   // Remove every stored object so a test can never observe a prior test's bytes.
   const objectsDir = path.join(process.env.DOCUMENT_STORAGE_ROOT, 'objects');
   fs.rmSync(objectsDir, { recursive: true, force: true });
+  // Part 9 generated exports live in their own directory; clear it as well so a
+  // test can never observe a prior test's artifact.
+  fs.rmSync(path.join(process.env.DOCUMENT_STORAGE_ROOT, 'exports'), { recursive: true, force: true });
   // Delete through the raw driver so model-level invariants (for example the
   // append-only consent guard) do not block the harness's own reset.
   for (const model of collections) {
@@ -326,5 +345,7 @@ module.exports = {
     CheckInTemplateVersion, CheckInResponse,
     ClarificationThread, ClarificationMessage,
     Notification, DeliveryAttempt, QueueAssignment, FollowUpPlan,
+    EpisodeClosure, DataRequest, DataExport, ExportDownloadGrant,
+    RetentionPolicy, RetentionRun, RetentionHold,
   },
 };

@@ -118,6 +118,32 @@ const envSchema = z
     REMINDER_API_KEY: z.string().min(1).max(4096).optional(),
     // Bounded retries for one delivery attempt chain (control #8).
     REMINDER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(3),
+    // Part 9: generated privacy-request EXPORTS are encrypted at rest with a key
+    // that is SEPARATE from the document and MFA keys (control #1, #15). It is
+    // optional so the shipped product still starts without it, but the export
+    // service FAILS CLOSED when it is absent rather than storing plaintext - a
+    // deployment that wants exports must configure it (control #2).
+    PRIVACY_EXPORT_ENCRYPTION_KEY: z
+      .string()
+      .refine((value) => {
+        try {
+          return Buffer.from(value, 'base64').length === 32;
+        } catch {
+          return false;
+        }
+      }, 'PRIVACY_EXPORT_ENCRYPTION_KEY must be base64 encoding exactly 32 bytes')
+      .optional(),
+    // How long a generated export artifact may be downloaded (control #8/#11).
+    EXPORT_ARTIFACT_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(72),
+    // A freshly authorized download link is short-lived on purpose.
+    EXPORT_DOWNLOAD_TTL_MINUTES: z.coerce.number().int().min(1).max(120).default(15),
+    // Hard ceiling on one generated export, so a request cannot produce an
+    // unbounded artifact (control #8).
+    EXPORT_MAX_BYTES: z.coerce.number().int().min(1024).max(50 * 1024 * 1024).default(5 * 1024 * 1024),
+    // A retention apply is bounded so one run cannot touch an unbounded set.
+    RETENTION_APPLY_MAX_ITEMS: z.coerce.number().int().min(1).max(100000).default(5000),
+    // Audit search window bound, so a query cannot scan the whole history at once.
+    AUDIT_SEARCH_MAX_RANGE_DAYS: z.coerce.number().int().min(1).max(3650).default(366),
   })
   .superRefine((value, ctx) => {
     if (

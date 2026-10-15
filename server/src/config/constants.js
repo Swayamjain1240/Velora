@@ -62,6 +62,25 @@ const PERMISSIONS = Object.freeze({
   DASHBOARD_READ: 'dashboard.read',
   // Part 8: running the bounded in-app reminder delivery batch for an episode.
   REMINDER_RUN: 'reminder.run',
+  // Part 9 - closure. Closing or reopening an episode is operational work done by
+  // ASSIGNED staff; it never means medically recovered, and the service
+  // re-derives the caller's live care-team assignment on every close.
+  CLOSURE_MANAGE: 'closure.manage',
+  // Part 9 - privacy requests. Any in-scope staff member may RAISE a request;
+  // deciding, executing and confirming identity is a separate permission held by
+  // administration so one person cannot both ask and approve. A patient may
+  // raise a request about their OWN data (ownership is re-derived, never taken
+  // from the request body).
+  PRIVACY_REQUEST_CREATE: 'privacy.request.create',
+  PRIVACY_REQUEST_MANAGE: 'privacy.request.manage',
+  // Part 9 - retention. Reading the configuration is administrative; APPLYING a
+  // retention run is a separate, explicitly operator-attributed permission, and
+  // clinical records stay report-only regardless of it.
+  RETENTION_MANAGE: 'retention.manage',
+  RETENTION_APPLY: 'retention.apply',
+  // Part 9 - operational workflow metrics. Counts and durations only; nothing
+  // here may compute clinical success, adherence or readmission.
+  METRICS_READ: 'metrics.read',
 });
 
 const ROLES = Object.freeze({
@@ -128,6 +147,15 @@ const SYSTEM_ROLES = Object.freeze([
       PERMISSIONS.STAFF_INVITE,
       PERMISSIONS.STAFF_MANAGE,
       PERMISSIONS.AUDIT_READ,
+      // Part 9: administration owns privacy-request decisions/execution,
+      // retention configuration and the retention apply step, plus the audit
+      // trail and operational metrics. Holding these still grants NO clinical
+      // read: every privacy request and audit search is re-scoped to records the
+      // caller may touch, and closure stays with assigned clinical staff.
+      PERMISSIONS.PRIVACY_REQUEST_MANAGE,
+      PERMISSIONS.RETENTION_MANAGE,
+      PERMISSIONS.RETENTION_APPLY,
+      PERMISSIONS.METRICS_READ,
     ],
   },
   {
@@ -158,6 +186,12 @@ const SYSTEM_ROLES = Object.freeze([
       PERMISSIONS.QUESTION_ANSWER_OPERATIONAL,
       PERMISSIONS.DASHBOARD_READ,
       PERMISSIONS.REMINDER_RUN,
+      // Part 9: an assigned coordinator may run the closure preflight, close or
+      // reopen an episode and raise a privacy request. Deciding and executing a
+      // privacy request stays with administration.
+      PERMISSIONS.CLOSURE_MANAGE,
+      PERMISSIONS.PRIVACY_REQUEST_CREATE,
+      PERMISSIONS.METRICS_READ,
     ],
     // The coordinator can draft a manual plan but can never review, clarify or
     // approve one: that requires the separately verified reviewer role.
@@ -182,6 +216,12 @@ const SYSTEM_ROLES = Object.freeze([
       PERMISSIONS.QUESTION_ASK,
       PERMISSIONS.QUESTION_ANSWER_CLINICAL,
       PERMISSIONS.DASHBOARD_READ,
+      // Part 9: the assigned, verified reviewer completes the clinic-policy
+      // checks the closure preflight requires, so closure sits with them as well
+      // as the coordinator.
+      PERMISSIONS.CLOSURE_MANAGE,
+      PERMISSIONS.PRIVACY_REQUEST_CREATE,
+      PERMISSIONS.METRICS_READ,
     ],
   },
   {
@@ -189,7 +229,14 @@ const SYSTEM_ROLES = Object.freeze([
     name: 'Patient',
     // Own profile and own caregiver grants only - enforced by ownership, not by
     // a clinic-wide permission.
-    permissions: [PERMISSIONS.PATIENT_SELF],
+    permissions: [
+      PERMISSIONS.PATIENT_SELF,
+      // Part 9: a patient may raise a privacy request about their OWN record
+      // (export, correction or deletion request). The service derives the
+      // subject from the caller's own profile, so the flag alone grants nothing
+      // beyond that record.
+      PERMISSIONS.PRIVACY_REQUEST_CREATE,
+    ],
   },
   {
     key: ROLES.CAREGIVER,
@@ -303,6 +350,181 @@ const PASSWORD_RESET_TTL_MINUTES = 30;
 const SESSION_COOKIE = 'velora_session';
 const CSRF_COOKIE = 'velora_csrf';
 const CSRF_HEADER = 'x-csrf-token';
+// ---- Part 9: closure, audit, privacy requests, retention and metrics ---------
+
+// An episode moves draft/active -> closed, and may be REOPENED explicitly. None
+// of these states describes a person's health: `closed` is an operational
+// archive state, never "recovered".
+const CLOSURE_STATES = Object.freeze({
+  OPEN: 'open',
+  CLOSED: 'closed',
+  REOPENED: 'reopened',
+});
+
+// The clinic-policy checks a closure must record explicitly. The catalog is
+// closed so a client cannot invent a check name, and every check carries the
+// reviewer's own confirmation plus an optional note.
+const CLOSURE_POLICY_CHECKS = Object.freeze([
+  'plan_reviewed',
+  'medications_reconciled',
+  'follow_up_arranged',
+  'patient_informed',
+  'documents_archived',
+]);
+
+// What the preflight enumerates before a close is allowed. Each entry names the
+// queue it counts and whether it BLOCKS closure. A blocking item must be cleared
+// or explicitly overridden with a recorded reason.
+const CLOSURE_PREFLIGHT_ITEMS = Object.freeze([
+  { key: 'unresolved_approvals', label: 'Plan versions waiting for approval', blocking: true },
+  { key: 'open_clarifications', label: 'Clarifications still open', blocking: true },
+  { key: 'failed_deliveries', label: 'Reminders that could not be delivered', blocking: false },
+  { key: 'open_tasks', label: 'Recovery tasks still open', blocking: true },
+  { key: 'pending_checkins', label: 'Check-ins still awaiting an answer', blocking: false },
+  { key: 'missing_owners', label: 'Items with no accountable owner', blocking: true },
+]);
+
+// Privacy-request types (VEL-020). `deletion_request` is deliberately a REQUEST
+// rather than a destructive endpoint: it is policy-evaluated and may be denied or
+// limited while retention applies.
+const DATA_REQUEST_TYPES = Object.freeze(['export', 'correction', 'deletion_request']);
+
+// The privacy-request state machine. Identity verification precedes assignment,
+// a decision precedes execution, and execution has its own terminal outcomes so a
+// partial result is never reported as a full one.
+const DATA_REQUEST_STATES = Object.freeze({
+  RECEIVED: 'received',
+  IDENTITY_PENDING: 'identity_pending',
+  IDENTITY_VERIFIED: 'identity_verified',
+  IN_REVIEW: 'in_review',
+  APPROVED: 'approved',
+  DENIED: 'denied',
+  EXECUTING: 'executing',
+  COMPLETED: 'completed',
+  PARTIALLY_COMPLETED: 'partially_completed',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled',
+});
+
+// How identity was verified. `none` is the initial state and is never treated as
+// verified.
+const IDENTITY_METHODS = Object.freeze(['in_person', 'video_call', 'signed_form', 'existing_session']);
+
+// Categories the retention engine understands. `report_only` categories are
+// NEVER deleted by an automated run: they are enumerated so an operator can see
+// what would be eligible, and real destruction requires a separate, explicit
+// authorization plus a tested backup/restore process that Part 9 does not claim.
+const RETENTION_CATEGORIES = Object.freeze([
+  {
+    key: 'sessions_tokens',
+    label: 'Sessions and tokens',
+    description: 'Expired or revoked sessions past their retention window.',
+    defaultRetainDays: 30,
+    enabled: true,
+    reportOnly: false,
+  },
+  {
+    key: 'generated_exports',
+    label: 'Generated exports',
+    description: 'Encrypted privacy-request export artifacts past their retention window.',
+    defaultRetainDays: 7,
+    enabled: true,
+    reportOnly: false,
+  },
+  {
+    key: 'rate_limit_buckets',
+    label: 'Operational rate-limit counters',
+    description: 'Fixed-window counters that only exist to enforce request budgets.',
+    defaultRetainDays: 2,
+    enabled: true,
+    reportOnly: false,
+  },
+  {
+    key: 'operational_logs',
+    label: 'Operational logs',
+    description: 'Delivery attempts and other operational traces.',
+    defaultRetainDays: 90,
+    enabled: true,
+    reportOnly: false,
+  },
+  {
+    key: 'documents',
+    label: 'Discharge documents',
+    description: 'Clinical source documents. Report-only: automated destruction is not implemented.',
+    defaultRetainDays: 2555,
+    enabled: true,
+    reportOnly: true,
+  },
+  {
+    key: 'historical_records',
+    label: 'Eligible historical records',
+    description:
+      'Closed episodes, superseded plan versions and recorded activity. Report-only: automated destruction is not implemented.',
+    defaultRetainDays: 2555,
+    enabled: true,
+    reportOnly: true,
+  },
+]);
+
+// A hold freezes a category (or one subject within it) against a retention run
+// until it is explicitly released.
+const RETENTION_HOLD_SCOPES = Object.freeze(['category', 'subject']);
+
+// What the audit trail must cover (VEL-020). Search filters use this catalog, so
+// a client cannot ask for a category the code never writes.
+const AUDIT_CATEGORIES = Object.freeze([
+  'auth',
+  'read',
+  'download',
+  'membership',
+  'caregiver_grant',
+  'approval',
+  'ai_application',
+  'log_write',
+  'checkin_response',
+  'clarification_response',
+  'privacy_request',
+  'retention',
+  'closure',
+  'export',
+  'admin',
+]);
+
+// Operational metric catalog. Every definition states what it measures and what
+// it deliberately does NOT measure, so a reader cannot mistake a duration for a
+// clinical outcome.
+const METRIC_DEFINITIONS = Object.freeze({
+  approval_time: {
+    label: 'Plan approval time',
+    unit: 'hours',
+    definition:
+      'Elapsed time from a plan version entering review to a decision (approval or clarification).',
+    notAMeasureOf: 'Correctness of the plan or the patient’s recovery.',
+  },
+  clarification_response_time: {
+    label: 'Clarification response time',
+    unit: 'hours',
+    definition: 'Elapsed time from a thread being opened to its first answer.',
+    notAMeasureOf: 'Quality or clinical accuracy of the answer.',
+  },
+  queue_age: {
+    label: 'Queue age',
+    unit: 'hours',
+    definition: 'Age of the oldest still-open item in each assigned queue.',
+    notAMeasureOf: 'Anything about a person’s health or adherence.',
+  },
+  coordination_workload: {
+    label: 'Coordination workload',
+    unit: 'items',
+    definition: 'Items claimed, released and currently held per assigned team member.',
+    notAMeasureOf: 'Care quality or staff performance.',
+  },
+});
+
+// Public note attached to every metric response.
+const METRICS_NO_CLINICAL_INFERENCE =
+  'These are operational workflow durations and counts. They are not clinical outcomes and must not be read as recovery, adherence or readmission evidence.';
+
 const MFA_RECOVERY_CODE_COUNT = 10;
 const SAFE_AUTH_ERROR =
   'Invalid email or password. Check your credentials and try again.';
@@ -332,6 +554,17 @@ module.exports = {
   REMINDER_BATCH_LIMIT,
   REMINDER_FAILURE_NOTE,
   DELIVERY_NOT_ACKNOWLEDGED_NOTE,
+  CLOSURE_STATES,
+  CLOSURE_POLICY_CHECKS,
+  CLOSURE_PREFLIGHT_ITEMS,
+  DATA_REQUEST_TYPES,
+  DATA_REQUEST_STATES,
+  IDENTITY_METHODS,
+  RETENTION_CATEGORIES,
+  RETENTION_HOLD_SCOPES,
+  AUDIT_CATEGORIES,
+  METRIC_DEFINITIONS,
+  METRICS_NO_CLINICAL_INFERENCE,
   CAREGIVER_INVITATION_TTL_DAYS,
   PATIENT_ACTIVATION_TTL_DAYS,
   INVITATION_TTL_DAYS,

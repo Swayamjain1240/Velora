@@ -46,6 +46,14 @@ const recoveryEpisodeSchema = new mongoose.Schema(
       enum: ['none', 'draft', 'in_review', 'needs_clarification', 'approved'],
       default: 'none',
     },
+    // Part 9: the OPERATIONAL closure state, kept alongside `status` so an
+    // existing reader that only knows `status` keeps working. `closed` archives
+    // the records as read-only; it is never a clinical outcome.
+    closureState: { type: String, enum: ['open', 'closed'], default: 'open' },
+    closedAt: { type: Date, default: null },
+    closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    reopenedAt: { type: Date, default: null },
+    reopenedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', immutable: true },
   },
   { timestamps: true }

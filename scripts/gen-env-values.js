@@ -7,7 +7,11 @@ const crypto = require('node:crypto');
 
 const pepper = crypto.randomBytes(32).toString('base64url');
 const mfaKey = crypto.randomBytes(32).toString('base64');
+const documentKey = crypto.randomBytes(32).toString('base64');
+const exportKey = crypto.randomBytes(32).toString('base64');
 
 console.log('SESSION_PEPPER=' + pepper);
 console.log('MFA_ENCRYPTION_KEY=' + mfaKey);
+console.log('DOCUMENT_ENCRYPTION_KEY=' + documentKey);
+console.log('PRIVACY_EXPORT_ENCRYPTION_KEY=' + exportKey);
 console.log('\nPaste these into your untracked .env file. Never commit them.');
