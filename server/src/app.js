@@ -26,6 +26,11 @@ const clarificationRoutes = require('./routes/clarifications');
 const reminderRoutes = require('./routes/reminders');
 const dashboardRoutes = require('./routes/dashboard');
 const followUpRoutes = require('./routes/followUps');
+const episodeClosureRoutes = require('./routes/episodeClosures');
+const auditRoutes = require('./routes/audit');
+const dataRequestRoutes = require('./routes/dataRequests');
+const retentionRoutes = require('./routes/retention');
+const metricsRoutes = require('./routes/metrics');
 
 function buildApp() {
   const app = express();
@@ -114,6 +119,16 @@ function buildApp() {
   // optional in-app reminder. Test results, report matching and referrals are not
   // modelled, and the strict schema leaves them nowhere to arrive.
   app.use('/api/episodes', followUpRoutes);
+  // Part 9: episode closure/reopen. Closure is an OPERATIONAL archive state and
+  // the close runs one transaction that re-derives the assignment, rechecks the
+  // revision, flips the state and stops only FUTURE work.
+  app.use('/api/episodes', episodeClosureRoutes);
+  // Part 9: the scoped, paginated audit trail, privacy requests, retention and
+  // operational metrics. Each surface re-derives the caller's clinic/role scope.
+  app.use('/api/audit', auditRoutes);
+  app.use('/api/privacy-requests', dataRequestRoutes);
+  app.use('/api/retention', retentionRoutes);
+  app.use('/api/metrics', metricsRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
