@@ -37,6 +37,9 @@ Code 2 (diagnostic tests/results) and Code 3 (insurance) are **out of active sco
 4. Admin status alone never grants clinical-record browsing or approval.
 5. Clinical reviewer eligibility is separately verified and can never be self-granted.
 6. Synthetic identities and data only, until an explicit owner authorization for a real pilot.
+7. Operation is never outcome. Closing an episode ends coordination work (it is not recovery),
+   retention never destroys a clinical record automatically, a deletion request is decided by policy
+   rather than executed on demand, and a workflow duration is never a clinical quality measure.
 
 ## 3. Requirements (VEL-001 .. VEL-021)
 
@@ -93,9 +96,9 @@ The IDs, names and targets below are the **authority numbering** from the owner'
 | VEL-016 | Clarification queue and history | M4 | 8 | VERIFIED (local scope; open/assigned/answered/closed/explicitly-reopened with append-only actor-time history, clinical answers need the assigned verified reviewer, coordinators operational only, internal notes never patient-visible, response hours never imply 24/7 cover) |
 | VEL-017 | Assigned team dashboard | M4 | 8 | VERIFIED (local scope; five queues and counts derived from active care-team assignments only, administrator refused outright, explicit claim/release with history) |
 | VEL-018 | Basic prescribed follow-up | M4 | 8 | VERIFIED (local scope; prescribed date/location/contact/instructions only - results, reports and referrals refused at validation; caregiver reads require `view_tasks` on an active grant) |
-| VEL-019 | Operational closure and history | Code 1 | 9 | PLANNED - Part 7 already blocks new activity on a closed episode and never rewrites history |
-| VEL-020 | Privacy, audit, export/deletion and retention | foundation..M5 | 9 | PARTIAL - append-only audit history exists (Parts 1-7); export/deletion/retention are Part 9 |
-| VEL-021 | Workflow metrics without clinical inference | Code 1 | 9 | PLANNED (Part 7 exposes counts of recorded states only, and never an adherence judgement) |
+| VEL-019 | Operational closure and history | Code 1 | 9 | VERIFIED (local scope; closure is an operational archive state with recovery language refused at validation, a blocking/advisory preflight, one transactional close over a revision guard that stops only future work, append-only `EpisodeClosure` history, and an explicit justified reopen that revives nothing) |
+| VEL-020 | Privacy, audit, export/deletion and retention | foundation..M5 | 9 | VERIFIED (local scope; append-only categorised + redacted audit with admin-only scoped paginated search, `export`/`correction`/`deletion_request` with identity verification, ownership, deadlines and decisions, encrypted time-limited revocable exports behind a fresh single-use authorization, configurable retention categories with dry-run/holds/idempotent apply and report-only clinical categories; **no destructive deletion and no external provider**) |
+| VEL-021 | Workflow metrics without clinical inference | Code 1 | 9 | VERIFIED (local scope; approval time, clarification response time, queue age and coordination workload, each carrying `notAMeasureOf`, computed from workflow timestamps the service holds - recovery, adherence and readmission are not inputs and cannot be derived) |
 
 ## 3a. Foundation items carried as Security-25 controls, not VEL IDs
 

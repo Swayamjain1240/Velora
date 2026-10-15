@@ -142,7 +142,7 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
   closed episode is exposed as read-only, and a revoked grant or superseded plan version closes the
   surface on the next request (the client keeps no clinical content cached).
 
-## 5. Data model (Parts 1-8)
+## 5. Data model (Parts 1-9)
 
 | Model | Purpose | Notable indexes |
 |---|---|---|
@@ -181,12 +181,25 @@ cookie-authenticated mutation by comparing the `x-csrf-token` header against bot
 | `Notification` | one reminder: recipient, event/version, channel, state, attempts, dedupe key | **unique `dedupeKey`**; `(clinic,recipientUser,state)` |
 | `DeliveryAttempt` | one bounded attempt: number, outcome, stored recheck verdict, safe reason | `(notification,attempt)` |
 | `FollowUpPlan` | prescribed follow-up: date, location, contact, instructions, active/cancelled | `(clinic,episode,scheduledFor)` |
+| `EpisodeClosure` | **append-only** closure/reopen event: action, resulting state, bounded reason, operational closure date, actor, policy checks, preflight snapshot | `(clinic,episode,at)`; `(clinic,action)` |
+| `DataRequest` | privacy request (export/correction/deletion_request): requester, identity state, owner, deadline, decision + reason, execution evidence, retention hold | `(clinic,status,dueAt)`; `(clinic,requesterUser)` |
+| `DataExport` | generated artifact **metadata** (opaque key in a separate store, size, expiry, revocation) | `(request)`; `(clinic,expiresAt)` |
+| `ExportDownloadGrant` | short-lived, single-use download authorization (**peppered hash only**) | `tokenHash`; `(request,expiresAt)` |
+| `RetentionPolicy` | per-clinic, per-category window + report-only/applied mode | unique `(clinic,category)` |
+| `RetentionRun` | one dry run or apply: operator, reason, cutoff, per-category counts, idempotency key | unique `(clinic,clientRequestId)`; `(clinic,createdAt)` |
+| `RetentionHold` | a hold that freezes a category (or one subject inside it) until release | `(clinic,category,releasedAt)` |
 
-The Part 5 contract for the plan collections, the Part 7 contract for these four collections and
-the Part 8 contract for the coordination collections - states, safety wording, authority matrix,
-HTTP endpoints, rate-limit buckets and reconciliation - are [VELORA_CARE_PLAN.md](VELORA_CARE_PLAN.md),
-[VELORA_SCHEDULES.md](VELORA_SCHEDULES.md) and
-[VELORA_CARE_COORDINATION.md](VELORA_CARE_COORDINATION.md).
+`AuditEvent` gains a category, a scope (`subjectType`/`subjectId`) and a bounded redacted detail
+payload in Part 9; `Session`, `RateLimitBucket` and `EpisodeDocument` gain the retention metadata the
+run reads (never rewrites).
+
+The Part 5 contract for the plan collections, the Part 7 contract for these four collections, the
+Part 8 contract for the coordination collections and the Part 9 contract for closure, audit, privacy
+requests, retention and metrics - states, safety wording, authority matrix, HTTP endpoints,
+rate-limit buckets and reconciliation - are [VELORA_CARE_PLAN.md](VELORA_CARE_PLAN.md),
+[VELORA_SCHEDULES.md](VELORA_SCHEDULES.md),
+[VELORA_CARE_COORDINATION.md](VELORA_CARE_COORDINATION.md) and
+[VELORA_PRIVACY_RETENTION.md](VELORA_PRIVACY_RETENTION.md).
 
 Timestamps are UTC. Compound unique indexes enforce clinic-scoped identifiers and active-grant
 invariants. Projections keep `tokenHash`, `csrfSecret`, internal audit payloads and unrelated PII
@@ -267,13 +280,15 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   `features/schedules` (`SchedulePanel`) as a new `Schedule` tab in the episode detail for the staff
   workspace: prepared schedules, a paginated occurrence table showing local **and** UTC values, the
   attributed recorded-entry history and the explicit **Prepare from approved plan** control. The
-  client never renders an entry as a missed dose and never calls a self-report a verification.
-- Part 8 adds `features/queues` (`AssignedQueues`, `ThreadView`, `CheckInForm`) - the staff queue
-  screen with five server-counted tabs, a paginated list inside its own scrolling panel, explicit
-  claim/release/retry actions and a thread/check-in detail pane - and `features/care` (`MyCare`), the
-  patient's own panel (and the caregiver's grant-scoped mirror) with check-ins, questions and
-  follow-ups behind tabs. Counts and lists always come from the server already scoped; a denied read
-  clears the panel and shows a safe sentence.
+  client never renders an entry as a missed dose and never calls a self-report a verification.- Part 8 adds `features/queues` (`AssignedQueues`, `ThreadView`, `CheckInForm`) - the staff queue screen with five server-counted tabs, a paginated list inside its own scrolling panel, explicit claim/release/retry actions and a thread/check-in detail pane - and `features/care` (`MyCare`), the patient's own panel (and the caregiver's grant-scoped mirror) with check-ins, questions and follow-ups behind tabs. Counts and lists always come from the server already scoped; a denied read clears the panel and shows a safe sentence.
+- Part 9 adds `features/closure` (`ClosurePanel`) as a `Closure` tab in the episode detail - a
+  three-step wizard (preflight / checks / confirm) with the history and reopen behind a tab switch -
+  plus four standalone screens: `features/audit` (`AuditPanel`, paginated scoped search),
+  `features/privacy` (`PrivacyPanel`, request list + workflow detail), `features/retention`
+  (`RetentionPanel`, category windows, dry run and the gated apply) and `features/metrics`
+  (`MetricsPanel`, switchable operational panels). The wizard never offers a clinical outcome, a
+  deletion request is presented as an evaluation against retention rather than an instant delete, and
+  an export download is a freshly authorized, short-lived link.
 - A denied refresh or a lost authorization clears the loaded patient/consent/grant state before an
   error is shown, so stale clinical data never remains on screen.
 - All server errors surface through a safe envelope; the client never renders unsanitized HTML.
@@ -371,6 +386,23 @@ default** (`EXTRACTION_PROVIDER=none`) fails closed while manual drafting keeps 
 - **Browser (Part 8):** `viewports.spec.js` measures the staff queues and the patient care panel at
   all six sizes; `detail-viewports.spec.js` walks into the caregiver's grant-scoped care panel and
   measures it at all six sizes.
+- **Integration (Part 9):** an unresolved preflight blocking a close, closure authorization (assigned
+  team only, admin and unassigned staff refused, other clinic `404`), a concurrent close losing on the
+  revision, reminders/occurrences/schedules/tasks stopping while recorded facts and answered
+  check-ins stay untouched, historical immutability, a closed episode read-only for new work and
+  history still readable, explicit justified authorized reopen that revives nothing, audit redaction
+  (no secret, token or clinical text), audit scope and pagination with the admin-only gate, export
+  access/expiry/revocation/foreign-origin denial, the privacy-request state machine with its denials,
+  the retention dry run, apply idempotency, a retention hold, partial-failure recovery, the metric
+  definitions, cross-clinic denial and patient-owner boundaries.
+- **Unit (Part 9):** `closurePolicy.test.js` (recovery language refused, blocking versus advisory
+  preflight, authority), `auditCategories.test.js` (every sensitive action categorised, forbidden keys
+  redacted), `dataRequestPolicy.test.js` (request transitions, correction field allowlist, deletion
+  outcomes).
+- **Browser (Part 9):** `viewports.spec.js` measures the metrics, privacy, audit and retention routes
+  for the enrolled reviewer and admin sessions at all six sizes, and `detail-viewports.spec.js` walks
+  the episode closure tab and its history switch at all six sizes.
 - **Recovery:** `scripts/reconcile-documents.js` dry run is part of the part gate; `--apply` requires
-  an explicit operator and audits every repair.
+  an explicit operator and audits every repair. The Part 9 retention dry run is the equivalent gate
+  for retention, and an export download is the only artifact a privacy request can produce.
 - **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.

@@ -352,7 +352,59 @@ about keeping absence, attention and delivery as the plain facts they are:
   coordinator's ask consume the same `clarification-ask` bucket (keyed by caller), so a role can
   never buy a larger budget by using its own endpoint.
 
-## 9. Decision log (Parts 1-8)
+## 8h. Closure, audit, privacy requests, retention and metrics (Part 9)
+
+> The full contract - models, states, authority matrix, HTTP endpoints, configuration and the
+> retention runbook - lives in [VELORA_PRIVACY_RETENTION.md](VELORA_PRIVACY_RETENTION.md). This
+> section records the design decisions behind it.
+
+Part 9 is where coordination work ends and where a patient can ask about their own record, so the
+recurring decision is to make every one of those acts **explicit, attributable and reversible by
+policy rather than by destruction**:
+
+- **Closure is an operational state, never a clinical one.** `closurePolicy` refuses a reason that
+  describes recovery, the `EpisodeClosure` event has no clinical field to put one in, and the API, the
+  client copy and the docs all say coordination work has ended - nothing more.
+- **The preflight is the authority, and an override is written down.** Blocking items (unresolved
+  approvals, open clarifications, open tasks, missing owners) must be empty or cleared with a bounded,
+  recorded override reason; advisory items (failed deliveries, pending check-ins) are reported, not
+  hidden.
+- **Closing is one transaction over a revision guard.** Live assignment is re-derived, the revision is
+  rechecked (a concurrent close loses with `409`), the state flips once, future work stops, and the
+  closure event plus audit row are appended. Recorded facts, answered check-ins and logs are never
+  touched: history becomes read-only, it does not become empty.
+- **Stopping work stops only the future.** Queued reminders are cancelled, future occurrences are
+  ended and active schedules/tasks are closed out - a stored answer or a logged entry is evidence and
+  is not rewritten to look like it never happened.
+- **Reopen is a separate, justified, audited act that revives nothing.** The earlier closure stays
+  readable and stopped work stays stopped until a human creates it again, so a reopen can never
+  resurrect a cancelled reminder or an ended occurrence behind everyone's back.
+- **The audit trail is append-only, categorised and redacted before it is written.** Every sensitive
+  read/download, membership/role change, caregiver grant, approval, AI-suggestion application, log,
+  check-in or clarification response, privacy request, export download, retention run and
+  closure/reopen is recorded with a category; forbidden keys (secrets, tokens, URIs, raw clinical
+  text) are replaced with `[redacted]` and strings/depth are bounded, so the trail cannot become a
+  second copy of the record it describes.
+- **Audit search is administrative and bounded.** `audit.read` is the Clinic Admin permission, the
+  result is clinic-scoped and paginated inside a bounded date window, and a clinical caller or a
+  patient is refused outright - admin is the purposes-of-use role here, not a clinical one.
+- **There is no destructive deletion endpoint.** A `deletion_request` is an evaluation against
+  retention holds and windows that records a defensible outcome (`completed` when nothing is eligible,
+  `partially_completed` when retention applies); real destruction needs separate authorization and a
+  tested backup/restore process that Part 9 does not claim.
+- **An export is generated, not handed over.** Approval does not produce a file: execution writes an
+  AES-256-GCM artifact into a **separate** store under its own key, with a TTL and an explicit
+  revocation; downloading needs a fresh, short-lived, single-use authorization whose peppered hash is
+  what is stored. Nothing about an export is world-readable, permanent or implicit.
+- **Retention is a report before it is an action.** Every category has a window and a mode; the dry
+  run is the default gate, apply needs an operator name, a reason, an idempotency key and is bounded,
+  holds freeze a category without hiding its eligible count, and clinical categories (`documents`,
+  `historical_records`) are **report-only** so automation can never destroy a clinical record.
+- **Metrics describe the workflow, and say so in the payload.** Approval time, clarification response
+  time, queue age and coordination workload each carry a `notAMeasureOf` line, and the service has no
+  input from which recovery, adherence or readmission could be computed even if someone asked.
+
+## 9. Decision log (Parts 1-9)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -416,8 +468,20 @@ about keeping absence, attention and delivery as the plain facts they are:
 | D58 | The reminder provider registry refuses undisclosed channels with the exact disclosure list | default to email when configured | control #22; a silent channel fallback is worse than not sending |
 | D59 | Admin is explicitly refused the dashboard queues | reuse admin read permissions | admin is administration, not assigned clinical work (VEL-002 boundary) |
 | D60 | Durable rate buckets are shared per operation across staff/patient/caregiver surfaces | separate budget per endpoint | a role must not buy a larger budget by choosing its own endpoint |
+| D61 | Closure is an operational archive state with recovery language refused at validation | a recovered/discharged outcome | VEL-019: a workflow state must never read as a clinical claim |
+| D62 | Blocking preflight items need a bounded written override; advisory ones are reported | hard block on everything | a failed delivery is not a reason to keep coordination open forever, but it must be visible |
+| D63 | Close is one transaction over `expectedRevision` with future work stopped | read-then-write close | a concurrent close must lose, and state may change exactly once |
+| D64 | Reopen appends a new event and revives no stopped work | restore cancelled reminders/occurrences | history stays readable and nothing returns without a human act |
+| D65 | Append-only `EpisodeClosure` with no clinical field | reuse an episode status field only | the closure reason must be impossible to misread as an outcome |
+| D66 | Audit detail is redacted and bounded before the row is written | store the payload and redact on read | the persisted trail must never hold a secret, token or clinical text |
+| D67 | Audit search is admin-only, clinic-scoped, paginated and window-bounded | any clinical caller may search | VEL-002 boundary plus control #6; admin owns purposes-of-use work |
+| D68 | Export artifacts live in a separate encrypted store with their own key, TTL and revocation | reuse the document store/key | blast-radius isolation; a leaked document key must not open exports |
+| D69 | Download needs a fresh single-use authorization (peppered hash stored) | long-lived signed URL | control #15/#8; a leaked link expires and cannot be replayed |
+| D70 | Clinical retention categories are report-only; deletion requests are policy evaluations | automated destruction on request | no untested destructive path may exist in the product |
+| D71 | Retention apply is idempotent via `clientRequestId` and requires operator + reason | best-effort apply | a retry must not act twice and every run must be attributable |
+| D72 | Metrics carry `notAMeasureOf` and the service has no outcome input | expose derived quality scores | VEL-021: workflow durations must never become clinical inference |
 
-## 10. Known limitations (Parts 1-8)
+## 10. Known limitations (Parts 1-9)
 
 - No external AI/OCR provider is selected or called; a real provider needs the completed disclosure
   and owner/clinical/privacy review first (control #22). The evaluation is **software behaviour on
@@ -438,7 +502,9 @@ about keeping absence, attention and delivery as the plain facts they are:
   reconciliation command.
 - A live parser timeout/crash is not deterministically reproducible from file content on a healthy
   host; the integration suite drives those paths with the test-only stall hook and the memory cap.
-- Documents are never deleted by a retention policy; privacy requests and retention arrive in Part 9.
+- Documents are never deleted: the `documents` retention category is **report-only** and a deletion
+  request that reaches clinical content is evaluated against retention and reported as limited rather
+  than executed.
 - Part 3 episodes stay `draft`; activation/closure and downstream plan workflows arrive in later
   parts. There is no caregiver episode view yet (the `view_episodes` scope remains inert).
 - Discharge dates are corrected one episode at a time; there is no bulk import.
@@ -446,7 +512,9 @@ about keeping absence, attention and delivery as the plain facts they are:
   medication schedule and no reminder (Parts 6-7), and `carePlanPolicy` is a documented, deliberately
   simple text analysis (it flags ambiguity, it does not understand clinical language).
 - The patient's caregiver `view_plan` scope is still inert: a caregiver cannot read a plan yet.
-- Plans are never deleted; retention and privacy requests arrive in Part 9.
+- Plans are never deleted; a deletion request touching a plan is reported as limited by retention.
+- Part 9 executes no destructive deletion of clinical records at all: there is no restore test, and
+  real destruction would need separate authorization plus a proven backup/restore process.
 - Items are authored and reviewed page by page (8 per page); there is no bulk edit or item import.
 - A plan is not versioned by a content hash, so two identical drafts are two versions.
 - Part 7 delivers VEL-012/VEL-013 at local scope only: it produced no notification or reminder -

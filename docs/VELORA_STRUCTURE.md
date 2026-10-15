@@ -26,6 +26,7 @@ Velora/
     VELORA_EXTRACTION.md          # Part 6 AI contract, provider disclosure, threat model, evaluation limits
     VELORA_SCHEDULES.md           # Part 7 schedule/task/log contract, safety wording, authority and time rules
     VELORA_CARE_COORDINATION.md   # Part 8 check-in/clarification/dashboard/reminder/follow-up contract and limits
+    VELORA_PRIVACY_RETENTION.md   # Part 9 closure/audit/privacy-request/retention contract, runbook and metric definitions
   e2e/
     auth.spec.js                  # login / MFA / staff journeys
     patients.spec.js              # Part 2-3 onboarding / consent / activation / episode journey
@@ -62,18 +63,23 @@ Velora/
               ReviewedLanguageVariant,MedicationSchedule,RecoveryTask,
               ScheduleOccurrence,ActivityLog,CheckInTemplateVersion,CheckInResponse,
               ClarificationThread,ClarificationMessage,Notification,DeliveryAttempt,
-              QueueAssignment,FollowUpPlan}.js
+              QueueAssignment,FollowUpPlan,EpisodeClosure,DataRequest,DataExport,
+              ExportDownloadGrant,RetentionPolicy,RetentionRun,RetentionHold}.js
       policies/{carePlanPolicy,extractionPolicy,schedulePolicy,checkInPolicy,
-                clarificationPolicy,clinicHoursPolicy,reminderPolicy,followUpPolicy}.js
+                clarificationPolicy,clinicHoursPolicy,reminderPolicy,followUpPolicy,
+                closurePolicy,dataRequestPolicy}.js
                                   # plan states/transitions, clinical fields, completeness rules;
                                   # strict extraction schema, classification, injection detection, job limits;
-                                  # item->schedule mapping, PRN/missing-detail gates, UTC/DST occurrence rules
+                                  # item->schedule mapping, PRN/missing-detail gates, UTC/DST occurrence rules;
+                                  # operational (never clinical) closure rules and the privacy-request state machine
       validators/schemas.js
       controllers/{authController,staffController,patientController,caregiverController,
                    episodeController,documentController,carePlanController,
                    extractionController,scheduleController,todayController,
                    checkInTemplateController,checkInController,clarificationController,
-                   dashboardController,reminderController,followUpController}.js
+                   dashboardController,reminderController,followUpController,
+                   closureController,auditController,dataRequestController,
+                   retentionController,metricsController}.js
       services/{authService,sessionService,mfaService,passwordService,
                 crypto,staffService,rateLimitService,auditService,errors,txService,
                 patientService,consentService,caregiverService,episodeService,
@@ -81,7 +87,9 @@ Velora/
                 documentTextLayer,carePlanService,extractionService,languageVariantService,
                 zonedTime,scheduleService,todayService,activityLogService,
                 checkInTemplateService,checkInService,clarificationService,
-                dashboardService,reminderService,followUpService,clinicService}.js
+                dashboardService,reminderService,followUpService,clinicService,
+                closureService,dataRequestService,exportStorage,retentionService,
+                metricsService}.js
       providers/{extractionProvider,fakeExtractionProvider,notificationProvider}.js
                                   # provider-neutral interface + deterministic local fake, with the
                                   # registry that fails closed on an unknown provider exported from
@@ -89,16 +97,18 @@ Velora/
       workers/documentParser.js   # isolated, memory- and time-limited byte parser (no secrets)
       routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents,plans,
               extractions,schedules,today,checkInTemplates,checkIns,clarifications,
-              dashboard,reminders,followUps}.js
+              dashboard,reminders,followUps,episodeClosures,audit,dataRequests,
+              retention,metrics}.js
     tests/
       helpers/{setup,documents}.js  # harness: env, db, factories, agents; synthetic file fixtures
       fixtures/extraction-evaluation.json  # synthetic extraction evaluation set (no real data)
       unit/{env,crypto-password,extraction-policy,document-text-layer,extraction-evaluation,
             schedulePolicy,checkInPolicy,clarificationPolicy,reminderPolicy,
-            notificationProvider}.test.js
+            notificationProvider,closurePolicy,auditCategories,dataRequestPolicy}.test.js
       integration/{auth,staff,patients,episodes,documents,plans,extractions,languageVariants,
                    schedules,checkInTemplates,checkIns,clarifications,clinicSettings,
-                   dashboard,reminders,followUps}.test.js
+                   dashboard,reminders,followUps,closures,audit,privacyRequests,
+                   retention,metrics}.test.js
   client/
     package.json
     vite.config.js                # dev proxy /api -> API (overridable)
@@ -121,12 +131,17 @@ Velora/
         today/{TodayView,todayRules}.jsx  # one-viewport day screen, tabs, bounded panels
         queues/{AssignedQueues,ThreadView,CheckInForm}.jsx  # Part 8 staff queues, thread, answer form
         care/MyCare.jsx          # Part 8 patient/caregiver panel: check-ins, questions, follow-ups
+        closure/ClosurePanel.jsx  # Part 9 closure preflight wizard, policy checks, history and reopen
+        audit/AuditPanel.jsx     # Part 9 scoped, paginated audit search
+        privacy/PrivacyPanel.jsx  # Part 9 export/correction/deletion-request workflow
+        retention/RetentionPanel.jsx  # Part 9 category windows, dry run and gated apply
+        metrics/MetricsPanel.jsx  # Part 9 switchable operational metric panels
         patient/{PatientSelf,PatientEpisodes,PatientPlan}.jsx
         caregiver/CaregiverHome.jsx
       styles.css
       test/{setup,api.test}.js, auth-flows.test.jsx, patients.test.jsx, episodes.test.jsx,
            documents.test.jsx, plans.test.jsx, extractions.test.jsx, today.test.jsx,
-           queues.test.jsx, care.test.jsx
+           queues.test.jsx, care.test.jsx, part9.test.jsx
 ```
 
 ## Conventions

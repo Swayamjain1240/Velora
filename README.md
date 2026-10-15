@@ -6,7 +6,7 @@ Velora is a planned JavaScript MERN application that helps clinics convert priva
 
 Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
 
-> **Current status - 15 October 2026:** **Parts 1-8 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, manual source-linked care plans with clinical review/approval, AI-assisted draft extraction with reviewed language, approved medication schedules/tasks/day view with append-only actor-attributed logs, and clinic-defined check-ins, the clarification queue, the assigned-team dashboard and in-app reminders. Part 5 completed the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. Part 9 (closure/archive, comprehensive audit, privacy requests, retention and operational metrics) is in progress. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
+> **Current status - 15 October 2026:** **Parts 1-9 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, manual source-linked care plans with clinical review/approval, AI-assisted draft extraction with reviewed language, approved medication schedules/tasks/day view with append-only actor-attributed logs, clinic-defined check-ins, the clarification queue, the assigned-team dashboard, in-app reminders, and the Part 9 workflow surfaces: operational episode closure/reopen, a categorised append-only audit trail with scoped paginated search, privacy requests (export/correction/deletion-request) with time-limited encrypted exports, configurable retention with dry-run/holds, and operational workflow metrics. Part 5 completed the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. Part 10 (production hardening, restore testing and the clinical-readiness gate) has not been started. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment, real destructive deletion, restore test or clinical validation yet.
 
 ## Project authority
 
@@ -208,8 +208,8 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 315 unit + integration tests (replica-set MongoDB test DB)
-npm test -w client               # 56 client unit tests (Vitest)
+npm test -w server               # 360 unit + integration tests (replica-set MongoDB test DB)
+npm test -w client               # 61 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
 npx playwright test              # 61 browser journeys at six viewport sizes (2 opt-in/skipped)
