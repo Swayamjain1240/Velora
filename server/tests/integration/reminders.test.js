@@ -66,7 +66,11 @@ async function setup({ withCaregiver = false } = {}) {
   const episodeRes = await ctx.coordCtx.a
     .post('/api/episodes')
     .set('X-CSRF-Token', ctx.coordCtx.csrf)
-    .send({ patientId: ctx.patient.id, dischargeDate: zoneDate(-1), dischargeTimezone: ZONE });
+    // Discharged two days ago, so the template's first (and only) slot is a
+    // check-in that fell DUE at 09:00 yesterday in the episode timezone. A due
+    // moment derived from a discharge date of "yesterday" would be in the future
+    // until 09:00, which is what made this suite pass only after 09:00.
+    .send({ patientId: ctx.patient.id, dischargeDate: zoneDate(-2), dischargeTimezone: ZONE });
   assert.equal(episodeRes.status, 201, JSON.stringify(episodeRes.body));
   ctx.episode = episodeRes.body.episode;
 

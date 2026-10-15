@@ -183,6 +183,25 @@ async function list(ctx, query = {}, agent = ctx.coordCtx) {
   return agent.a.get(`${checkInPath(ctx)}?${params.toString()}`);
 }
 
+// The scenarios below need one slot whose response window has ALREADY closed,
+// because a MISSING slot is DERIVED from the stored timing facts rather than
+// stored as a state (`checkInPolicy.slotView` compares windowEndsAt with now).
+// Leaving that to the decorated 09:00 due time would make the suite pass only at
+// certain hours, so the fixture closes the window explicitly. The slot stays
+// 'open' in the database: only the timing fact changes, which is exactly the
+// input the derivation is under test against. `dueAt` is immutable by design and
+// is deliberately left alone.
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+
+async function expireOldestSlot(ctx) {
+  const now = Date.now();
+  const result = await harness.models.CheckInResponse.updateOne(
+    { episode: ctx.episode.id, slotKey: `post-op-wound@${zoneDate(-1)}` },
+    { $set: { windowEndsAt: new Date(now - WINDOW_MS) } }
+  );
+  assert.equal(result.matchedCount, 1, 'the oldest slot exists to be expired');
+}
+
 // The patient answers through their OWN namespace; the staff route is a separate
 // surface with different permissions, so a test must name which one it exercises.
 async function patientAnswer(ctx, responseId, answers) {
@@ -234,6 +253,8 @@ test('a missing response is derived, stays missing, and is never classified', as
   const ctx = await setup();
   await activateTemplate(ctx);
   await materialise(ctx);
+
+  await expireOldestSlot(ctx);
 
   const all = await list(ctx);
   assert.equal(all.status, 200, JSON.stringify(all.body));
@@ -301,6 +322,7 @@ test('a late answer is still an answer, recorded with the timing fact', async ()
   const ctx = await setup();
   await activateTemplate(ctx);
   await materialise(ctx);
+  await expireOldestSlot(ctx);
   const missing = await list(ctx, { view: 'no_response' });
   const slot = missing.body.items[0];
   assert.equal(slot.state, 'no_response');
@@ -400,6 +422,7 @@ test('the patient answers their own check-ins and cannot answer anyone else’s'
   const ctx = await setup();
   await activateTemplate(ctx);
   await materialise(ctx);
+  await expireOldestSlot(ctx);
 
   // The patient's own mobile queue reads across their profile, scoped by
   // ownership, and carries the questions for an answerable slot only.
