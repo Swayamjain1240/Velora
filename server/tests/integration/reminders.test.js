@@ -101,8 +101,14 @@ async function setup({ withCaregiver = false } = {}) {
   return ctx;
 }
 
-// A clinic check-in template whose slots are DUE now, which is what produces a
-// real reminder candidate.
+// A clinic check-in template with exactly ONE slot that is due and open at any
+// minute of the day, which is what makes the exact queue counts in these tests
+// stable around the clock. The episode is discharged two days ago, so the
+// cadence (day+1 and day+2) puts both slots' 09:00 due time in the past; the
+// 24-hour response window then closes yesterday's slot at the very moment
+// today's opens. The due set is therefore always exactly one slot - never zero
+// (what a fixture anchored to the clock produced before 09:00) and never two
+// (what a 48-hour window produced after 09:00, which doubled every count here).
 async function dueCheckIn(ctx) {
   const template = {
     key: 'post-op-wound',
@@ -111,7 +117,7 @@ async function dueCheckIn(ctx) {
       { id: 'pain_level', prompt: 'How would you rate your pain today?', kind: 'scale', scaleMin: 0, scaleMax: 10 },
     ],
     cadence: { startOffsetDays: 1, everyDays: 1, horizonDays: 1 },
-    responseWindowHours: 48,
+    responseWindowHours: 24,
     reviewRules: [],
   };
   const created = await ctx.coordCtx.a

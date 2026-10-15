@@ -66,7 +66,12 @@ async function setup() {
   const episodeRes = await ctx.coordCtx.a
     .post('/api/episodes')
     .set('X-CSRF-Token', ctx.coordCtx.csrf)
-    .send({ patientId: ctx.patient.id, dischargeDate: zoneDate(-1), dischargeTimezone: ZONE });
+    // Discharged two days ago so BOTH of the template's slots (day+1, day+2)
+    // have reached their 09:00 due time; with a 24-hour response window exactly
+    // one slot is due and open at any minute of the day. Anchored this way the
+    // "a due slot exists" assertion holds at any hour - a discharge of "yesterday"
+    // made this suite fail between 00:00 and 09:00 UTC, when no slot was due yet.
+    .send({ patientId: ctx.patient.id, dischargeDate: zoneDate(-2), dischargeTimezone: ZONE });
   assert.equal(episodeRes.status, 201, JSON.stringify(episodeRes.body));
   ctx.episode = episodeRes.body.episode;
 
@@ -97,7 +102,7 @@ async function activateTemplate(ctx) {
         { id: 'pain_level', prompt: 'How would you rate your pain today?', kind: 'scale', scaleMin: 0, scaleMax: 10 },
       ],
       cadence: { startOffsetDays: 1, everyDays: 1, horizonDays: 1 },
-      responseWindowHours: 48,
+      responseWindowHours: 24,
       reviewRules: [
         {
           id: 'pain_high',
