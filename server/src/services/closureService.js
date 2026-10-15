@@ -131,7 +131,7 @@ async function preflight({ clinicId, user, roleKey, episodeId, now = new Date() 
       id: idOf(episode),
       reference: episode.reference,
       status: episode.status,
-      closureState: episode.closureState || 'open',
+      closureState: isClosed(episode) ? 'closed' : 'open',
       revision: episode.revision,
       patient: idOf(episode.patient),
     },
@@ -139,7 +139,7 @@ async function preflight({ clinicId, user, roleKey, episodeId, now = new Date() 
     missingRoles,
     blocking: evaluation.blocking,
     unresolved: evaluation.unresolved,
-    canClose: evaluation.canClose && episode.closureState !== 'closed',
+    canClose: evaluation.canClose && !isClosed(episode),
     policyChecks: policy.CLOSURE_POLICY_CHECKS.map((key) => ({ key })),
     meaning: policy.CLOSURE_MEANING,
     reopenMeaning: policy.REOPEN_MEANING,
@@ -211,7 +211,7 @@ async function closeEpisode({
   const scope = await assertTeamScope({ clinicId, user, roleKey, episodeId });
   const episode = await RecoveryEpisode.findOne({ _id: episodeId, clinic: clinicId }).lean();
   if (!episode) throw errors.notFound('Episode not found.');
-  if (episode.closureState === 'closed' || episode.status === 'closed') {
+  if (isClosed(episode)) {
     throw errors.conflict('This episode is already closed.');
   }
   if (episode.revision !== input.expectedRevision) {
@@ -254,6 +254,7 @@ async function closeEpisode({
         clinic: clinicId,
         revision: input.expectedRevision,
         closureState: { $ne: 'closed' },
+        status: { $ne: 'closed' },
       },
       {
         $set: {
@@ -447,13 +448,25 @@ function publicClosure(doc) {
   };
 }
 
+// One definition of "closed" for every surface. `closureState` is the Part 9
+// field, but an episode archived BEFORE Part 9 carries only `status: 'closed'`
+// (the Part 4 fixture and the earlier read-only guard both work that way). The
+// close TRANSACTION has always refused on either field; the read projections and
+// the atomic guard now agree with it, so an already-archived episode can never be
+// offered a second close or closed twice under a race.
+function isClosed(episode) {
+  return Boolean(
+    episode && (episode.closureState === 'closed' || episode.status === 'closed')
+  );
+}
+
 function publicEpisode(doc) {
   if (!doc) return null;
   return {
     id: idOf(doc),
     reference: doc.reference,
     status: doc.status,
-    closureState: doc.closureState || 'open',
+    closureState: isClosed(doc) ? 'closed' : 'open',
     closedAt: doc.closedAt || null,
     reopenedAt: doc.reopenedAt || null,
     revision: doc.revision,

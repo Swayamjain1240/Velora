@@ -11,6 +11,7 @@
 //     Real destruction of clinical records is deliberately not implemented: it
 //     needs a separate authorization and a tested backup/restore process.
 //   * An active HOLD freezes its category.
+const crypto = require('node:crypto');
 const { errors } = require('./errors');
 const audit = require('./auditService');
 const exportStorage = require('./exportStorage');
@@ -312,6 +313,13 @@ async function dryRun({ clinicId, user, ...rest }) {
     result: 'dry_run',
     operatorUser: user.id,
     operator: `dry_run:${user.email}`,
+    // A dry run is a REPORT, so it is never de-duplicated: each report gets its
+    // own key. Leaving the field empty would store a null, and two nulls collide
+    // on the `(clinic, idempotencyKey)` unique index - the second dry run in a
+    // clinic would be refused with 409, which is exactly wrong for a read-only
+    // report. Only an APPLY carries the caller's key, and that is what makes a
+    // retried apply return the original run.
+    idempotencyKey: `dry-run:${crypto.randomUUID()}`,
     categories: toRunCategories(plan),
     holds: plan.filter((p) => p.held > 0).map((p) => ({ category: p.category, held: p.held })),
     totals: summarize(plan),

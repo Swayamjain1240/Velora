@@ -341,6 +341,40 @@ test('a stale revision is refused and a concurrent close changes state exactly o
   assert.equal(rows, 1);
 });
 
+test('an episode archived before Part 9 is closed on every surface, not just in the write guard', async () => {
+  const ctx = await setup();
+
+  // A pre-Part-9 archive: the record carries the older `status` only, exactly as
+  // the Part 4 read-only guard and its fixtures produce it.
+  await harness.models.RecoveryEpisode.updateOne(
+    { _id: ctx.episode.id },
+    { $set: { status: 'closed' } }
+  );
+
+  const preflight = await ctx.coordCtx.a.get(
+    `/api/episodes/${ctx.episode.id}/closure/preflight`
+  );
+  assert.equal(preflight.status, 200, JSON.stringify(preflight.body));
+  assert.equal(preflight.body.episode.closureState, 'closed');
+  assert.equal(preflight.body.canClose, false);
+
+  const detail = await ctx.coordCtx.a.get(`/api/episodes/${ctx.episode.id}/closure`);
+  assert.equal(detail.status, 200, JSON.stringify(detail.body));
+
+  const second = await ctx.coordCtx.a
+    .post(`/api/episodes/${ctx.episode.id}/closure`)
+    .set('X-CSRF-Token', ctx.coordCtx.csrf)
+    .send(closeBody(ctx));
+  assert.equal(second.status, 409, JSON.stringify(second.body));
+  assert.match(second.body.error.message, /already closed/i);
+
+  // No second closure event was appended for a record that was already archived.
+  assert.equal(
+    await harness.models.EpisodeClosure.countDocuments({ episode: ctx.episode.id }),
+    0
+  );
+});
+
 test('closure history is append-only', async () => {
   const ctx = await setup();
   const res = await ctx.coordCtx.a

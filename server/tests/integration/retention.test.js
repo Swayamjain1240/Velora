@@ -81,6 +81,28 @@ test('a dry run reports eligible items and changes nothing', async () => {
 
   const remaining = await harness.models.Session.findById(expired._id).lean();
   assert.ok(remaining, 'a dry run must not delete anything');
+
+  // A dry run is a REPORT, so it is repeatable: each one appends its own run
+  // record. An empty idempotency key would store a null, and the second run
+  // would collide on the `(clinic, idempotencyKey)` unique index - a read-only
+  // report refused with `409` because someone had reported before.
+  const second = await ctx.adminCtx.a
+    .post('/api/retention/dry-run')
+    .set('X-CSRF-Token', ctx.adminCtx.csrf)
+    .send({});
+  assert.equal(second.status, 200, JSON.stringify(second.body));
+  assert.notEqual(second.body.run.id, dry.body.run.id, 'each report is its own run');
+  assert.equal(second.body.run.mode, 'dry_run');
+
+  const runs = await harness.models.RetentionRun.find({ mode: 'dry_run' }).lean();
+  assert.equal(runs.length, 2, 'both reports are recorded');
+  const keys = runs.map((r) => r.idempotencyKey);
+  assert.ok(keys.every((k) => typeof k === 'string' && k.length > 8), JSON.stringify(keys));
+  assert.equal(new Set(keys).size, 2, 'no two reports share an idempotency key');
+  assert.ok(
+    keys.every((k) => k.startsWith('dry-run:')),
+    'a report key is visibly a report rather than a caller request id'
+  );
 });
 
 test('apply requires an operator and reason, is audited, and is idempotent', async () => {
