@@ -116,6 +116,35 @@ function publicEvent(doc) {
   };
 }
 
+// Every existing sensitive action is categorised by its name, so the trail is
+// searchable by category without editing every call site and a new call site is
+// categorised by default rather than silently landing in `admin`.
+const CATEGORY_RULES = Object.freeze([
+  [/^privacy\.export\./, 'export'],
+  [/^privacy\./, 'privacy_request'],
+  [/^retention\./, 'retention'],
+  [/^auth\./, 'auth'],
+  [/^(staff|clinic)\./, 'membership'],
+  [/^(caregiver|patient\.assignment)\./, 'caregiver_grant'],
+  [/^care_plan\.approved$/, 'approval'],
+  [/^care_plan\./, 'admin'],
+  [/^extraction\./, 'ai_application'],
+  [/^document\.downloaded$/, 'download'],
+  [/^document\./, 'read'],
+  [/^activity\./, 'log_write'],
+  [/^checkin\./, 'checkin_response'],
+  [/^clarification\./, 'clarification_response'],
+  [/^episode\.(closed|reopened)$/, 'closure'],
+]);
+
+function inferCategory(action) {
+  const value = String(action || '');
+  for (const [pattern, category] of CATEGORY_RULES) {
+    if (pattern.test(value)) return category;
+  }
+  return 'admin';
+}
+
 async function record(event) {
   try {
     await AuditEvent.create({
@@ -124,7 +153,7 @@ async function record(event) {
       actorLabel: event.actorLabel,
       actorRole: event.actorRole,
       action: event.action,
-      category: event.category || 'admin',
+      category: event.category || inferCategory(event.action),
       subjectType: event.subjectType,
       subjectId: event.subjectId ? String(event.subjectId) : undefined,
       targetType: event.targetType,
@@ -209,4 +238,4 @@ async function search({ clinicId, rolePermissions, filters = {}, page = 1, limit
   };
 }
 
-module.exports = { record, recordAccess, search, redactDetail, publicEvent };
+module.exports = { record, recordAccess, search, redactDetail, publicEvent, inferCategory, CATEGORY_RULES };
