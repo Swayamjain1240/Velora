@@ -791,6 +791,230 @@ const assignmentIdParam = z.object({ assignmentId: objectIdSchema }).strict();
 
 const releaseAssignmentSchema = z.object({ reason: clinicalText(300).optional() }).strict();
 
+// ---- Part 9: episode closure, audit, privacy requests, retention and metrics ----
+
+const {
+  CLOSURE_POLICY_CHECKS,
+  CLOSURE_PREFLIGHT_ITEMS,
+  AUDIT_CATEGORIES,
+  DATA_REQUEST_TYPES,
+  IDENTITY_METHODS,
+  RETENTION_CATEGORIES,
+  RETENTION_HOLD_SCOPES,
+} = require('../config/constants');
+
+const PREFLIGHT_KEYS = CLOSURE_PREFLIGHT_ITEMS.map((item) => item.key);
+const RETENTION_KEYS = RETENTION_CATEGORIES.map((category) => category.key);
+
+// A closure check is explicitly confirmed or explicitly not met; there is no
+// third state that could be read as a confirmation.
+const closurePolicyCheckSchema = z
+  .object({
+    key: z.enum(CLOSURE_POLICY_CHECKS),
+    confirmed: z.boolean(),
+    note: clinicalText(300).optional(),
+  })
+  .strict();
+
+// A blocking preflight item may only be cleared with a written reason.
+const closureOverrideSchema = z
+  .object({
+    key: z.enum(PREFLIGHT_KEYS),
+    reason: z.string().trim().min(5, 'Explain why this can be closed anyway').max(300),
+  })
+  .strict();
+
+const closeEpisodeSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    reason: z.string().trim().min(5, 'Give a short reason').max(500),
+    closureDate: dateOnlySchema.optional(),
+    policyChecks: z.array(closurePolicyCheckSchema).min(1).max(CLOSURE_POLICY_CHECKS.length),
+    overrides: z.array(closureOverrideSchema).max(PREFLIGHT_KEYS.length).optional(),
+    // An explicit acknowledgement that closing archives this episode as read-only
+    // and is an OPERATIONAL step, not a statement that the patient recovered.
+    confirm: z.literal(true, { errorMap: () => ({ message: 'Closing an episode must be confirmed.' }) }),
+  })
+  .strict();
+
+const reopenEpisodeSchema = z
+  .object({
+    expectedRevision: z.coerce.number().int().min(1),
+    reason: z.string().trim().min(5, 'Give a short reason').max(500),
+    confirm: z.literal(true, { errorMap: () => ({ message: 'Reopening an episode must be confirmed.' }) }),
+  })
+  .strict();
+
+const closureHistoryQuery = z
+  .object({ page: pageSchema, limit: limitSchema })
+  .strict();
+
+const auditSearchQuery = z
+  .object({
+    page: pageSchema,
+    limit: z.coerce.number().int().min(1).max(50).default(25),
+    category: z.enum(AUDIT_CATEGORIES).optional(),
+    action: z.string().trim().max(120).optional(),
+    subjectType: z.string().trim().max(80).optional(),
+    subjectId: z.string().trim().max(120).optional(),
+    outcome: z.enum(['success', 'failure', 'denied']).optional(),
+    from: z.string().trim().max(40).optional(),
+    to: z.string().trim().max(40).optional(),
+  })
+  .strict();
+
+// ---- privacy requests ----------------------------------------------------------
+
+const dataRequestParams = z.object({ requestId: objectIdSchema }).strict();
+
+const correctionSchema = z
+  .object({
+    // The change being requested. Only contact-level fields are expressible, so a
+    // correction request can never ask the system to rewrite clinical content.
+    field: z.enum(['fullName', 'contactEmail', 'contactPhone']),
+    newValue: z.string().trim().min(1).max(200),
+    currentValue: z.string().trim().max(200).optional(),
+  })
+  .strict();
+
+const createDataRequestSchema = z
+  .object({
+    kind: z.enum(DATA_REQUEST_TYPES),
+    detail: z.string().trim().min(5, 'Describe what you are asking for').max(2000),
+    // Required for a correction request, refused for anything else.
+    correction: correctionSchema.optional(),
+    // Staff may raise a request for a specific patient; a patient's own request
+    // ignores this and uses their own profile (ownership is re-derived).
+    patientId: objectIdSchema.optional(),
+    episodeId: objectIdSchema.optional(),
+  })
+  .strict()
+  .refine((v) => (v.kind === 'correction' ? Boolean(v.correction) : !v.correction), {
+    message: 'A correction request must carry the correction; other types must not.',
+  });
+
+const verifyIdentitySchema = z
+  .object({
+    method: z.enum(IDENTITY_METHODS),
+    note: z.string().trim().max(300).optional(),
+  })
+  .strict();
+
+const assignDataRequestSchema = z
+  .object({ ownerUserId: objectIdSchema, note: clinicalText(300).optional() })
+  .strict();
+
+const decideDataRequestSchema = z
+  .object({
+    outcome: z.enum(['approved', 'denied']),
+    reason: z.string().trim().min(5, 'Give a reason for the decision').max(500),
+    // A denial of a deletion request must state whether retention applies and why.
+    retentionNote: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+const executeDataRequestSchema = z
+  .object({
+    // An export execution needs no extra input; a deletion execution REQUIRES an
+    // explicit statement that no destruction is being performed.
+    acknowledgeNoDestruction: z.literal(true, {
+      errorMap: () => ({ message: 'Confirm that a deletion request is evaluated, not instantly applied.' }),
+    }).optional(),
+  })
+  .strict();
+
+const cancelDataRequestSchema = z
+  .object({ reason: z.string().trim().min(5, 'Give a reason').max(300) })
+  .strict();
+
+const dataRequestQuery = z
+  .object({
+    page: pageSchema,
+    limit: limitSchema,
+    state: z
+      .enum([
+        'received',
+        'identity_pending',
+        'identity_verified',
+        'in_review',
+        'approved',
+        'denied',
+        'executing',
+        'completed',
+        'partially_completed',
+        'failed',
+        'cancelled',
+      ])
+      .optional(),
+    kind: z.enum(DATA_REQUEST_TYPES).optional(),
+    mineOnly: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((value) => value === 'true'),
+  })
+  .strict();
+
+const authorizeExportSchema = z.object({ purpose: z.string().trim().max(200).optional() }).strict();
+
+const exportDownloadQuery = z.object({ token: z.string().trim().min(16).max(200) }).strict();
+
+const revokeExportSchema = z
+  .object({ reason: z.string().trim().min(5, 'Give a reason for revoking this export').max(300) })
+  .strict();
+
+// ---- retention ------------------------------------------------------------------
+
+const retentionQuery = z.object({ page: pageSchema, limit: limitSchema }).strict();
+
+const updateRetentionPolicySchema = z
+  .object({
+    retainDays: z.coerce.number().int().min(1).max(36500),
+    enabled: z.boolean().optional(),
+    note: clinicalText(300).optional(),
+  })
+  .strict();
+
+const retentionCategoryParam = z.object({ category: z.enum(RETENTION_KEYS) }).strict();
+
+// An apply REQUIRES an operator and a reason; a dry run needs neither.
+const applyRetentionSchema = z
+  .object({
+    operator: z.string().trim().min(3, 'Name the operator applying this run').max(200),
+    reason: z.string().trim().min(10, 'Explain why this retention run is being applied').max(500),
+    categories: z.array(z.enum(RETENTION_KEYS)).min(1).max(RETENTION_KEYS.length).optional(),
+    // Idempotency: re-sending the same key returns the ORIGINAL run.
+    clientRequestId: z.string().trim().min(8).max(120),
+    confirm: z.literal(true, { errorMap: () => ({ message: 'Applying retention must be confirmed.' }) }),
+  })
+  .strict();
+
+const createRetentionHoldSchema = z
+  .object({
+    scope: z.enum(RETENTION_HOLD_SCOPES),
+    category: z.enum(RETENTION_KEYS),
+    subjectType: z.string().trim().max(60).optional(),
+    subjectId: z.string().trim().max(120).optional(),
+    reason: z.string().trim().min(5, 'Give a reason for the hold').max(500),
+  })
+  .strict()
+  .refine((v) => (v.scope === 'subject' ? Boolean(v.subjectType && v.subjectId) : !v.subjectType),
+    { message: 'A subject hold must name the subject type and id.' });
+
+const releaseRetentionHoldSchema = z
+  .object({ reason: z.string().trim().min(5, 'Give a reason for releasing the hold').max(300) })
+  .strict();
+
+const retentionHoldParam = z.object({ holdId: objectIdSchema }).strict();
+
+// ---- metrics ---------------------------------------------------------------------
+
+const metricsQuery = z
+  .object({
+    from: z.string().trim().max(40).optional(),
+    to: z.string().trim().max(40).optional(),
+  })
+  .strict();
+
 // ---- Part 8: basic prescribed follow-ups ---------------------------------------
 //
 // The field list is CLOSED and strict. A test result, a report reference or a
@@ -846,6 +1070,32 @@ const cancelFollowUpSchema = z.object({ reason: clinicalText(300).optional() }).
 
 module.exports = {
   loginSchema,
+  closurePolicyCheckSchema,
+  closureOverrideSchema,
+  closeEpisodeSchema,
+  reopenEpisodeSchema,
+  closureHistoryQuery,
+  auditSearchQuery,
+  dataRequestParams,
+  correctionSchema,
+  createDataRequestSchema,
+  verifyIdentitySchema,
+  assignDataRequestSchema,
+  decideDataRequestSchema,
+  executeDataRequestSchema,
+  cancelDataRequestSchema,
+  dataRequestQuery,
+  authorizeExportSchema,
+  exportDownloadQuery,
+  revokeExportSchema,
+  retentionQuery,
+  updateRetentionPolicySchema,
+  retentionCategoryParam,
+  applyRetentionSchema,
+  createRetentionHoldSchema,
+  releaseRetentionHoldSchema,
+  retentionHoldParam,
+  metricsQuery,
   createFollowUpSchema,
   updateFollowUpSchema,
   cancelFollowUpSchema,
