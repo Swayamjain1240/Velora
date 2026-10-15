@@ -20,10 +20,32 @@ const SESSIONS = [
   {
     file: 'viewport-reviewer.json',
     // `/app/queues` is the Part 8 assigned-team dashboard: five queue tabs, a
-    // paginated list and an item panel, all inside one viewport.
-    routes: ['/app', '/app/patients', '/app/episodes', '/app/queues', '/app/profile'],
+    // paginated list and an item panel, all inside one viewport. Part 9 adds
+    // the operational metrics panels and the privacy-request workflow.
+    routes: [
+      '/app',
+      '/app/patients',
+      '/app/episodes',
+      '/app/queues',
+      '/app/metrics',
+      '/app/privacy',
+      '/app/profile',
+    ],
   },
-  { file: 'viewport-admin.json', routes: ['/app', '/app/clinic', '/app/profile'] },
+  {
+    // Part 9: the audit trail and retention console are administrative, so the
+    // admin session is what measures them at all six sizes.
+    file: 'viewport-admin.json',
+    routes: [
+      '/app',
+      '/app/clinic',
+      '/app/audit',
+      '/app/retention',
+      '/app/privacy',
+      '/app/metrics',
+      '/app/profile',
+    ],
+  },
   // Part 4: the documents screens (opened by documents.spec) and the detail
   // screens (opened by detail-viewports.spec) live under the episode detail, so
   // this session covers the list screens it can reach.

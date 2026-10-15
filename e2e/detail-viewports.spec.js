@@ -93,6 +93,20 @@ for (const size of VIEWPORTS) {
     await assertOneViewport(page, `episode detail @ ${size.name}`);
     await expect(page.getByRole('tab', { name: 'Documents' })).toBeVisible();
 
+    // ---- staff episode detail: closure wizard and history (Part 9) -------------
+    // The closure tab is a three-step wizard plus a switchable history list, so it
+    // is measured in its own right at every size like every other detail screen.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('tab', { name: 'Closure' }).click();
+    await expect(page.getByRole('tab', { name: 'History' })).toBeVisible();
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await assertOneViewport(page, `episode closure tab @ ${size.name}`);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('tab', { name: 'History' }).click();
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await assertOneViewport(page, `episode closure history @ ${size.name}`);
+
     await staff.close();
 
     // ---- caregiver's scoped view of a granted patient -------------------------

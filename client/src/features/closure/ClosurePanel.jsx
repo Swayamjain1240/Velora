@@ -118,7 +118,7 @@ export default function ClosurePanel({ episodeId, episode, onChanged }) {
           type="button" role="tab" aria-selected={tab === 'wizard'}
           className={tab === 'wizard' ? 'tab tab--active' : 'tab'}
           onClick={() => setTab('wizard')}
-        >Closure</button>
+        >Preflight</button>
         <button
           type="button" role="tab" aria-selected={tab === 'history'}
           className={tab === 'history' ? 'tab tab--active' : 'tab'}
