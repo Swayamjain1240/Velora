@@ -5,9 +5,10 @@ import { api, ApiError } from '../../lib/api';
 import DocumentsPanel from '../documents/DocumentsPanel';
 import CarePlanPanel from '../plans/CarePlanPanel';
 import SchedulePanel from '../schedules/SchedulePanel';
+import ClosurePanel from '../closure/ClosurePanel';
 
 const PAGE_SIZE = 10;
-const TABS = ['overview', 'plan', 'schedule', 'corrections', 'team', 'documents'];
+const TABS = ['overview', 'plan', 'schedule', 'corrections', 'team', 'documents', 'closure'];
 const COMMON_ZONES = [
   'Europe/London',
   'Europe/Paris',
@@ -303,6 +304,13 @@ export default function EpisodeDetail({ episodeId, onBack }) {
             readOnlyReason={`Documents can only be added while the episode is a draft (this episode is ${episode.status}).`}
             onDenied={fail}
           />
+        )}
+
+        {/* Part 9: closure preflight, the clinic-policy checks, the closure
+            history and an explicit reopen. Closure is an OPERATIONAL archive
+            step; the server owns the wording and refuses a clinical one. */}
+        {tab === 'closure' && (
+          <ClosurePanel episodeId={episodeId} episode={episode} onChanged={loadEpisode} />
         )}
       </div>
     </section>

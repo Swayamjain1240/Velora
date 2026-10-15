@@ -42,6 +42,13 @@ export default function AppShell() {
           {/* Part 8: the assigned-team queues. Only the coordinating and reviewing
               roles reach it; the server scopes every list to their assignments. */}
           {isStaff && <NavLink to="/app/queues">Queues</NavLink>}
+          {/* Part 9: operational metrics for any clinical caller, privacy
+              requests for staff/admins. The audit trail and retention console
+              are administrative, matching the server permissions. */}
+          {(isStaff || isAdmin) && <NavLink to="/app/metrics">Metrics</NavLink>}
+          {(isStaff || isAdmin) && <NavLink to="/app/privacy">Privacy requests</NavLink>}
+          {isAdmin && <NavLink to="/app/audit">Audit</NavLink>}
+          {isAdmin && <NavLink to="/app/retention">Retention</NavLink>}
           {isAdmin && <NavLink to="/app/clinic">Clinic &amp; staff</NavLink>}
           <NavLink to="/app/profile">Profile</NavLink>
         </nav>

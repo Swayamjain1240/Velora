@@ -24,6 +24,10 @@ import EpisodeDetail from '../features/episodes/EpisodeDetail';
 import TodayView from '../features/today/TodayView';
 import AssignedQueues from '../features/queues/AssignedQueues';
 import MyCare from '../features/care/MyCare';
+import AuditPanel from '../features/audit/AuditPanel';
+import PrivacyPanel from '../features/privacy/PrivacyPanel';
+import RetentionPanel from '../features/retention/RetentionPanel';
+import MetricsPanel from '../features/metrics/MetricsPanel';
 
 // Route guard (UX only - the server is the real boundary, control #3).
 function Protected({ children }) {
@@ -91,6 +95,12 @@ export default function App() {
         {/* Part 8: the assigned-team dashboard (staff) and the patient's own care
             panel (patient or, scoped by a grant, their caregiver). */}
         <Route path="queues" element={<AssignedQueues />} />
+        {/* Part 9: closure lives inside the episode detail; these four are the
+            Part 9 staff/administrative surfaces, each one viewport tall. */}
+        <Route path="audit" element={<AuditPanel />} />
+        <Route path="privacy" element={<PrivacyPanel />} />
+        <Route path="retention" element={<RetentionPanel />} />
+        <Route path="metrics" element={<MetricsPanel />} />
         <Route path="me/care" element={<MyCare mode="patient" />} />
         <Route path="caregiver/:patientId/care" element={<CaregiverCareRoute />} />
         <Route path="profile" element={<Profile />} />
