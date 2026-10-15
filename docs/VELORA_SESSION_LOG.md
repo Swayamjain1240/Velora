@@ -1280,3 +1280,142 @@ claim. Part 9 was not started.
   cannot read the plan or episode timeline.
 - Evidence is local and synthetic: no production deployment, restore test or clinical validation
   (Parts 9-10).
+
+---
+
+## Session - 15 October 2026 - Part 9 closure, audit, privacy requests, retention and metrics
+
+### Duck review at session start
+
+- Read the three authority documents and their `docs/` mirrors, the README, the Part 1-8 log
+  entries and every Part 9 source and test file before judging anything.
+- State on entry: branch `main` at `3bf74ef`. Fifteen commits sat in the Part 9 window
+  (`3bf74ef`..`d9a3977`): the server surfaces (models and permission catalog, categorised audit,
+  transactional closure, privacy requests with encrypted exports, configurable retention and
+  operational metrics), the five client screens, the two six-size viewport suites, the contract
+  docs, the `part9.spec.js` journey, and the fixes found while building them. **The full part gate
+  had never been run for Part 9**: the browser journeys had been driven in pieces, and the last
+  whole-suite attempt died without a summary. Classification on entry: Parts 1-8 VERIFIED (local),
+  Part 9 IMPLEMENTED / UNVERIFIED.
+- The Freebuff restart had killed the local replica set; restarted with
+  `npm run mongo:test-rs -w server` (PRIMARY, transactions verified) before anything else.
+
+### External service gate (control #22)
+
+No external provider was selected, called or disclosed for Part 9. The new variables are local and
+fail closed: `PRIVACY_EXPORT_ENCRYPTION_KEY` (optional - without it a privacy request fails closed
+with a stable code rather than exporting plaintext), `EXPORT_ARTIFACT_TTL_HOURS`,
+`EXPORT_DOWNLOAD_TTL_MINUTES`, `EXPORT_MAX_BYTES`, `RETENTION_APPLY_MAX_ITEMS` and
+`AUDIT_SEARCH_MAX_RANGE_DAYS` (default 366, hard-bounded 1..3650). Export artifacts live in the
+local encrypted store; clinical categories are report-only, so no destructive path exists to test.
+
+### Defects found by running the gate
+
+| # | Defect | Symptom | Fix |
+|---:|---|---|---|
+| 1 | Reminder due-check-in fixture was clock-anchored, and its first fix inverted the bug | Discharge `-2` with a 48-hour window put BOTH slots inside their window after 09:00 UTC, doubling every exact count (`queued 4 != 2`, `checked 2 != 1`, `skipped 2 != 1` across 4 tests) at an evening run | `d9a3977`: 24-hour response window - yesterday's window closes exactly when today's slot opens, so exactly one slot is due and open at any minute |
+| 2 | Dashboard fixture had the same clock anchor | Discharge `-1`: no due slot between 00:00-09:00 UTC, so `a due slot exists` failed in that window (green at 19:00, red at 03:00) | `d9a3977`: discharged two days out with the same 24-hour window |
+| 3 | Retention dry runs shared the apply idempotency key | The unique sparse `(clinic, idempotencyKey)` index refused the SECOND read-only report with 409 | `a1869b7`: every dry run gets its own `dry-run:` key; regression test added |
+| 4 | Two definitions of "closed" | Episodes archived before Part 9 carry `status` only; `canClose` read `closureState` alone, so an archived episode showed as open and offered a second close | `a1869b7`: one `isClosed()` answers on every closure surface; regression test added |
+| 5 | The day-view journey recorded today while claiming the past day | A fixture wrote an immutable field, so the recorded entry landed on the wrong day | `0c5cc5f`: anchor the entry to the day it claims |
+| 6 | Gate note, not a product defect | Exporting `EXTRACTION_PROVIDER=fake` into the API-suite shell turns the fail-closed test red (`job.provider` asserts `'none'`) | The suite runs exactly as CI runs it - `npm test -w server` with no provider variable; the fake provider is for the browser journeys only |
+
+### Gate evidence (15 October 2026, re-run on the final tree)
+
+| Check | Command | Result |
+|---|---|---|
+| Server suite | `npm test -w server` = `node --test --test-concurrency=1 "server/tests/**/*.test.js"` (replica-set `velora_test`) | **361 pass / 0 fail**, exit 0 |
+| Fixture re-run | `node --test server/tests/integration/reminders.test.js` after `d9a3977` | **8 pass / 0 fail** |
+| Client suite | `npm test -w client` | **61 pass / 0 fail** (11 files, incl. `part9.test.jsx`) |
+| Client lint | `npm run lint -w client` | clean, exit 0 |
+| Client build | `npm run build -w client` | succeeds (368.38 kB js, 13.47 kB css) |
+| Browser journeys | `NODE_ENV=test EXTRACTION_PROVIDER=fake npx playwright test` | **63 passed / 2 skipped / 0 failed**, exit 0 (~1.9 min; the skips are the opt-in quarantine journey and the provider-disabled journey, which is disabled by design in this mode) |
+| Fail-closed proof | API restarted with `EXTRACTION_PROVIDER=none`, `npx playwright test e2e/extractions.spec.js -g "no provider enabled"` | **1 passed** - the shipped default refuses and manual drafting still works |
+| One-viewport, six sizes | inside the runs above | closure tab + history, audit search, retention console, privacy workflow and metric panels measured green at all six sizes |
+| Production audit | `npm audit --omit=dev` | **0 vulnerabilities** (the 6 advisories are dev-only vitest/vite/esbuild tooling; remediation is a vitest major upgrade) |
+| Secret scan (tree) | `git grep -IE` for keys, tokens, private keys, credentialed URIs | clean; only the localhost placeholder in `.env.example`; `.env` untracked, never committed |
+| Secret scan (history) | `git log -p --all` for key patterns | **0 matches** |
+| Dependencies | `git diff 3bf74ef^..HEAD -- '**/package.json' package-lock.json` | **no** dependency change; new env vars are local with fail-closed defaults |
+
+Part 9 test inventory: 46 tests - 37 integration (`closures` 10, `privacyRequests` 10, `retention`
+8, `audit` 6, `metrics` 3) and 9 unit (`closurePolicy` 4, `dataRequestPolicy` 3, `auditCategories`
+2); 361 server tests in total (315 at Part 8 close). Client +5 (`part9.test.jsx`) = 61. Browser +4
+(`part9.spec.js`) = 65. Commits: 15 in the Part 9 window (`3bf74ef`..`d9a3977`) plus this docs
+commit; 74 commits project-wide against the 50+ target, without padding.
+
+### Security-25 matrix (Part 9)
+
+| # | Control | Status | Evidence |
+|---:|---|---|---|
+| 1 | Secrets hidden | VERIFIED | no provider key exists in the product; the export encryption key is server-side env, optional and fail-closed; audit, retention and privacy reads carry `no-store` |
+| 2 | Fail-closed env | VERIFIED | a missing export key refuses the export with a stable code; unknown retention categories and out-of-range audit windows are refused; `RETENTION_APPLY_MAX_ITEMS` bounds every apply |
+| 3 | Private routes protected | VERIFIED | every Part 9 route sits behind `requireAuth` + clinic context; closure asserts the live team assignment (unassigned 403, **admin 403**, cross-clinic 404); audit search needs `AUDIT_READ`, retention needs `RETENTION_MANAGE`/`RETENTION_APPLY` |
+| 4 | Argon2id, MFA, sessions, CSRF preserved | VERIFIED | no auth code changed; full suite and journeys green; CSRF required on every mutating Part 9 route |
+| 5 | Clinic + assignment + grant scope | VERIFIED | close/reopen/preflight re-derive the assignment per request; privacy requests are owned per user; export downloads are single-use, freshly authorized and revocable (replay 409, revoked 409, no token 404) |
+| 6 | Validate inputs | VERIFIED | strict zod on closure reason/override, retention category patches, request transitions and the audit query (bounded date range); unknown fields 400 |
+| 7 | No unsafe HTML | VERIFIED | audit rows, metric text and closure reasons render as text nodes only; redaction strips secrets, tokens and raw clinical text before a row is written (`password: '[redacted]'` asserted) |
+| 8 | Limits | VERIFIED | durable Mongo buckets cover the new routes by class; the audit search range is server-bounded; the retention apply is capped |
+| 9 | Safe shared error envelope | VERIFIED | one `{error:{code,message}}`; a refused deletion states policy, never internals; a failed export says the key is not configured, never why |
+| 10 | Exact CORS | VERIFIED | unchanged |
+| 11 | Headers/CSP/no-store | VERIFIED | helmet stack unchanged; audit, retention and privacy responses carry `no-store, private` |
+| 12 | Debug off | VERIFIED | no stack, provider or storage detail in any response |
+| 13 | Dependency/vendor review | VERIFIED | zero dependency changes across the part; production audit 0 |
+| 14 | No unused packages | VERIFIED | nothing added |
+| 15 | Private file audit | VERIFIED | nothing new tracked; `.env` still ignored and never committed |
+| 16 | `MONGODB_URI` private | VERIFIED | no credentialed URI in tree or history |
+| 17 | Argon2id/bcrypt only | VERIFIED | unchanged |
+| 18 | Git history/tree secret scan | VERIFIED | both clean after every Part 9 commit |
+| 19 | End-of-part security audit | VERIFIED | this matrix plus `VELORA_PRIVACY_RETENTION.md` and the system-design decisions D65..D74 |
+| 20 | Test/diff/meaningful commit | VERIFIED | every commit landed after its checks; the whole gate was re-run on the final tree after the last fix |
+| 21 | Continuous security | VERIFIED | `EpisodeClosure`, `AuditEvent` and `DeliveryAttempt` are append-only; close is revision-guarded and single-effect under concurrency (`[201, 409]`); retention apply is idempotent via `clientRequestId`; a closed episode refuses new work (follow-up 409, reminder 409) |
+| 22 | External APIs disclosed before use | VERIFIED | none used; nothing leaves the process; no storage or mail provider was selected |
+| 23 | Happy/denied/failure/retry paths | VERIFIED | 46 Part 9 tests plus client tests and journeys cover stale revision 409, concurrent close, unassigned/admin 403, cross-clinic 404, redaction, deletion refused for clinical categories, a missing export key, expired/revoked download grants and retention over-cap refusal |
+| 24 | README/docs synchronised | VERIFIED | README counts, master rows, architecture, system design (D73/D74), structure, privacy doc and this log |
+| 25 | One-viewport screens, six sizes | VERIFIED | closure tab + history, audit, retention, privacy and metrics measured at 320/375/768/1024/1280/1920 in the browser gate |
+
+### Duck verdict: PASS (Part 9, local scope)
+
+All 25 controls are VERIFIED for the Part 9 scope, with both suites, the full browser gate, the
+fail-closed provider proof, the production audit and both secret scans green - after the drift
+items above were found by actually running the gate at a different hour than every previous run
+and fixed. Evidence is local (development) with synthetic data only: no deployment, no external
+message, no destructive deletion, no restore test and no clinical validation.
+
+### Duck against VEL-019 .. VEL-021
+
+| ID | Requirement | Verdict | Evidence / caveat |
+|---:|---|---|---|
+| VEL-019 | Operational closure and history | **VERIFIED (local scope)** | closure is an operational archive state; recovery wording is refused at validation; blocking/advisory preflight; one transactional close over a revision guard that stops only future work; append-only `EpisodeClosure`; a justified reopen revives nothing; pre-Part-9 episodes answer through one `isClosed()` |
+| VEL-020 | Privacy, audit, export/deletion and retention | **VERIFIED (local scope)** | append-only categorised and redacted audit with admin-scoped, range-bounded paginated search; `export`/`correction`/`deletion_request` with identity verification, ownership, deadlines and decisions; encrypted, time-limited, revocable exports behind a fresh single-use authorization; configurable retention with dry-run, holds and an idempotent, capped, audited apply; **no destructive deletion and no external provider** |
+| VEL-021 | Workflow metrics without clinical inference | **VERIFIED (local scope)** | approval time, clarification response time, queue age and coordination workload, each carrying `notAMeasureOf`; computed only from workflow timestamps the service holds - recovery, adherence and readmission are not inputs and cannot be derived |
+
+### Remaining limits
+
+- **The Part 9 browser journey is deliberately read-only.** It drives the preflight and its
+  policy-check gate, abandons the wizard before submitting, reads the archived episode's reopen
+  path, searches the audit trail, runs a dry run and switches the metric panels. The state CHANGES
+  (close, reopen, request transitions, apply) are owned by the API integration suite, which holds
+  the transactions and their denials.
+- **No destructive deletion and no restore test.** Clinical categories are report-only by policy;
+  an export artifact is the only thing a privacy request can produce.
+- **Export decryption is proven in-process.** There is no external storage, mail or job provider,
+  so nothing has ever left the machine.
+- **Metrics are workflow durations only.** Every series carries `notAMeasureOf`; no score, trend or
+  outcome exists anywhere in the payload.
+- **Audit search is admin-scoped and range-bounded**; there is no streaming export of the trail.
+- **Retention has no scheduler daemon**: apply is an explicit, capped, operator-attributed action,
+  and the dry run is the documented gate before it.
+- **Evidence is local and synthetic**: no deployment, real data or clinical validation - Part 10.
+
+### Commits
+
+`3bf74ef` docs: correct README status drift before starting Part 9 - `773e53f` Part 9 domain
+models, permission catalog and validated config - `07d832b` audited sensitive actions with
+redaction and scoped search - `3e77784` transactional episode closure, preflight and reopen -
+`20722a2` privacy requests with encrypted, time-limited exports - `1fa7f93` configurable retention,
+operational metrics and audit gates - `b036fbb` categorise every sensitive audit action -
+`93a8c3b` Part 9 client screens - `1623e50` six-size measurement of the Part 9 screens -
+`2eb3e1c` anchor the Part 8 due-time fixtures to the discharge date - `f70083b` Part 9 contract
+docs - `0c5cc5f` the day-view journey records the past day it claims - `a1869b7` repeatable
+retention dry runs and one definition of closed - `c8a7f21` the Part 9 browser journey -
+`d9a3977` due-check-in fixtures that hold at every hour - plus this docs commit.

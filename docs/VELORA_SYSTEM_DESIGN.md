@@ -480,6 +480,8 @@ policy rather than by destruction**:
 | D70 | Clinical retention categories are report-only; deletion requests are policy evaluations | automated destruction on request | no untested destructive path may exist in the product |
 | D71 | Retention apply is idempotent via `clientRequestId` and requires operator + reason | best-effort apply | a retry must not act twice and every run must be attributable |
 | D72 | Metrics carry `notAMeasureOf` and the service has no outcome input | expose derived quality scores | VEL-021: workflow durations must never become clinical inference |
+| D73 | Every retention DRY RUN gets its own `dry-run:` idempotency key | leave the key empty on a report | a stored null collides on the unique `(clinic, idempotencyKey)` index, so the second read-only report in a clinic was refused with 409 (found by the Part 9 browser journey, fixed) |
+| D74 | One `isClosed()` answers for `closureState` OR `status` on every closure surface | read `closureState` alone | an episode archived before Part 9 carries `status` only; two definitions showed it as open and offered a second close (found by the Part 9 browser journey, fixed) |
 
 ## 10. Known limitations (Parts 1-9)
 

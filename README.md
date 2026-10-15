@@ -208,11 +208,11 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 360 unit + integration tests (replica-set MongoDB test DB)
+npm test -w server               # 361 unit + integration tests (replica-set MongoDB test DB)
 npm test -w client               # 61 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
-npx playwright test              # 61 browser journeys at six viewport sizes (2 opt-in/skipped)
+npx playwright test              # 65 browser journeys (2 opt-in/skipped; 63 run) at six viewport sizes
 npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
 npm run evaluate:extraction -w server   # synthetic extraction evaluation (software behaviour, not clinical)
 npm audit --omit=dev             # production dependency audit

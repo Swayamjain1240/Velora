@@ -38,6 +38,8 @@ Velora/
                                   # Hindi review + patient isolation, and the provider-disabled fallback
     today.spec.js                 # Part 7 journeys: patient/self-report recording, scoped caregiver
                                   # logging, the staff schedule workspace and six-size measurement
+    part9.spec.js                 # Part 9 journey: closure wizard gating, archived-episode reopen,
+                                  # audit search, retention dry run, switchable metric panels
     detail-viewports.spec.js      # six-size one-viewport assertions for the detail screens
     viewports.spec.js             # six-size one-viewport assertions for the list routes
     global-setup.js               # seeds the synthetic clinic; enrols viewport sessions

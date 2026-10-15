@@ -399,9 +399,13 @@ default** (`EXTRACTION_PROVIDER=none`) fails closed while manual drafting keeps 
   preflight, authority), `auditCategories.test.js` (every sensitive action categorised, forbidden keys
   redacted), `dataRequestPolicy.test.js` (request transitions, correction field allowlist, deletion
   outcomes).
-- **Browser (Part 9):** `viewports.spec.js` measures the metrics, privacy, audit and retention routes
-  for the enrolled reviewer and admin sessions at all six sizes, and `detail-viewports.spec.js` walks
-  the episode closure tab and its history switch at all six sizes.
+- **Browser (Part 9):** `part9.spec.js` drives the closure preflight and its policy-check gate (and
+  abandons the wizard before submitting), the archived episode's reopen path, the audit search with
+  its filters and pagination, the retention dry run with its gated apply, and the switchable metric
+  panels - each with a one-viewport assertion. `viewports.spec.js` additionally measures the metrics,
+  privacy, audit and retention routes for the enrolled reviewer and admin sessions at all six sizes,
+  and `detail-viewports.spec.js` walks the episode closure tab and its history switch at all six
+  sizes.
 - **Recovery:** `scripts/reconcile-documents.js` dry run is part of the part gate; `--apply` requires
   an explicit operator and audits every repair. The Part 9 retention dry run is the equivalent gate
   for retention, and an export download is the only artifact a privacy request can produce.

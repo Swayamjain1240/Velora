@@ -226,7 +226,11 @@ no such input.
 - No automated destruction of clinical records: `documents` and
   `historical_records` are report-only.
 - No clinical outcome metric, by design.
-- No dedicated Part 9 browser journey fixture: the flows are proven through the
-  API integration suite, client tests and the six-size viewport gate.
+- The Part 9 browser journey (`e2e/part9.spec.js`) is deliberately read-only: it
+  drives the preflight and policy-check gate, abandons the wizard before
+  submitting, reads the archived episode's reopen path, searches the audit trail,
+  runs a **dry run** and switches the metric panels. The state CHANGES (close,
+  reopen, request transitions, apply) are proven by the API integration suite,
+  which owns the transactions and their denials.
 - Evidence is local and synthetic: no deployment, restore test, regulatory claim
   or clinical validation.
