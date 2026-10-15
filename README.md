@@ -6,7 +6,7 @@ Velora is a planned JavaScript MERN application that helps clinics convert priva
 
 Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
 
-> **Current status - 12 October 2026:** **Parts 1-5 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, and **manual source-linked care plans with clinical review, clarification, approval and immutable versioning**. Part 5 completes the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
+> **Current status - 15 October 2026:** **Parts 1-8 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, manual source-linked care plans with clinical review/approval, AI-assisted draft extraction with reviewed language, approved medication schedules/tasks/day view with append-only actor-attributed logs, and clinic-defined check-ins, the clarification queue, the assigned-team dashboard and in-app reminders. Part 5 completed the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. Part 9 (closure/archive, comprehensive audit, privacy requests, retention and operational metrics) is in progress. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment or clinical validation yet.
 
 ## Project authority
 
@@ -73,8 +73,8 @@ Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no
 | 5 | Manual care plans, review, approval and versioning | Implemented / verified locally - completes synthetic M1 |
 | 6 | AI extraction, source citations and reviewed language | Implemented / verified locally |
 | 7 | Medication schedules, daily tasks and actor-attributed logs | Implemented / verified locally |
-| 8 | Check-ins, clarification queue, dashboard and reminders | Planned |
-| 9 | Closure, audit, privacy requests, retention and metrics | Planned |
+| 8 | Check-ins, clarification queue, dashboard and reminders | Implemented / verified locally |
+| 9 | Closure, audit, privacy requests, retention and metrics | In progress (this part) |
 | 10 | Production hardening, restore and clinical-readiness gate | Planned |
 
 Code 2 diagnostic tests/results and Code 3 insurance remain outside the active scope.
@@ -176,6 +176,14 @@ medication schedule becomes patient-visible only through the assigned, verified 
 explicit activation, and an entry with nothing recorded is never shown as a missed dose. The states,
 safety wording, authority matrix, HTTP contract, DST rules andreconciliation behaviour are documented in
 [docs/VELORA_SCHEDULES.md](docs/VELORA_SCHEDULES.md).
+
+Part 9 adds episode closure/archive as an **operational** state (never a claim that a person has
+medically recovered), an append-only audit trail with scoped paginated search, privacy requests
+(export/correction/deletion-request) with identity verification, ownership and time-limited
+exports, configurable retention categories with dry-run/apply and holds, and operational workflow
+metrics that never infer clinical success. The closure preflight, authority matrix, request state
+machine, retention rules and metric definitions are documented in
+[docs/VELORA_PRIVACY_RETENTION.md](docs/VELORA_PRIVACY_RETENTION.md).
 
 Part 8 adds clinic-defined recovery check-ins, the clarification queue, the assigned-team dashboard,
 in-app reminders and basic prescribed follow-ups. Check-in templates are versioned and only the
