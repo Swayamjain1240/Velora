@@ -6,7 +6,7 @@ Velora is a planned JavaScript MERN application that helps clinics convert priva
 
 Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
 
-> **Current status - 15 October 2026:** **Parts 1-9 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, manual source-linked care plans with clinical review/approval, AI-assisted draft extraction with reviewed language, approved medication schedules/tasks/day view with append-only actor-attributed logs, clinic-defined check-ins, the clarification queue, the assigned-team dashboard, in-app reminders, and the Part 9 workflow surfaces: operational episode closure/reopen, a categorised append-only audit trail with scoped paginated search, privacy requests (export/correction/deletion-request) with time-limited encrypted exports, configurable retention with dry-run/holds, and operational workflow metrics. Part 5 completed the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. Part 10 (production hardening, restore testing and the clinical-readiness gate) has not been started. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. No production deployment, real destructive deletion, restore test or clinical validation yet.
+> **Current status - 16 October 2026:** **Parts 1-10 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, manual source-linked care plans with clinical review/approval, AI-assisted draft extraction with reviewed language, approved medication schedules/tasks/day view with append-only actor-attributed logs, clinic-defined check-ins, the clarification queue, the assigned-team dashboard, in-app reminders, and the Part 9 workflow surfaces: operational episode closure/reopen, a categorised append-only audit trail with scoped paginated search, privacy requests (export/correction/deletion-request) with time-limited encrypted exports, configurable retention with dry-run/holds, and operational workflow metrics. Part 5 completed the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. Part 10 completed the production-hardening and recovery gate: a validated production configuration that refuses an unusable security posture, an operator-decided proxy trust setting, liveness plus readiness probes with a graceful drain, bounded request/pool budgets, structured redacting logs, a synthetic restore drill that restores rows, indexes, encrypted objects and the document key into an isolated database and verifies them by reading them back, and the final threat model, provider decision register and [readiness report](docs/VELORA_READINESS_REPORT.md). See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. Still not done, by design: **no deployment, no external provider, no scheduled backup, no real destructive deletion, no real patient data and no clinical validation** - the owner, clinical, privacy and provider decisions are listed in the readiness report. Dev-only dependency advisories in the test toolchain remain open (production audit is clean).
 
 ## Project authority
 
@@ -60,7 +60,7 @@ Velora/
   README.md
 ```
 
-Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no production advisories at Part 4 close). No external storage, AI/OCR, antivirus, notification, queue, hosting or managed database provider has been selected; Part 4 stores documents through a provider-neutral interface with an encrypted local provider, and any vendor remains deferred and must be disclosed before use (control #22).
+Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (`--omit=dev` reports **0 vulnerabilities** at Part 10 close; six dev-only advisories remain in the test toolchain and are reported rather than hidden). No external storage, AI/OCR, antivirus, notification, queue, hosting or managed database provider has been selected; Part 4 stores documents through a provider-neutral interface with an encrypted local provider, and any vendor remains deferred and must be disclosed before use (control #22). The evaluated candidates, the disclosure each one requires and what each selection blocks are recorded in [docs/VELORA_PROVIDER_DECISIONS.md](docs/VELORA_PROVIDER_DECISIONS.md).
 
 ## Ten-part delivery plan
 
@@ -74,8 +74,8 @@ Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (no
 | 6 | AI extraction, source citations and reviewed language | Implemented / verified locally |
 | 7 | Medication schedules, daily tasks and actor-attributed logs | Implemented / verified locally |
 | 8 | Check-ins, clarification queue, dashboard and reminders | Implemented / verified locally |
-| 9 | Closure, audit, privacy requests, retention and metrics | In progress (this part) |
-| 10 | Production hardening, restore and clinical-readiness gate | Planned |
+| 9 | Closure, audit, privacy requests, retention and metrics | Implemented / verified locally |
+| 10 | Production hardening, restore and clinical-readiness gate | Implemented / verified locally - **not deployed**; provider, backup and clinical decisions remain owner gates |
 
 Code 2 diagnostic tests/results and Code 3 insurance remain outside the active scope.
 
@@ -185,6 +185,23 @@ metrics that never infer clinical success. The closure preflight, authority matr
 machine, retention rules and metric definitions are documented in
 [docs/VELORA_PRIVACY_RETENTION.md](docs/VELORA_PRIVACY_RETENTION.md).
 
+Part 10 hardens the deployment shape and proves recovery. A `NODE_ENV=production` configuration is
+**refused** rather than warned about when it is unusable (plain-HTTP or non-bare `CLIENT_ORIGIN`, debug
+logging, a short session pepper, one encryption key reused across the MFA/document/export stores, a
+non-TLS database connection, an impossible pool bound). Proxy trust is the operator's explicit
+decision with a stated hop count - it was previously a hardcoded hop, so a deployment that said "no
+proxy" still trusted a forwarding header. `/api/health` (liveness) and `/api/ready` (database `ping` +
+encrypted-storage writability, `503` naming the failing side) sit before the rate limiter and the
+session resolver and disclose no configuration; shutdown drains, then closes the database, then exits -
+forcing a non-zero exit if the bounded grace window is exceeded. Logs are structured JSON with
+depth-limited redaction and no production stack traces. Recovery is exercised, not assumed: the
+synthetic restore drill restores rows, indexes, the encrypted objects and the document key into an
+isolated database and verifies them by reading them back, including decrypting stored documents and
+comparing their recorded hashes. The operational limits, rotation status, failure behaviour and the
+owner decisions still open are in [docs/VELORA_OPERATIONS_RUNBOOK.md](docs/VELORA_OPERATIONS_RUNBOOK.md),
+[docs/VELORA_THREAT_MODEL.md](docs/VELORA_THREAT_MODEL.md) and
+[docs/VELORA_READINESS_REPORT.md](docs/VELORA_READINESS_REPORT.md).
+
 Part 8 adds clinic-defined recovery check-ins, the clarification queue, the assigned-team dashboard,
 in-app reminders and basic prescribed follow-ups. Check-in templates are versioned and only the
 assigned, clinic-verified reviewer can activate one or close a triggered review; a missing response
@@ -208,11 +225,12 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 361 unit + integration tests (replica-set MongoDB test DB)
+npm test -w server               # 388 unit + integration tests (replica-set MongoDB test DB)
 npm test -w client               # 61 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
-npx playwright test              # 65 browser journeys (2 opt-in/skipped; 63 run) at six viewport sizes
+npx playwright test              # 66 browser journeys (2 opt-in/skipped; 64 run) at six viewport sizes
+npm run restore:drill -w server         # logical restore drill: rows + indexes + objects + decryption
 npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
 npm run evaluate:extraction -w server   # synthetic extraction evaluation (software behaviour, not clinical)
 npm audit --omit=dev             # production dependency audit
@@ -264,6 +282,11 @@ holding `view_tasks` + `log_tasks`. `e2e/today.spec.js` records a past-day entry
 asserts the self-report wording (never a missed dose), records one as the scoped caregiver, walks the
 staff schedule workspace (prepared schedules, the UTC instant column, the recorded-entry history) and
 measures the day view at all six viewport sizes.
+
+Part 10 adds `e2e/accessibility.spec.js`: it tabs through the authenticated shell, requires a visible
+focus indicator (an outline of at least 2px, not just focus), activates an in-app navigation link with
+the keyboard and asserts the route changed. It deliberately performs **no** sign-out, because the
+enrolled sessions are shared with the viewport and journey specs.
 
 One journey is opt-in because it needs an API with a tiny parser budget: start the API with
 `DOCUMENT_PARSER_TIMEOUT_MS=50` and run `E2E_QUARANTINE=1 npx playwright test

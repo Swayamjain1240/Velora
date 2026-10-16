@@ -27,6 +27,10 @@ Velora/
     VELORA_SCHEDULES.md           # Part 7 schedule/task/log contract, safety wording, authority and time rules
     VELORA_CARE_COORDINATION.md   # Part 8 check-in/clarification/dashboard/reminder/follow-up contract and limits
     VELORA_PRIVACY_RETENTION.md   # Part 9 closure/audit/privacy-request/retention contract, runbook and metric definitions
+    VELORA_OPERATIONS_RUNBOOK.md  # Part 10 production configuration, probes, backup/restore, rotation, incidents
+    VELORA_PROVIDER_DECISIONS.md  # Part 10 provider decision register and the control-#22 disclosure template
+    VELORA_THREAT_MODEL.md        # Part 10 scenario-driven threat model with residual risks
+    VELORA_READINESS_REPORT.md    # Part 10 readiness verdict, security-25 matrix and requirement traceability
   e2e/
     auth.spec.js                  # login / MFA / staff journeys
     patients.spec.js              # Part 2-3 onboarding / consent / activation / episode journey
@@ -46,14 +50,16 @@ Velora/
   server/
     package.json
     scripts/{seed.js,seedScheduleJourney.js,mongo-test-rs.js,reconcile-documents.js,
-             syntheticPdf.js,evaluate-extraction.js}
+             restore-drill.js,syntheticPdf.js,evaluate-extraction.js}
                                   # synthetic clinic + care teams; Part 7 schedule journey fixture;
                                   # local replica set; document dry run/repair;
+                                  # logical restore drill (rows + indexes + objects + decryption);
                                   # synthetic PDF builder; deterministic extraction evaluation harness
     src/
       app.js                      # express app assembly
-      index.js                    # fail-closed startup, listen, graceful shutdown
-      config/{env,db,constants}.js
+      index.js                    # fail-closed startup, bounded timeouts, graceful drain
+      config/{env,db,constants}.js  # validated env (production gate, budgets, proxy hops);
+                                  # bounded Mongo pool + readiness ping; role/permission catalog
       middleware/{auth,csrf,errorHandler,rateLimit,security,validate,
                   boundedBody,documentAccess,documentLimits}.js
       models/{User,Clinic,ClinicMembership,MembershipRole,Invitation,
@@ -82,7 +88,8 @@ Velora/
                    dashboardController,reminderController,followUpController,
                    closureController,auditController,dataRequestController,
                    retentionController,metricsController}.js
-      services/{authService,sessionService,mfaService,passwordService,
+      services/{logger,readiness,
+                authService,sessionService,mfaService,passwordService,
                 crypto,staffService,rateLimitService,auditService,errors,txService,
                 patientService,consentService,caregiverService,episodeService,
                 documentStorage,documentValidator,documentInspector,documentService,
@@ -97,20 +104,21 @@ Velora/
                                   # registry that fails closed on an unknown provider exported from
                                   # extractionProvider.js
       workers/documentParser.js   # isolated, memory- and time-limited byte parser (no secrets)
-      routes/{auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents,plans,
+      routes/{health,auth,staff,clinic,patients,patientSelf,caregiver,access,episodes,documents,plans,
               extractions,schedules,today,checkInTemplates,checkIns,clarifications,
               dashboard,reminders,followUps,episodeClosures,audit,dataRequests,
-              retention,metrics}.js
+              retention,metrics}.js  # health/ready are mounted before the limiter and session load
     tests/
       helpers/{setup,documents}.js  # harness: env, db, factories, agents; synthetic file fixtures
       fixtures/extraction-evaluation.json  # synthetic extraction evaluation set (no real data)
-      unit/{env,crypto-password,extraction-policy,document-text-layer,extraction-evaluation,
-            schedulePolicy,checkInPolicy,clarificationPolicy,reminderPolicy,
-            notificationProvider,closurePolicy,auditCategories,dataRequestPolicy}.test.js
-      integration/{auth,staff,patients,episodes,documents,plans,extractions,languageVariants,
-                   schedules,checkInTemplates,checkIns,clarifications,clinicSettings,
-                   dashboard,reminders,followUps,closures,audit,privacyRequests,
-                   retention,metrics}.test.js
+      unit/{env,logger,restoreDrill,crypto-password,extraction-policy,document-text-layer,
+            extraction-evaluation,schedulePolicy,checkInPolicy,clarificationPolicy,
+            reminderPolicy,notificationProvider,closurePolicy,auditCategories,
+            dataRequestPolicy}.test.js
+      integration/{health,auth,staff,patients,episodes,documents,plans,extractions,
+                   languageVariants,schedules,checkInTemplates,checkIns,clarifications,
+                   clinicSettings,dashboard,reminders,followUps,closures,audit,
+                   privacyRequests,retention,metrics}.test.js
   client/
     package.json
     vite.config.js                # dev proxy /api -> API (overridable)

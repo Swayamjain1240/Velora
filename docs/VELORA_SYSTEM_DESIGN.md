@@ -404,7 +404,45 @@ policy rather than by destruction**:
   time, queue age and coordination workload each carry a `notAMeasureOf` line, and the service has no
   input from which recovery, adherence or readmission could be computed even if someone asked.
 
-## 9. Decision log (Parts 1-9)
+## 8i. Production hardening, readiness and recovery (Part 10)
+
+- **Configuration production gate.** `server/src/config/env.js` refuses (never warns about) a
+  production posture that cannot be secured: a non-HTTPS or non-bare `CLIENT_ORIGIN`, `LOG_LEVEL=debug`,
+  a session pepper under 32 characters, any encryption key reused across the MFA/document/export stores
+  or equal to the pepper, a `MONGODB_URI` without TLS, and a pool minimum above its maximum. Body,
+  request, pool, keep-alive and shutdown budgets are validated numbers with bounded defaults.
+- **Proxy trust is a deployment decision.** `resolveTrustProxy(env)` returns `false` unless the operator
+  opts in, in which case the exact hop count is used. With it off, `req.ip` is the socket address, so a
+  forged `X-Forwarded-For` cannot influence the rate limiters or the audit trail; one warning line
+  names the consequence at startup.
+- **Liveness vs readiness.** `/api/health` answers without touching any dependency (a database blip must
+  not restart a healthy process). `/api/ready` performs a real database `ping` and checks the encrypted
+  storage root for existence and writability, fails CLOSED with `503`, names the failing side
+  (`database`/`storage`) and reports `draining` while shutting down. Both are mounted before the rate
+  limiter, the session resolver and CSRF, and neither payload contains a version, host, path,
+  credential or driver message. Readiness only logs on a STATE CHANGE, so a probe every few seconds
+  cannot flood the log.
+- **Graceful shutdown.** Drain (readiness flips first) → stop accepting connections → close the
+  listener → disconnect MongoDB → exit `0`; exceeding `SHUTDOWN_GRACE_MS` logs `shutdown.forced` and
+  exits non-zero. A fatal `uncaughtException` takes the same path; an `unhandledRejection` is recorded
+  and the process continues, because the request path already fails closed.
+- **Structured logging with redaction.** One JSON object per line with a named `event`, level filtering
+  from `LOG_LEVEL`, sensitive keys replaced at every depth (including inside `Error` objects), bounded
+  strings/arrays/depth, and no stack trace in production. The logger is hand-written over the standard
+  library: Part 10 added no dependency.
+- **Recovery is exercised, not assumed.** `scripts/restore-drill.js` restores rows, indexes (with their
+  options) and the encrypted objects into an isolated, drill-suffixed database, then verifies by
+  reading back: collection set, counts, per-collection content checksums, index signatures, object
+  bytes, and real decryption of stored documents compared with their recorded `sha256`. It proves the
+  source was untouched and drops the copy unless `--keep` is passed. `scripts/reconcile-documents.js`
+  remains the drift report/repair path for a partial restore. Both run in CI on the seeded database.
+- **What is still absent.** No backup schedule exists (so no RPO can be quoted), the object-store and
+  database providers are unselected, monitoring/on-call routing is unselected, and no deployment,
+  penetration test or load test has happened - see
+  [VELORA_READINESS_REPORT.md](VELORA_READINESS_REPORT.md) and
+  [VELORA_OPERATIONS_RUNBOOK.md](VELORA_OPERATIONS_RUNBOOK.md).
+
+## 9. Decision log (Parts 1-10)
 
 | # | Decision | Alternative rejected | Reason |
 |---:|---|---|---|
@@ -482,8 +520,14 @@ policy rather than by destruction**:
 | D72 | Metrics carry `notAMeasureOf` and the service has no outcome input | expose derived quality scores | VEL-021: workflow durations must never become clinical inference |
 | D73 | Every retention DRY RUN gets its own `dry-run:` idempotency key | leave the key empty on a report | a stored null collides on the unique `(clinic, idempotencyKey)` index, so the second read-only report in a clinic was refused with 409 (found by the Part 9 browser journey, fixed) |
 | D74 | One `isClosed()` answers for `closureState` OR `status` on every closure surface | read `closureState` alone | an episode archived before Part 9 carries `status` only; two definitions showed it as open and offered a second close (found by the Part 9 browser journey, fixed) |
+| D75 | Production configuration is REFUSED, not warned about | log a warning and start | a warning nobody reads is not a control; an unusable posture (debug on, reused keys, plaintext database, weak pepper) must stop the boot |
+| D76 | `trust proxy` follows `TRUST_PROXY`/`PROXY_HOPS` explicitly | hardcode one trusted hop | a deployment that said "no proxy" still trusted a forwarding header, so callers could rewrite the address used by rate limits and the audit trail |
+| D77 | Liveness and readiness are separate, and both are mounted before the limiter and the session resolver | one `/api/health` that needs a session | a probe must never spend a caller's budget, must never disclose configuration, and a database blip must not restart a healthy process |
+| D78 | Readiness reports `draining` before the listener closes; a shutdown that overruns the grace window exits non-zero | close first, exit 0 | a load balancer must be able to drain the instance, and an unclean stop must be visible rather than silent |
+| D79 | The restore drill verifies by READING the restored copy back (including AES-GCM decryption against the recorded hash) | compare counts only | counts cannot catch a wrong key or a mistranslated index; the drill found a partial-unique-index rebuild defect on its first run |
+| D80 | Index options (partial filter, TTL, collation, sparse) are recreated AND compared during a restore | recreate keys and uniqueness only | a partial unique index restored as a full one rejects legitimate rows (the exact defect found in D79) |
 
-## 10. Known limitations (Parts 1-9)
+## 10. Known limitations (Parts 1-10)
 
 - No external AI/OCR provider is selected or called; a real provider needs the completed disclosure
   and owner/clinical/privacy review first (control #22). The evaluation is **software behaviour on
@@ -493,7 +537,12 @@ policy rather than by destruction**:
 - Devices/sessions are listed and revocable, but there is no per-device naming or push.
 - The clinical permission catalog is declared for later parts and is not yet enforced by any route
   beyond `clinical.review` eligibility; Parts 2+ wire the remaining permissions.
-- No production deployment, restore test or clinical validation yet (Parts 10).
+- No production deployment or clinical validation yet, and **no scheduled backup**: a logical,
+  same-host restore is verified on every push (Part 10), but it is taken live, so RPO is unbounded and
+  no provider-level, off-host or point-in-time restore has been exercised.
+- Key rotation is implemented only for the session pepper. Rotating `MFA_ENCRYPTION_KEY` or
+  `DOCUMENT_ENCRYPTION_KEY` needs a re-seal script that does not exist yet, so neither may be rotated
+  in place today.
 - Part 2 honours only the `view_profile` caregiver scope; `view_episodes`, `view_documents`,
   `view_plan` and `view_tasks` are declared but deliberately inert until their parts land.
 - Patient/caregiver invitation links are still log/response-delivered in development (no mail

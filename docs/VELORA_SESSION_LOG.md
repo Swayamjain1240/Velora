@@ -1419,3 +1419,147 @@ operational metrics and audit gates - `b036fbb` categorise every sensitive audit
 docs - `0c5cc5f` the day-view journey records the past day it claims - `a1869b7` repeatable
 retention dry runs and one definition of closed - `c8a7f21` the Part 9 browser journey -
 `d9a3977` due-check-in fixtures that hold at every hour - plus this docs commit.
+
+---
+
+## Session - 16 October 2026 - Part 10 (production hardening, recovery and the clinical-readiness gate)
+
+### Duck review (start of session)
+
+Read before writing code: the three authority PDFs and their markdown mirrors, the ten build prompts,
+`README.md`, `docs/VELORA_STRUCTURE.md`, the Parts 1-9 review entries in this log, the Part 9 code and
+tests, the CI workflow, `.env.example`, and the dependency manifests. State on entry: branch `main`,
+clean tree at `4c5513f` (74 commits), the local single-node replica set running, no `gh` on this host
+so PR/CI run state is **not observable locally** - the evidence below is the local gate, which is what
+the CI workflow runs.
+
+Part 10 is the last part: prepare and verify production hardening, backup/restore, provider/privacy
+review and clinical-readiness evidence **without deploying, purchasing a service, sending an external
+message or touching real patient data**. Every provider row therefore stays `NOT SELECTED`.
+
+### External service gate (control #22)
+
+**No provider selected or called.** The candidate shortlists for hosting, managed MongoDB, private
+object storage, email/SMS, job scheduling, AI/OCR and monitoring were assembled from the Gravity Index
+catalogue rather than from memory, and are recorded with the disclosure the owner must make before
+enabling any of them ([VELORA_PROVIDER_DECISIONS.md](VELORA_PROVIDER_DECISIONS.md)). Two findings are
+themselves decisions: the catalogue has **no suitable candidate for medical document extraction/OCR**
+and none for a background job queue, so both remain open with explicit requirements instead of a
+default vendor. No dependency was added in Part 10.
+
+### Work performed (Part 10)
+
+- **Production configuration gate.** `NODE_ENV=production` now REFUSES (rather than warns about) a
+  non-HTTPS or non-bare `CLIENT_ORIGIN`, `LOG_LEVEL=debug`, a session pepper under 32 characters, any
+  encryption key reused across the MFA/document/export stores or equal to the pepper, a
+  `MONGODB_URI` without TLS, and a pool minimum above its maximum. Body, request, pool and shutdown
+  budgets are configurable and bounded (35 variables validated in one place).
+- **Proxy trust became an operator decision.** `TRUST_PROXY` was validated but never used: `trust
+  proxy` was hardcoded to `1`, so a deployment that explicitly said "no proxy" still trusted a
+  forwarding header, letting a caller rewrite the address that rate limits and the audit trail record.
+  It is now `false` unless the operator opts in with an explicit hop count, and startup logs one
+  warning when it is off.
+- **Health and readiness.** `/api/health` (liveness: no dependency, so a database blip never restarts
+  a healthy process) and `/api/ready` (readiness: real database `ping` plus encrypted-storage
+  writability, `503` naming the failing side, `draining` before the listener closes). Both are mounted
+  BEFORE the rate limiter, the session resolver and CSRF, and neither discloses a version, host, path,
+  credential or driver message.
+- **Graceful shutdown.** SIGTERM/SIGINT (and a fatal uncaught exception) mark the process draining,
+  stop accepting connections, close the listener, disconnect MongoDB, and exit `0` - or log
+  `shutdown.forced` and exit non-zero when the bounded grace window is exceeded. Request/header/
+  keep-alive timeouts and a bounded Mongo pool bound the process under load.
+- **Structured, redacting logging.** A dependency-free JSON logger with a named event per line,
+  level filtering, deep redaction of sensitive keys (including inside `Error` objects), bounded
+  strings/arrays/depth, and NO stack traces in production. Unhandled errors carry the request id;
+  audit-write failures are alert-worthy events.
+- **Restore drill and reconciliation evidence.** `scripts/restore-drill.js` restores rows, indexes and
+  the encrypted objects into an isolated drill database and verifies them by READING them back -
+  collection set, row counts, deterministic content checksums, index fidelity (name/key/uniqueness/
+  partial filter/TTL), object bytes, and real AES-GCM decryption of stored documents against their
+  recorded hash - then proves the source is unchanged and drops the copy. CI now runs the drill and
+  the read-only reconciliation report on every push.
+- **Documentation.** Operations/restore runbook, provider decision register, scenario threat model and
+  the readiness report; README, structure, architecture, system design and this log synchronised.
+
+### Defects found and fixed (dependent drift)
+
+1. **A production deployment could start with an unusable security posture** (debug logging, one key
+   reused across three stores, a development-strength pepper, an unencrypted connection, an
+   impossible pool bound). Now refusals, each with a unit test - and the failure message still names
+   the FIELD only, never a value.
+2. **`trust proxy` was hardcoded while `TRUST_PROXY` was decorative.** Fixed as above; the integration
+   suite now asserts the resolved value comes from the environment.
+3. **The restore drill rejected its own restore.** A *partial* unique index (at most one ACTIVE
+   caregiver grant) was rebuilt as a *full* unique index, so legitimately repeated rows from revoked
+   grants were refused by the index build. Index options are now recreated AND compared, and a failure
+   to rebuild is reported as a finding instead of crashing the drill. Only a restore test can find
+   this class of defect.
+4. **A synthetic credentialed-URI fixture could have tripped the CI secret scan.** Removed from the
+   tree and rewritten out of the unmerged commit's history before it could ever be pushed.
+5. **The new keyboard journey signed out a shared session**, breaking seven later journeys that reuse
+   that saved session. It now proves keyboard activation on a navigation link and makes no state
+   change. Found only because the whole browser suite was re-run after adding the spec.
+6. **Harness mistakes, not defects** (recorded so the evidence is honest): the first local browser runs
+   failed 9 then 7 journeys because the API was started in `development` (the in-process blanket
+   limiter is active there: request 301 in a window returns `429`) and because the provider-disabled
+   journey was run without exporting `EXTRACTION_PROVIDER`. Re-run the documented way
+   (`EXTRACTION_PROVIDER=fake NODE_ENV=test`) the suite is green. `npm run seed` also failed on this
+   host because the shell exports `PORT=0`; the documented explicit `PORT` works and the validator
+   still rejects a literal `0` by design.
+
+### Evidence (local, synthetic data only)
+
+| Check | Result |
+|---|---|
+| `npm test -w server` (replica-set MongoDB) | **388 passed / 0 failed**, exit 0 on the frozen tree |
+| `npm test -w client` | **61 passed / 0 failed** |
+| `npm run lint -w client` / `npm run build -w client` | clean / built (368.38 kB JS, 101.34 kB gzip) |
+| Browser journeys (six sizes, Chromium) | **64 passed / 0 failed / 2 skipped** of 66, exit 0 |
+| Provider fails closed with none enabled | **1 passed**, exit 0 |
+| `npm run restore:drill -w server` | **PASSED** - 48 collections, 4176 rows, 162 objects / 6 054 128 bytes, 25/25 documents decrypted from the restored copy, source unchanged, drill DB dropped |
+| `node server/scripts/reconcile-documents.js` | 174 rows / 174 objects, 0 missing / unreadable / mismatched / orphan |
+| `npm audit --omit=dev` | **0 vulnerabilities** |
+| `npm audit` (incl. dev tooling) | 6 advisories (3 moderate, 1 high, 2 critical) - dev/test toolchain only, reported as a limitation |
+| Secret scans (tree + every reachable commit) | clean |
+
+### Duck against the before-real-patient-use gate and the Security-25 controls
+
+| Item | Verdict |
+|---|---|
+| Production configuration schema | **VERIFIED** - production refusals with 15 unit cases |
+| Health/readiness, shutdown, pool, request ids, redacted logs | **VERIFIED** - 5 unit + 5 integration cases |
+| Provider decisions disclosed before use | **VERIFIED** - register written, nothing selected, registries still fail closed |
+| Backup/restore | **PARTIAL** - a verified logical restore exists; no backup schedule, so RPO is unbounded and no provider/point-in-time restore was exercised |
+| Threat model | **VERIFIED (document)** - 11 scenarios with residual risks and named BLOCKED items |
+| CI protections | **VERIFIED** - gate re-run plus the new restore/reconciliation steps; no gate weakened |
+| Accessibility/keyboard | **PARTIAL** - keyboard reachability, visible focus and activation now proven in a browser; no screen-reader, contrast/axe, cross-browser or physical-device run |
+| Key rotation (MFA/document) | **NOT IMPLEMENTED** - required procedure documented, no re-seal script exists |
+| Clinical, privacy/legal and deployment readiness | **BLOCKED** - owner/clinical/DPO decisions listed in the readiness report |
+
+All 25 controls were re-checked: 20 `VERIFIED`, 4 `PARTIAL` (keys/rotation, client-host headers and
+network boundaries, dependency advisories, accessibility depth), and the remaining control unchanged
+and re-verified. No control is claimed as satisfied by a document alone.
+
+### Remaining limits
+
+- **Not deployed.** No environment, provider, secret store or monitoring exists; every probe, drill
+  and failure case was exercised locally against synthetic data.
+- **No scheduled backup and no real restore.** The drill is logical, same-host and driver-driven; it
+  cannot bound data loss (the copy is taken live) and its timings are not a production RTO.
+- **No destructive deletion, ever.** Clinical retention categories stay report-only.
+- **No external provider was called**, so nothing has left this machine - and therefore no provider
+  behaviour, retention or cost has been observed either.
+- **Clinical validation, DPIA-equivalent review and incident ownership remain owner decisions**, as do
+  the key re-seal scripts and the retention schedule.
+- **Dev-only advisories** in the test toolchain (vitest/vite/esbuild) remain open by choice; the
+  production audit is clean.
+
+### Commits
+
+`48aa7da` production configuration gate, proxy-trust fix, readiness/shutdown and structured logging -
+`02907c2` the synthetic restore drill, its index-fidelity fix and the key-lesson unit tests -
+`a8b8a04` the keyboard reachability/focus/activation journey - `56251a5` the CI restore-drill and
+reconciliation step - plus this records commit (runbook, provider register, threat model, readiness
+report, README, structure, architecture, system design and this entry), whose own hash is deliberately
+not quoted because amending it would invalidate the reference. Five Part 10 commits; **79 commits** in
+the repository, no padding.

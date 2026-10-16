@@ -299,8 +299,17 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
 - One envelope: `{ error: { code, message } }`. `errorHandler` maps known `AppError`s to codes and
   statuses, and collapses unknown errors to a generic `INTERNAL` message - never a stack trace
   (control #9, #12).
-- `X-Request-Id` is set on every response and a request id is available for audit correlation.
-- Audit events are append-only and actor-attributed (`auditService.record`).
+- `X-Request-Id` is set on every response and the same id is attached to the structured log line for an
+  unhandled error, so a user report can be traced to one server event.
+- **Structured logs with redaction (Part 10).** `services/logger.js` writes one JSON object per line
+  with a named `event`, filters on `LOG_LEVEL`, replaces sensitive keys at every depth (including
+  inside `Error` objects), bounds strings/arrays/depth, and suppresses stack traces in production.
+  Clinical text is never logged: callers pass counts, ids and error summaries.
+- **Probes.** `/api/health` (liveness) and `/api/ready` (dependency readiness) are mounted before the
+  rate limiter, the session resolver and CSRF, disclose no configuration, and are the only
+  unauthenticated `/api` surfaces besides the public invitation/landing routes.
+- Audit events are append-only and actor-attributed (`auditService.record`); a failed audit write is an
+  alert-worthy `audit.write_failed` event rather than a silent `console.error`.
 
 ## 9. Verification strategy
 
@@ -409,4 +418,52 @@ default** (`EXTRACTION_PROVIDER=none`) fails closed while manual drafting keeps 
 - **Recovery:** `scripts/reconcile-documents.js` dry run is part of the part gate; `--apply` requires
   an explicit operator and audits every repair. The Part 9 retention dry run is the equivalent gate
   for retention, and an export download is the only artifact a privacy request can produce.
-- **Security:** `npm audit` (production), tree + history secret scan, dependency pin review.
+- **Unit (Part 10):** `env.test.js` (production refusals: https/bare origin, debug level, short pepper,
+  reused keys, non-TLS database, impossible pool bound, proxy hops), `logger.test.js` (level filtering,
+  redaction at depth including `Error` objects, production stacks suppressed, bounded output, circular
+  values never throw, child bindings), `restoreDrill.test.js` (connection-string re-pointing keeps host
+  and options; index options - partial filter, TTL - are recreated; deterministic checksums).
+- **Integration (Part 10):** `health.test.js` - liveness needs no session and discloses no path/host,
+  readiness reports each probed dependency, `draining` fails closed while liveness stays `200`,
+  unusable encrypted storage fails readiness and names the side without leaking the path, and
+  `trust proxy` resolves from the validated environment.
+- **Browser (Part 10):** `accessibility.spec.js` tabs through the shell, requires a visible focus
+  indicator (2px+ outline) and activates a navigation link with the keyboard, proving keyboard
+  reachability and activation without changing any state.
+- **Recovery drill (Part 10):** `scripts/restore-drill.js` restores rows, indexes and the encrypted
+  objects into an isolated database and verifies by reading back (counts, content checksums, index
+  signatures, object bytes, decryption against the recorded hash). CI runs it plus the read-only
+  reconciliation report on every push.
+- **Security:** `npm audit` (production), tree + history secret scan, dependency pin review. The
+  production audit is clean; the six remaining dev-only advisories in the test toolchain are reported
+  in the readiness report rather than suppressed.
+
+## 10. Production runtime (Part 10)
+
+```text
+  process start
+    -> loadEnv(): validate every variable, refuse an unusable PRODUCTION posture
+       (https/bare CLIENT_ORIGIN, no debug level, 32+ pepper, distinct encryption keys, TLS database,
+        sane pool bounds)
+    -> assertProviderConfiguration(): unknown provider name or missing key fails here, not on the
+       first clinical request (default: none)
+    -> connectDb(): bounded pool, selection/connect/socket timeouts from configuration
+    -> listen(): request/header/keep-alive timeouts applied; one non-sensitive config summary logged
+
+  request
+    -> requestContext (request id, client ip, user agent)
+    -> security headers, exact CORS allowlist, bounded JSON body, cookie parser
+    -> /api/health and /api/ready  (before the limiter, session and CSRF)
+    -> rate limits: coarse in-process per-IP budget + durable Mongo-backed per-route budgets
+    -> loadSession -> csrfProtection -> route
+
+  shutdown (SIGTERM/SIGINT/uncaughtException)
+    -> readiness flips to `draining`  -> stop accepting connections -> drain in-flight requests
+    -> disconnect MongoDB -> exit 0   (or log `shutdown.forced` and exit non-zero past the grace window)
+```
+
+Deployment-shape facts worth stating plainly: the API is designed as a **long-running process** with a
+bounded pool and a real drain, so a serverless request/response platform does not match its shutdown,
+connection-pool or in-process parser assumptions. Proxy trust, TLS termination, the platform
+termination grace period and the client host's own security headers are deployment responsibilities
+that no code in this repository can assert; they are listed as owner decisions in the readiness report.
