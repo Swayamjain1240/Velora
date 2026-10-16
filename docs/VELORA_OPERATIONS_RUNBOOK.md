@@ -267,6 +267,11 @@ Reports metadata rows whose object is missing/unreadable/tampered (verified by r
 re-hashing) plus orphan objects, and requires an explicit operator attribution to repair, auditing
 every repair. Never run `--apply` as the first step of a restore: report first.
 
+The report is read-only by default and the repair path has its own integration test, which creates
+each drift class deliberately (lost object, tampered envelope, validly encrypted object whose
+plaintext no longer matches its recorded hash, orphan with no metadata row) and asserts the dry run
+changes nothing before asserting the repair.
+
 ---
 
 ## 8. Rotation runbooks
@@ -274,16 +279,58 @@ every repair. Never run `--apply` as the first step of a restore: report first.
 | Secret | Rotation | Status |
 |---|---|---|
 | Provider API key (none selected today) | set the new value, restart, confirm the provider gate passes | **NOT IMPLEMENTED** (no provider selected) |
-| `SESSION_PEPPER` | replacing it invalidates every stored session-token hash, so every user is signed out. Deploy the new value, then confirm `GET /api/auth/me` returns 401 with an old cookie and a fresh login succeeds | **VERIFIED** (sessions are opaque tokens hashed with the pepper) |
-| `MFA_ENCRYPTION_KEY` | **NOT IMPLEMENTED as a migration**: existing TOTP secrets are encrypted with the old key. A rotation procedure requires re-encrypting every `User.mfaSecret` with the new key; until that script exists, rotating the key strands existing MFA enrolments | **NOT IMPLEMENTED — owner decision** |
-| `DOCUMENT_ENCRYPTION_KEY` | same shape: every stored object is sealed with the old key. A rotation requires a re-seal pass over the object store plus a verified restore drill afterwards | **NOT IMPLEMENTED — owner decision** |
-| `PRIVACY_EXPORT_ENCRYPTION_KEY` | generated exports are short-lived (`EXPORT_ARTIFACT_TTL_HOURS`); the practical procedure is to revoke outstanding exports, rotate, and let existing artifacts expire. Revocation is implemented (`POST /api/privacy-requests/:id/revoke-export`) | PARTIAL |
+| `SESSION_PEPPER` | replacing it invalidates every stored session-token hash AND every MFA recovery-code hash, so every user is signed out and every recovery code becomes useless. Deploy the new value, then sign everyone out and re-issue recovery codes; confirm `GET /api/auth/me` returns 401 with an old cookie and a fresh login succeeds | **VERIFIED** (sessions and recovery codes are peppered hashes; there is nothing to re-seal) |
+| `MFA_ENCRYPTION_KEY` | re-sealed by `scripts/reseal-keys.js`: same seed, new key, so existing authenticator entries keep working. Verified by re-reading the stored seed with the new key and by driving a real TOTP verification after the rotation | **VERIFIED (local drill)** |
+| `DOCUMENT_ENCRYPTION_KEY` | re-sealed by `scripts/reseal-keys.js`, one object at a time, each verified against the hash the database recorded before the old key is removed | **VERIFIED (local drill)** |
+| `PRIVACY_EXPORT_ENCRYPTION_KEY` | generated exports are short-lived (`EXPORT_ARTIFACT_TTL_HOURS`); the practical procedure is to revoke outstanding exports, rotate, and let existing artifacts expire rather than re-sealing them | PARTIAL |
 | `MONGODB_URI` credentials | rotate at the database, then restart; the process refuses to start if the new URI lacks TLS in production | **VERIFIED** (startup gate) |
 
-The two missing re-seal scripts are the honest gap: this runbook does not claim key rotation is
-possible for MFA or stored documents, only that it is required before a real deployment and the
-data layout that makes it possible (per-object IV + authenticated tag, one key per store) is in
-place.
+### 8.1 Rotating the MFA or document key (`scripts/reseal-keys.js`)
+
+A rotation is a **two-key window**, not a single edit. The process must be able to read with the old
+key and write with the new one, so both are present for exactly one run.
+
+```bash
+# 1. Generate the new key (`npm run gen:env` prints a 32-byte base64 value).
+# 2. In the secret store: set the NEW value as the current variable and move the OLD
+#    value into its *_PREVIOUS variable.
+#    MFA_ENCRYPTION_KEY=<new>       MFA_ENCRYPTION_KEY_PREVIOUS=<old>
+#    DOCUMENT_ENCRYPTION_KEY=<new>  DOCUMENT_ENCRYPTION_KEY_PREVIOUS=<old>
+# 3. Restart. Startup refuses a *_PREVIOUS value that equals its current key
+#    (that rotation would silently change nothing) or that reuses another store's key.
+# 4. Report first - this writes nothing:
+npm run keys:reseal -w server
+# 5. Re-seal, attributed:
+npm run keys:reseal -w server -- --apply --operator you@clinic.example
+# 6. Verify: the report lists documents resealed, documents verified (read back with the NEW
+#    key and compared to the stored sha256), MFA seeds verified, and every failure per id.
+# 7. Remove the two *_PREVIOUS variables and restart.
+```
+
+Properties of the pass, all asserted by `server/tests/integration/resealKeys.test.js`:
+
+- **Dry run by default**; `--apply` refuses without `--operator` and exits non-zero.
+- **No plaintext outside the process**: each object is decrypted in memory only to be re-encrypted
+  under the new key.
+- **Crash-safe per object**: the new envelope is written to a sibling temp file, verified by
+  decrypting it back, and only then renamed over the original, so an interrupted run leaves the
+  original object intact. A temp file left by a killed run is swept on the next one.
+- **No loss**: after the pass, every object is read back with the NEW key and compared against the
+  hash recorded in MongoDB. A mismatch is reported, never assumed away.
+- **No clobbering**: an MFA re-seal is a compare-and-set on the old sealed value, so a user who
+  re-enrols mid-rotation keeps their new secret and is reported as skipped.
+- **One audit event per run** (`key.rotation.resealed`) with counts and outcome - no key, no secret
+  and no filename ever reaches the trail.
+- **Nothing is rewritten that the previous key cannot open**: such an object (an older generation, or
+  a botched earlier rotation) is reported as `previous-key-cannot-open` and left exactly as it was,
+  so the correct key can still rescue it.
+
+After a document-key rotation, run the restore drill and the reconciliation report again: a rotation
+is a data-handling event, and the drill is what proves the store is still consistent with it.
+
+**Still BLOCKED for a real deployment:** this drill is local and synthetic. Nothing has been rotated
+against a managed key store or an object-storage provider with versioning, so provider-specific
+rotation behaviour (versioned objects, server-side re-encryption, key-store audit logs) is unverified.
 
 ---
 
@@ -343,6 +390,7 @@ npm run e2e                         # Playwright journeys (needs API + client ru
 npm audit --omit=dev                # production dependency audit
 node server/scripts/restore-drill.js
 node server/scripts/reconcile-documents.js
+node server/scripts/reseal-keys.js          # dry run; "nothing to do" unless a rotation is staged
 ```
 
 CI runs the same gate (`.github/workflows/ci.yml`): server tests against a replica set, client
@@ -363,7 +411,9 @@ before merge, and require a review on `main`; no direct pushes to `main`.
    ([provider decision register](VELORA_PROVIDER_DECISIONS.md)).
 2. **Backup cadence, location, encryption, retention and access audit** (and therefore the actual
    RPO/RTO commitments).
-3. **Key re-seal scripts** for `MFA_ENCRYPTION_KEY` and `DOCUMENT_ENCRYPTION_KEY` rotation.
+3. **A managed key store and rotation cadence**: the re-seal command exists and is proven locally
+   (§8.1), but WHERE the keys live, WHO may rotate them, and HOW OFTEN is still an owner decision —
+   and a provider's own rotation behaviour (versioned objects, key-store audit logs) is unverified.
 4. **Retention scheduling** and the legal retention windows per clinic.
 5. **Clinical governance**: who reviews the clinical workflow, which procedure(s) are in scope, and
    which authorized datasets may be used.

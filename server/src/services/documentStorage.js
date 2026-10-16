@@ -50,27 +50,42 @@ function objectPath(key) {
   return path.join(objectsDir(), key.slice(0, 2), `${key}.bin`);
 }
 
-function encrypt(plaintext) {
-  const key = Buffer.from(getEnv().DOCUMENT_ENCRYPTION_KEY, 'base64');
+// The envelope key is passed EXPLICITLY: request handlers use the configured key
+// through `encrypt`/`decrypt`, and the key-rotation command reads with the
+// PREVIOUS key and writes with the CURRENT one (control #1).
+function keyOf(keyBase64) {
+  const key = Buffer.from(String(keyBase64 || ''), 'base64');
+  if (key.length !== 32) throw errors.internal('Document storage key must be 32 bytes.');
+  return key;
+}
+
+function encryptWith(keyBase64, plaintext) {
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', keyOf(keyBase64), iv);
   const body = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.concat([MAGIC, iv, tag, body]);
 }
 
-function decrypt(envelope) {
+function decryptWith(keyBase64, envelope) {
   if (envelope.length < MAGIC.length + 12 + 16 || !envelope.subarray(0, MAGIC.length).equals(MAGIC)) {
     throw errors.internal('Stored object is not a Velora document.');
   }
   const iv = envelope.subarray(MAGIC.length, MAGIC.length + 12);
   const tag = envelope.subarray(MAGIC.length + 12, MAGIC.length + 28);
   const body = envelope.subarray(MAGIC.length + 28);
-  const key = Buffer.from(getEnv().DOCUMENT_ENCRYPTION_KEY, 'base64');
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', keyOf(keyBase64), iv);
   decipher.setAuthTag(tag);
   // final() throws if the ciphertext or tag was tampered with.
   return Buffer.concat([decipher.update(body), decipher.final()]);
+}
+
+function encrypt(plaintext) {
+  return encryptWith(getEnv().DOCUMENT_ENCRYPTION_KEY, plaintext);
+}
+
+function decrypt(envelope) {
+  return decryptWith(getEnv().DOCUMENT_ENCRYPTION_KEY, envelope);
 }
 
 async function ensureRoot() {
@@ -111,6 +126,59 @@ const localProvider = {
   async remove(key) {
     const target = objectPath(key);
     await fs.rm(target, { force: true });
+  },
+  // Reads one object with an EXPLICIT key, used only by the key-rotation
+  // command: the dry run has to know whether the PREVIOUS key can still open an
+  // object before anything is written.
+  async getWithKey(key, keyBase64) {
+    const target = objectPath(key);
+    const info = await fs.lstat(target);
+    if (!info.isFile() || info.isSymbolicLink()) {
+      throw errors.internal('Stored object is not a regular file.');
+    }
+    return decryptWith(keyBase64, await fs.readFile(target));
+  },
+  // Re-encrypts one object under `toKey`, reading it with `fromKey`. The new
+  // envelope is written to a sibling temp file, verified by decrypting it back,
+  // and only then renamed over the original, so an interrupted rotation leaves
+  // the ORIGINAL object intact rather than a half-written one.
+  async reseal(key, { fromKey, toKey }) {
+    const target = objectPath(key);
+    const plaintext = decryptWith(fromKey, await fs.readFile(target));
+    const next = encryptWith(toKey, plaintext);
+    const tmp = `${target}.reseal.tmp`;
+    try {
+      await fs.writeFile(tmp, next, { mode: 0o600 });
+      const check = decryptWith(toKey, await fs.readFile(tmp));
+      if (!check.equals(plaintext)) throw new Error('re-seal verification failed');
+      await fs.rename(tmp, target);
+    } catch (err) {
+      await fs.rm(tmp, { force: true });
+      throw err;
+    }
+    return { key };
+  },
+  // Removes a temp file a killed rotation may have left behind. A leftover never
+  // shadows a real object (it is not a `.bin`), but it would hold ciphertext that
+  // no metadata row refers to.
+  async sweepResealTempFiles() {
+    const dir = objectsDir();
+    let prefixes;
+    try {
+      prefixes = await fs.readdir(dir);
+    } catch {
+      return;
+    }
+    for (const prefix of prefixes) {
+      // eslint-disable-next-line no-await-in-loop
+      const entries = await fs.readdir(path.join(dir, prefix)).catch(() => []);
+      for (const entry of entries) {
+        if (entry.endsWith('.reseal.tmp')) {
+          // eslint-disable-next-line no-await-in-loop
+          await fs.rm(path.join(dir, prefix, entry), { force: true });
+        }
+      }
+    }
   },
   // Lists stored object keys (used only by the reconciliation command).
   async listKeys() {
@@ -157,6 +225,34 @@ async function listKeys() {
   return activeProvider.listKeys ? activeProvider.listKeys() : [];
 }
 
+// Reads one object with an explicit key (never a request path). Any future
+// provider must support it for a rotation to be verifiable.
+async function getWithKey(key, keyBase64) {
+  if (!activeProvider.getWithKey) throw errors.internal('This storage provider cannot read with an explicit key.');
+  return activeProvider.getWithKey(key, keyBase64);
+}
+
+// Key rotation (Part 10, control #1). Every stored object is re-encrypted from
+// the PREVIOUS document key to the CURRENT one, one object at a time. A provider
+// that cannot re-encrypt can still satisfy this by reading and rewriting, so the
+// capability is required of any future provider rather than optional.
+async function resealAll({ fromKey, toKey }) {
+  if (!activeProvider.reseal) throw errors.internal('This storage provider cannot re-seal objects.');
+  await activeProvider.sweepResealTempFiles();
+  const keys = await listKeys();
+  const result = { scanned: keys.length, resealed: 0, failed: [] };
+  for (const key of keys) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await activeProvider.reseal(key, { fromKey, toKey });
+      result.resealed += 1;
+    } catch (err) {
+      result.failed.push({ key, reason: 'reseal-failed' });
+    }
+  }
+  return result;
+}
+
 // Readiness probe (Part 10). It reports WHETHER the configured storage is
 // usable, never WHERE it is: the root path is configuration and a readiness
 // payload is unauthenticated, so it must not leak it (controls #9, #15).
@@ -192,6 +288,8 @@ module.exports = {
   stat,
   remove,
   listKeys,
+  getWithKey,
+  resealAll,
   provider,
   storageHealth,
   __setProviderForTest,

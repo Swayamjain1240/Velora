@@ -11,6 +11,7 @@
     "seed": "node scripts/seed.js",
     "mongo:test-rs": "node scripts/mongo-test-rs.js",
     "documents:reconcile": "node scripts/reconcile-documents.js",
+    "keys:reseal": "node scripts/reseal-keys.js",
     "restore:drill": "node scripts/restore-drill.js",
     "evaluate:extraction": "node scripts/evaluate-extraction.js"
   },

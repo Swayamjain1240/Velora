@@ -68,6 +68,21 @@ const SCRIPT = `
   if (mode === 'min-pool-too-big') { env.MONGO_MIN_POOL_SIZE = '20'; env.MONGO_MAX_POOL_SIZE = '5'; }
   if (mode === 'trust-on') { env.TRUST_PROXY = 'true'; env.PROXY_HOPS = '2'; }
   if (mode === 'bad-proxy-hops') { env.TRUST_PROXY = 'true'; env.PROXY_HOPS = '9'; }
+  // ---- Part 10 rotation cases ---------------------------------------------------
+  if (mode === 'rotation-ok') {
+    env.MFA_ENCRYPTION_KEY_PREVIOUS = Buffer.alloc(32,7).toString('base64');
+    env.DOCUMENT_ENCRYPTION_KEY_PREVIOUS = Buffer.alloc(32,8).toString('base64');
+  }
+  if (mode === 'rotation-same-value') {
+    env.DOCUMENT_ENCRYPTION_KEY_PREVIOUS = env.DOCUMENT_ENCRYPTION_KEY;
+  }
+  if (mode === 'rotation-bad-key') {
+    env.MFA_ENCRYPTION_KEY_PREVIOUS = 'not-32-bytes';
+  }
+  if (mode === 'prod-rotation-reuses-store') {
+    prod();
+    env.MFA_ENCRYPTION_KEY_PREVIOUS = env.DOCUMENT_ENCRYPTION_KEY;
+  }
   try {
     const parsed = loadEnv(env);
     console.log('OK ' + JSON.stringify({
@@ -241,6 +256,33 @@ test('the connection pool is bounded and a minimum above the maximum is refused'
   const out = run('min-pool-too-big');
   assert.match(out, /^FAIL /, out);
   assert.match(out, /MONGO_MIN_POOL_SIZE/);
+});
+
+// ---- Part 10: key rotation (control #1) ------------------------------------------
+
+test('a rotation pair loads and is optional', () => {
+  // Optional: a deployment that is not rotating states no previous key at all.
+  assert.match(run('ok'), /^OK /);
+  const out = run('rotation-ok');
+  assert.match(out, /^OK /, out);
+});
+
+test('a previous key must be 32 bytes, and must not be the current one', () => {
+  const bad = run('rotation-bad-key');
+  assert.match(bad, /^FAIL /, bad);
+  assert.match(bad, /MFA_ENCRYPTION_KEY_PREVIOUS/);
+  assert.ok(!bad.includes('not-32-bytes'), 'must not echo the rejected value');
+  // Re-encrypting with the key the operator believes is retired changes nothing,
+  // so it is refused instead of silently succeeding.
+  const same = run('rotation-same-value');
+  assert.match(same, /^FAIL /, same);
+  assert.match(same, /DOCUMENT_ENCRYPTION_KEY_PREVIOUS/);
+});
+
+test('production refuses a rotation key that reuses another store\'s key', () => {
+  const out = run('prod-rotation-reuses-store');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /MFA_ENCRYPTION_KEY_PREVIOUS/);
 });
 
 test('proxy trust carries an explicit hop count and is bounded', () => {

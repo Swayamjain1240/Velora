@@ -72,6 +72,32 @@ const envSchema = z
           return false;
         }
       }, 'DOCUMENT_ENCRYPTION_KEY must be base64 encoding exactly 32 bytes'),
+    // Part 10: KEY ROTATION. A rotation sets the CURRENT key to the new value and
+    // keeps the previous one here for exactly one re-seal run, so the stored MFA
+    // seeds and encrypted objects can be re-encrypted without plaintext ever
+    // leaving the process (control #1). Both are optional: a deployment that is
+    // not rotating leaves them unset, and the re-seal command REFUSES to run
+    // without them rather than guessing which secret to read with.
+    MFA_ENCRYPTION_KEY_PREVIOUS: z
+      .string()
+      .refine((value) => {
+        try {
+          return Buffer.from(value, 'base64').length === 32;
+        } catch {
+          return false;
+        }
+      }, 'MFA_ENCRYPTION_KEY_PREVIOUS must be base64 encoding exactly 32 bytes')
+      .optional(),
+    DOCUMENT_ENCRYPTION_KEY_PREVIOUS: z
+      .string()
+      .refine((value) => {
+        try {
+          return Buffer.from(value, 'base64').length === 32;
+        } catch {
+          return false;
+        }
+      }, 'DOCUMENT_ENCRYPTION_KEY_PREVIOUS must be base64 encoding exactly 32 bytes')
+      .optional(),
     // Hard upload ceiling (10 MiB) and the bounded parser worker's limits.
     DOCUMENT_MAX_BYTES: z.coerce.number().int().min(1024).max(50 * 1024 * 1024).default(10 * 1024 * 1024),
     DOCUMENT_PARSER_TIMEOUT_MS: z.coerce.number().int().min(50).max(60_000).default(3000),
@@ -190,6 +216,19 @@ const envSchema = z
       issue('MONGO_MIN_POOL_SIZE', 'MONGO_MIN_POOL_SIZE must not exceed MONGO_MAX_POOL_SIZE');
     }
 
+    // A rotation pair that names the SAME value would re-encrypt every object
+    // with the key it already uses: a rotation that silently does nothing is
+    // worse than a refusal, because the operator would believe the old key is
+    // retired (control #1).
+    for (const [previous, current] of [
+      ['MFA_ENCRYPTION_KEY_PREVIOUS', 'MFA_ENCRYPTION_KEY'],
+      ['DOCUMENT_ENCRYPTION_KEY_PREVIOUS', 'DOCUMENT_ENCRYPTION_KEY'],
+    ]) {
+      if (value[previous] && value[previous] === value[current]) {
+        issue(previous, `${previous} must differ from ${current} or the rotation changes nothing`);
+      }
+    }
+
     if (value.NODE_ENV === 'production') {
       if (!value.CLIENT_ORIGIN.startsWith('https://')) {
         issue('CLIENT_ORIGIN', 'CLIENT_ORIGIN must use https in production');
@@ -214,6 +253,11 @@ const envSchema = z
         ['MFA_ENCRYPTION_KEY', value.MFA_ENCRYPTION_KEY],
         ['DOCUMENT_ENCRYPTION_KEY', value.DOCUMENT_ENCRYPTION_KEY],
         ['PRIVACY_EXPORT_ENCRYPTION_KEY', value.PRIVACY_EXPORT_ENCRYPTION_KEY],
+        // A previous (rotation) key is a real key too, and it stays readable in
+        // the environment until the re-seal is confirmed, so it must not be the
+        // value of any other store either.
+        ['MFA_ENCRYPTION_KEY_PREVIOUS', value.MFA_ENCRYPTION_KEY_PREVIOUS],
+        ['DOCUMENT_ENCRYPTION_KEY_PREVIOUS', value.DOCUMENT_ENCRYPTION_KEY_PREVIOUS],
       ].filter(([, v]) => Boolean(v));
       const seen = new Map();
       for (const [name, v] of keys) {
