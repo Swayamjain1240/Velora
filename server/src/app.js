@@ -3,7 +3,14 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
-const { securityHeaders, corsPolicy, requestContext } = require('./middleware/security');
+const {
+  securityHeaders,
+  corsPolicy,
+  requestContext,
+  resolveTrustProxy,
+} = require('./middleware/security');
+const { getEnv } = require('./config/env');
+const healthRoutes = require('./routes/health');
 const { csrfProtection } = require('./middleware/csrf');
 const { loadSession } = require('./middleware/auth');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
@@ -33,17 +40,29 @@ const retentionRoutes = require('./routes/retention');
 const metricsRoutes = require('./routes/metrics');
 
 function buildApp() {
+  const env = getEnv();
   const app = express();
 
-  // Behind a trusted proxy only when explicitly configured (control #12).
-  app.set('trust proxy', 1);
+  // Proxy trust is a DEPLOYMENT decision, never a default (control #12). With
+  // TRUST_PROXY=false the socket address is the client address and a forged
+  // X-Forwarded-For is ignored; behind a proxy the operator states how many hops
+  // to trust. Trusting an unconditional hop count would let any caller rewrite
+  // the address the rate limiters and the audit trail record.
+  app.set('trust proxy', resolveTrustProxy(env));
   app.disable('x-powered-by');
 
   app.use(requestContext);
   app.use(securityHeaders);
   app.use(corsPolicy());
-  app.use(express.json({ limit: '32kb' }));
+  // Bounded body from the validated environment, so the JSON limit is a
+  // deployment budget rather than a literal buried in code (control #8).
+  app.use(express.json({ limit: `${env.JSON_BODY_LIMIT_KB}kb` }));
   app.use(cookieParser());
+
+  // Liveness/readiness sit BEFORE the rate limiter, the session resolution and
+  // CSRF: a probe must never consume a caller's request budget, must not need a
+  // session and must answer even when the auth stack is the thing that is broken.
+  app.use('/api', healthRoutes);
 
   // Coarse global limiter as a safety net; sensitive routes add their own
   // stricter Mongo-backed limits on top. The counter is in-process, so it is
@@ -67,7 +86,6 @@ function buildApp() {
   // cookie-authenticated mutation before it can reach a handler.
   app.use('/api', loadSession, csrfProtection);
 
-  app.get('/api/health', (req, res) => res.json({ ok: true, status: 'healthy' }));
   app.use('/api/auth', authRoutes);
   app.use('/api/staff', staffRoutes);
   app.use('/api/clinic', clinicRoutes);

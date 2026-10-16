@@ -166,8 +166,12 @@ async function record(event) {
       detail: event.detail === undefined ? undefined : redactDetail(event.detail),
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('audit record failed:', err.message);
+    // An audit write that fails is an alert-worthy operational event, not a
+    // request failure: the caller's action already succeeded. The logger redacts
+    // the error and never carries the audited detail, which may be clinical
+    // (controls #9, #15).
+    // eslint-disable-next-line global-require
+    require('./logger').getLogger().error('audit.write_failed', { action: event.action, err });
   }
 }
 

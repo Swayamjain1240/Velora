@@ -43,6 +43,22 @@ const envSchema = z
       }, 'MFA_ENCRYPTION_KEY must be base64 encoding exactly 32 bytes'),
     SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+    // Part 10: bounded runtime budgets. A request body, a request's wall-clock
+    // life and the connection pool are all capped from here, so a deployment can
+    // never inherit an unbounded default and one client cannot exhaust the
+    // process (controls #8, #12).
+    JSON_BODY_LIMIT_KB: z.coerce.number().int().min(4).max(1024).default(32),
+    REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(30_000),
+    // How long a graceful shutdown may drain before it is forced.
+    SHUTDOWN_GRACE_MS: z.coerce.number().int().min(1000).max(120_000).default(15_000),
+    MONGO_MAX_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+    MONGO_MIN_POOL_SIZE: z.coerce.number().int().min(0).max(50).default(0),
+    MONGO_SERVER_SELECTION_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(500)
+      .max(60_000)
+      .default(5000),
     // Part 4: private encrypted document storage. The root MUST live outside the
     // repository and outside any web root, and the document key is a SEPARATE
     // secret from MFA_ENCRYPTION_KEY (control #1, #2, #15).
@@ -83,10 +99,16 @@ const envSchema = z
     EXTRACTION_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
     EXTRACTION_JOBS_PER_HOUR: z.coerce.number().int().min(1).max(1000).default(30),
     EXTRACTION_RUNS_PER_DAY: z.coerce.number().int().min(1).max(10_000).default(200),
+    // Only a deployment that actually sits behind a trusted reverse proxy may
+    // turn this on, and it must state how many hops to trust: trusting an
+    // arbitrary X-Forwarded-For chain would let a caller forge the address the
+    // rate limiters and the audit trail key on (controls #8, #12). This value is
+    // the ONLY thing that decides `trust proxy` in app.js.
     TRUST_PROXY: z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    PROXY_HOPS: z.coerce.number().int().min(1).max(5).default(1),
     // Part 7: the scheduling anchor used ONLY when an episode carries no IANA
     // zone (episodes always store one, so this is a defensive default). It is
     // validated with Intl at startup, so a typo fails closed instead of silently
@@ -146,15 +168,76 @@ const envSchema = z
     AUDIT_SEARCH_MAX_RANGE_DAYS: z.coerce.number().int().min(1).max(3650).default(366),
   })
   .superRefine((value, ctx) => {
-    if (
-      value.NODE_ENV === 'production' &&
-      !value.CLIENT_ORIGIN.startsWith('https://')
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['CLIENT_ORIGIN'],
-        message: 'CLIENT_ORIGIN must use https in production',
-      });
+    const issue = (path, message) =>
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+
+    // An allowed origin is an ORIGIN, not a URL: a path, query or trailing slash
+    // in the allowlist would silently never match a real browser Origin, or
+    // match more than intended.
+    try {
+      const parsed = new URL(value.CLIENT_ORIGIN);
+      if (parsed.origin !== value.CLIENT_ORIGIN) {
+        issue(
+          'CLIENT_ORIGIN',
+          'CLIENT_ORIGIN must be a bare origin such as https://app.example.com (no path, query, trailing slash or fragment)'
+        );
+      }
+    } catch {
+      issue('CLIENT_ORIGIN', 'CLIENT_ORIGIN must be an absolute origin URL');
+    }
+
+    if (value.MONGO_MIN_POOL_SIZE > value.MONGO_MAX_POOL_SIZE) {
+      issue('MONGO_MIN_POOL_SIZE', 'MONGO_MIN_POOL_SIZE must not exceed MONGO_MAX_POOL_SIZE');
+    }
+
+    if (value.NODE_ENV === 'production') {
+      if (!value.CLIENT_ORIGIN.startsWith('https://')) {
+        issue('CLIENT_ORIGIN', 'CLIENT_ORIGIN must use https in production');
+      }
+      // Production debug diagnostics stay off (control #12). Refusing the value
+      // is stronger than logging a warning nobody reads.
+      if (value.LOG_LEVEL === 'debug') {
+        issue('LOG_LEVEL', 'LOG_LEVEL must not be debug in production');
+      }
+      // A production session pepper is the only thing protecting stored session
+      // token hashes, so the development floor is not enough.
+      if (value.SESSION_PEPPER.length < 32) {
+        issue(
+          'SESSION_PEPPER',
+          'SESSION_PEPPER must be at least 32 characters in production (run `npm run gen:env`)'
+        );
+      }
+      // Key separation (control #1): one leaked key must never open another
+      // store. MFA secrets, stored documents and generated exports each have
+      // their own key, and the pepper must differ from all of them.
+      const keys = [
+        ['MFA_ENCRYPTION_KEY', value.MFA_ENCRYPTION_KEY],
+        ['DOCUMENT_ENCRYPTION_KEY', value.DOCUMENT_ENCRYPTION_KEY],
+        ['PRIVACY_EXPORT_ENCRYPTION_KEY', value.PRIVACY_EXPORT_ENCRYPTION_KEY],
+      ].filter(([, v]) => Boolean(v));
+      const seen = new Map();
+      for (const [name, v] of keys) {
+        if (seen.has(v)) {
+          issue(name, `${name} must not reuse the value of ${seen.get(v)}`);
+        } else {
+          seen.set(v, name);
+        }
+      }
+      if (keys.some(([, v]) => v === value.SESSION_PEPPER)) {
+        issue('SESSION_PEPPER', 'SESSION_PEPPER must not reuse an encryption key');
+      }
+      // Database traffic carries clinical records, so production requires an
+      // encrypted connection. The message never echoes the URI (control #9).
+      const uri = value.MONGODB_URI;
+      const tls =
+        uri.startsWith('mongodb+srv://') ||
+        /[?&](tls|ssl)=true(&|$)/i.test(uri);
+      if (!tls) {
+        issue(
+          'MONGODB_URI',
+          'MONGODB_URI must use TLS in production (mongodb+srv://, or tls=true)'
+        );
+      }
     }
     // Storage-root/key pairing: a root without its own key would store
     // plaintext, and the root must never sit inside the repo or a web root.

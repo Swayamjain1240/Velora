@@ -1,7 +1,14 @@
 'use strict';
 
+// Part 10: the production configuration gate.
+//
+// Every rule here exists to stop a deployment that LOOKS fine but is not: debug
+// diagnostics on, a reused encryption key, a development-strength session pepper
+// or an unencrypted database connection. The assertions check that each one
+// fails CLOSED with a message that names the field and never echoes a value.
+
 const { test } = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 
 // Env validation runs in a child process so it cannot poison this process's
@@ -36,13 +43,43 @@ const SCRIPT = `
   if (mode === 'zero-reminder-attempts') env.REMINDER_MAX_ATTEMPTS = '0';
   if (mode === 'too-many-reminder-attempts') env.REMINDER_MAX_ATTEMPTS = '9';
   if (mode === 'bad-timezone') env.SCHEDULE_FALLBACK_TIMEZONE = 'Mars/Olympus';
+
+  // ---- Part 10 production cases -------------------------------------------------
+  const prod = () => {
+    env.NODE_ENV = 'production';
+    env.CLIENT_ORIGIN = 'https://app.example.test';
+    env.MONGODB_URI = 'mongodb://db.internal:27017/velora?replicaSet=rs0&tls=true';
+  };
+  if (mode === 'prod-ok') prod();
+  if (mode === 'prod-debug-log') { prod(); env.LOG_LEVEL = 'debug'; }
+  if (mode === 'prod-short-pepper') { prod(); env.SESSION_PEPPER = 'too-short-for-production'; }
+  if (mode === 'prod-reused-keys') { prod(); env.DOCUMENT_ENCRYPTION_KEY = env.MFA_ENCRYPTION_KEY; }
+  if (mode === 'prod-reused-export-key') {
+    prod();
+    env.PRIVACY_EXPORT_ENCRYPTION_KEY = env.MFA_ENCRYPTION_KEY;
+  }
+  if (mode === 'prod-plaintext-mongo') {
+    prod();
+    env.MONGODB_URI = 'mongodb://db.internal:27017/velora?replicaSet=rs0';
+  }
+  if (mode === 'prod-http-origin') { prod(); env.CLIENT_ORIGIN = 'http://app.example.test'; }
+  if (mode === 'origin-with-path') { env.CLIENT_ORIGIN = 'http://localhost:5173/app'; }
+  if (mode === 'origin-with-slash') { env.CLIENT_ORIGIN = 'http://localhost:5173/'; }
+  if (mode === 'min-pool-too-big') { env.MONGO_MIN_POOL_SIZE = '20'; env.MONGO_MAX_POOL_SIZE = '5'; }
+  if (mode === 'trust-on') { env.TRUST_PROXY = 'true'; env.PROXY_HOPS = '2'; }
+  if (mode === 'bad-proxy-hops') { env.TRUST_PROXY = 'true'; env.PROXY_HOPS = '9'; }
   try {
     const parsed = loadEnv(env);
     console.log('OK ' + JSON.stringify({
       port: parsed.PORT,
       trust: parsed.TRUST_PROXY,
+      proxyHops: parsed.PROXY_HOPS,
       reminderProvider: parsed.REMINDER_PROVIDER,
       reminderAttempts: parsed.REMINDER_MAX_ATTEMPTS,
+      logLevel: parsed.LOG_LEVEL,
+      jsonBodyLimitKb: parsed.JSON_BODY_LIMIT_KB,
+      requestTimeoutMs: parsed.REQUEST_TIMEOUT_MS,
+      mongoPoolMax: parsed.MONGO_MAX_POOL_SIZE,
     }));
   } catch (e) {
     console.log('FAIL ' + e.message);
@@ -143,4 +180,74 @@ test('an invalid scheduling timezone fails closed', () => {
   const out = run('bad-timezone');
   assert.match(out, /^FAIL /, out);
   assert.match(out, /SCHEDULE_FALLBACK_TIMEZONE/);
+});
+
+// ---- Part 10: production configuration gate --------------------------------------
+
+test('a complete production configuration loads', () => {
+  const out = run('prod-ok');
+  assert.match(out, /^OK /, out);
+  assert.match(out, /"logLevel":"info"/, out);
+});
+
+test('production refuses debug logging rather than warning about it', () => {
+  const out = run('prod-debug-log');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /LOG_LEVEL/);
+});
+
+test('production requires a session pepper of at least 32 characters', () => {
+  const out = run('prod-short-pepper');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /SESSION_PEPPER/);
+});
+
+test('production refuses a document key reused from the MFA key', () => {
+  const out = run('prod-reused-keys');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /DOCUMENT_ENCRYPTION_KEY/);
+  assert.ok(!out.includes('base64'), 'must not echo key material');
+});
+
+test('production refuses a privacy export key reused from another store', () => {
+  const out = run('prod-reused-export-key');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /PRIVACY_EXPORT_ENCRYPTION_KEY/);
+});
+
+test('production requires an encrypted database connection', () => {
+  const out = run('prod-plaintext-mongo');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /MONGODB_URI/);
+  assert.ok(!out.includes('db.internal'), 'must not echo the connection string');
+});
+
+test('production refuses a plain-http client origin', () => {
+  const out = run('prod-http-origin');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /CLIENT_ORIGIN/);
+});
+
+test('CLIENT_ORIGIN must be a bare origin, not a URL with a path or a trailing slash', () => {
+  for (const mode of ['origin-with-path', 'origin-with-slash']) {
+    const out = run(mode);
+    assert.match(out, /^FAIL /, out);
+    assert.match(out, /CLIENT_ORIGIN/);
+  }
+});
+
+test('the connection pool is bounded and a minimum above the maximum is refused', () => {
+  assert.match(run('ok'), /"mongoPoolMax":10/);
+  const out = run('min-pool-too-big');
+  assert.match(out, /^FAIL /, out);
+  assert.match(out, /MONGO_MIN_POOL_SIZE/);
+});
+
+test('proxy trust carries an explicit hop count and is bounded', () => {
+  const out = run('trust-on');
+  assert.match(out, /"trust":true/, out);
+  assert.match(out, /"proxyHops":2/, out);
+  const bad = run('bad-proxy-hops');
+  assert.match(bad, /^FAIL /, bad);
+  assert.match(bad, /PROXY_HOPS/);
 });

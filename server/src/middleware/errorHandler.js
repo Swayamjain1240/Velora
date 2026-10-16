@@ -2,6 +2,7 @@
 
 const { AppError } = require('../services/errors');
 const { getEnv } = require('../config/env');
+const { getLogger } = require('../services/logger');
 
 // Single safe error envelope (control #9, #12): stack traces, secrets and
 // provider details are logged server-side, never returned to the client.
@@ -40,8 +41,17 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  // eslint-disable-next-line no-console
-  console.error(`[${new Date().toISOString()}] unhandled error:`, err);
+  // Structured, correlated and redacted (control #9): the request id ties the
+  // line to the response header, and only the route plus the error are recorded
+  // - never a body, a token or a document. The stack is kept out of a production
+  // line (control #12).
+  getLogger().error('request.unhandled_error', {
+    requestId: req.id,
+    method: req.method,
+    route: req.path,
+    status: err && err.status,
+    err,
+  });
 
   const isProd = env.NODE_ENV === 'production';
   return res.status(500).json({

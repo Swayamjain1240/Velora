@@ -7,6 +7,11 @@ const { getEnv } = require('../config/env');
 
 // Security headers (control #11). API responses are JSON; CSP restricts any
 // rendered content to the app's own sources.
+const isProduction = process.env.NODE_ENV === 'production';
+
+// HSTS is honoured only over HTTPS and yanks a browser onto HTTPS for a year, so
+// it is sent in production only: advertising it from a plain-HTTP development
+// origin would be a lie about the deployment (control #11).
 const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
@@ -18,6 +23,9 @@ const securityHeaders = helmet({
   },
   crossOriginResourcePolicy: { policy: 'same-site' },
   referrerPolicy: { policy: 'no-referrer' },
+  hsts: isProduction
+    ? { maxAge: 31_536_000, includeSubDomains: true, preload: false }
+    : false,
 });
 
 // Exact credentialed CORS allowlist (control #10): never a wildcard origin.
@@ -39,6 +47,14 @@ function corsPolicy() {
   });
 }
 
+// The single decision for `trust proxy` (control #12). `false` means the socket
+// address is the client address and a forged X-Forwarded-For is ignored; behind
+// a trusted reverse proxy the operator states the exact hop count to trust. Kept
+// as a named function so both branches stay testable.
+function resolveTrustProxy(env) {
+  return env.TRUST_PROXY ? env.PROXY_HOPS : false;
+}
+
 // Attaches a request id plus client ip/user-agent for auditing.
 function requestContext(req, res, next) {
   req.id = crypto.randomUUID();
@@ -48,4 +64,4 @@ function requestContext(req, res, next) {
   next();
 }
 
-module.exports = { securityHeaders, corsPolicy, requestContext };
+module.exports = { securityHeaders, corsPolicy, requestContext, resolveTrustProxy };

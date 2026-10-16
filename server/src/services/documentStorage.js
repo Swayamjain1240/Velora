@@ -20,6 +20,7 @@
 //   - writes are exclusive (`wx`), files are 0600 and directories 0700 where
 //     the platform supports it.
 const fs = require('node:fs/promises');
+const { constants: fsConstants } = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { getEnv } = require('../config/env');
@@ -156,6 +157,21 @@ async function listKeys() {
   return activeProvider.listKeys ? activeProvider.listKeys() : [];
 }
 
+// Readiness probe (Part 10). It reports WHETHER the configured storage is
+// usable, never WHERE it is: the root path is configuration and a readiness
+// payload is unauthenticated, so it must not leak it (controls #9, #15).
+async function storageHealth() {
+  try {
+    const info = await fs.stat(storageRoot());
+    if (!info.isDirectory()) return { ok: false, detail: 'not_a_directory' };
+    await fs.access(storageRoot(), fsConstants.W_OK | fsConstants.R_OK);
+    return { ok: true, detail: 'ok' };
+  } catch (err) {
+    const code = err && err.code;
+    return { ok: false, detail: code === 'ENOENT' ? 'missing' : 'unusable' };
+  }
+}
+
 // Test-only seam: swap the provider so storage failures and tampering can be
 // exercised deterministically. Never used by request handlers.
 function __setProviderForTest(nextProvider) {
@@ -177,6 +193,7 @@ module.exports = {
   remove,
   listKeys,
   provider,
+  storageHealth,
   __setProviderForTest,
   __resetProvider,
 };
