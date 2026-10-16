@@ -133,6 +133,17 @@ jobs:
           exit 1
       - name: Browser journeys
         run: npx playwright test
+      - name: Operational drills (restore and reconciliation)
+        # Part 10: a backup nobody has restored is a hypothesis, so the restore
+        # drill runs on every push against the seeded database. It restores rows,
+        # indexes and the encrypted objects into an isolated drill database,
+        # verifies them by reading them back (including decrypting stored
+        # documents) and then drops the copy. The reconciliation report is
+        # read-only: it must find no drift, and it never repairs without an
+        # operator attribution.
+        run: |
+          node server/scripts/restore-drill.js
+          node server/scripts/reconcile-documents.js
       - name: Extraction fails closed with no provider enabled
         # The AI journey above runs with the fake provider; this restart proves the
         # SHIPPED default (no provider) fails closed and drafting by hand still works.
