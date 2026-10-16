@@ -419,14 +419,19 @@ default** (`EXTRACTION_PROVIDER=none`) fails closed while manual drafting keeps 
   an explicit operator and audits every repair. The Part 9 retention dry run is the equivalent gate
   for retention, and an export download is the only artifact a privacy request can produce.
 - **Unit (Part 10):** `env.test.js` (production refusals: https/bare origin, debug level, short pepper,
-  reused keys, non-TLS database, impossible pool bound, proxy hops), `logger.test.js` (level filtering,
-  redaction at depth including `Error` objects, production stacks suppressed, bounded output, circular
-  values never throw, child bindings), `restoreDrill.test.js` (connection-string re-pointing keeps host
-  and options; index options - partial filter, TTL - are recreated; deterministic checksums).
+  reused keys, non-TLS database, impossible pool bound, proxy hops, and the key-rotation pair - a
+  previous key equal to the current one, or reusing another store's key, is refused), `logger.test.js`
+  (level filtering, redaction at depth including `Error` objects, production stacks suppressed, bounded
+  output, circular values never throw, child bindings), `restoreDrill.test.js` (connection-string
+  re-pointing keeps host and options; index options - partial filter, TTL - are recreated;
+  deterministic checksums).
 - **Integration (Part 10):** `health.test.js` - liveness needs no session and discloses no path/host,
   readiness reports each probed dependency, `draining` fails closed while liveness stays `200`,
-  unusable encrypted storage fails readiness and names the side without leaking the path, and
-  `trust proxy` resolves from the validated environment.
+  unusable encrypted storage fails readiness and names the side without leaking the path, a **real**
+  database outage (the connection is closed) answers a retryable `503` with no data, and `trust proxy`
+  resolves from the validated environment. `reconcile.test.js` creates each drift class and repairs
+  it; `resealKeys.test.js` rotates both keys for real and proves the document and the authenticator
+  survive.
 - **Browser (Part 10):** `accessibility.spec.js` tabs through the shell, requires a visible focus
   indicator (2px+ outline) and activates a navigation link with the keyboard, proving keyboard
   reachability and activation without changing any state.

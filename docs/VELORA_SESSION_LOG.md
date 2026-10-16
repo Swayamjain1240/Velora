@@ -1511,13 +1511,15 @@ default vendor. No dependency was added in Part 10.
 
 | Check | Result |
 |---|---|
-| `npm test -w server` (replica-set MongoDB) | **388 passed / 0 failed**, exit 0 on the frozen tree |
+| `npm test -w server` (replica-set MongoDB) | **403 passed / 0 failed**, exit 0 on the frozen tree |
 | `npm test -w client` | **61 passed / 0 failed** |
 | `npm run lint -w client` / `npm run build -w client` | clean / built (368.38 kB JS, 101.34 kB gzip) |
 | Browser journeys (six sizes, Chromium) | **64 passed / 0 failed / 2 skipped** of 66, exit 0 |
 | Provider fails closed with none enabled | **1 passed**, exit 0 |
-| `npm run restore:drill -w server` | **PASSED** - 48 collections, 4176 rows, 162 objects / 6 054 128 bytes, 25/25 documents decrypted from the restored copy, source unchanged, drill DB dropped |
-| `node server/scripts/reconcile-documents.js` | 174 rows / 174 objects, 0 missing / unreadable / mismatched / orphan |
+| `npm run restore:drill -w server` | **PASSED** - 48 collections, 5071 rows, 192 objects / 6 063 933 bytes, 25/25 documents decrypted from the restored copy, source unchanged, drill DB dropped; observed dump 286 ms + restore 9 498 ms + object copy 398 ms + verify 526 ms (~10.7 s) for this synthetic volume |
+| `node server/scripts/reconcile-documents.js` | 192 rows / 192 objects, 0 missing / unreadable / mismatched / orphan |
+| `npm run keys:reseal -w server` (no rotation staged) | targets `none (nothing to do)`, 0 scanned, exit 0 |
+| Database outage (connection closed in `tests/integration/health.test.js`) | `/api/ready` 503 `database`, `/api/health` 200, an authenticated clinical read 503 `SERVICE_UNAVAILABLE` with no data and no driver text, full recovery afterwards |
 | `npm audit --omit=dev` | **0 vulnerabilities** |
 | `npm audit` (incl. dev tooling) | 6 advisories (3 moderate, 1 high, 2 critical) - dev/test toolchain only, reported as a limitation |
 | Secret scans (tree + every reachable commit) | clean |
@@ -1533,24 +1535,58 @@ default vendor. No dependency was added in Part 10.
 | Threat model | **VERIFIED (document)** - 11 scenarios with residual risks and named BLOCKED items |
 | CI protections | **VERIFIED** - gate re-run plus the new restore/reconciliation steps; no gate weakened |
 | Accessibility/keyboard | **PARTIAL** - keyboard reachability, visible focus and activation now proven in a browser; no screen-reader, contrast/axe, cross-browser or physical-device run |
-| Key rotation (MFA/document) | **NOT IMPLEMENTED** - required procedure documented, no re-seal script exists |
+| Key rotation (MFA/document) | **VERIFIED (local drill)** - two-key window + `scripts/reseal-keys.js`, proven by a real rotation that keeps the authenticator working and the document byte-identical; **BLOCKED** on a managed key store and a cadence |
+| Dependency outage | **VERIFIED** - the real connection was closed: named 503 from the probe, retryable 503 from the request path, liveness unaffected, no data served, recovery automatic |
 | Clinical, privacy/legal and deployment readiness | **BLOCKED** - owner/clinical/DPO decisions listed in the readiness report |
 
-All 25 controls were re-checked: 20 `VERIFIED`, 4 `PARTIAL` (keys/rotation, client-host headers and
-network boundaries, dependency advisories, accessibility depth), and the remaining control unchanged
-and re-verified. No control is claimed as satisfied by a document alone.
+All 25 controls were re-checked: **21 `VERIFIED`**, 3 `PARTIAL` (client-host headers and network
+boundaries, dependency advisories, accessibility depth - each with the reason stated), and the rest
+unchanged and re-verified. Key rotation moved from NOT IMPLEMENTED to VERIFIED by the re-seal drill.
+No control is claimed as satisfied by a document alone.
+
+### Part 10 close-out (second pass on the frozen build)
+
+The first pass recorded two honest gaps - key rotation and the untested reconciliation REPAIR path -
+rather than claims, and re-reading the records against the code made both fixable without a provider.
+
+- **Key rotation is now implemented and proven.** `scripts/reseal-keys.js` re-seals every TOTP seed
+  and every stored object from a PREVIOUS key to the CURRENT one through a two-key window
+  (`*_PREVIOUS`), dry run by default, refusing to write without `--operator`. The integration suite
+  performs a REAL rotation and then proves nothing was lost: the rotated document downloads
+  byte-for-byte over HTTP and still matches the hash the database recorded, and the user's existing
+  TOTP code still verifies. Two failure paths are asserted rather than assumed: an object the
+  previous key cannot open is reported and left untouched so the correct key can still rescue it, and
+  an MFA re-seal is a compare-and-set, so a user who re-enrols mid-rotation keeps their new secret.
+  Startup now refuses a `*_PREVIOUS` value equal to its current key (a rotation that would silently
+  change nothing) or one that reuses another store's key.
+- **The reconciliation repair path is now exercised.** The command could report drift it had never
+  been shown repairing. Each drift class is created deliberately - a lost object, a tampered
+  envelope, a validly encrypted object whose plaintext no longer matches its recorded hash, and an
+  orphan with no metadata row - asserted to be untouched in a dry run, and then repaired with an
+  operator attribution. A repair without an attribution is refused with a non-zero exit.
+- **A dependency outage is answered honestly.** Exercising the outage for real (closing the database
+  connection rather than stubbing it) exposed the probe and the request path disagreeing: readiness
+  said 503 while a request said 500. A driver-level connectivity error is now a retryable `503`
+  `SERVICE_UNAVAILABLE` with a generic body in every environment, logged as `dependency.unavailable`;
+  storage tampering still returns 500, so a real defect is not disguised as an outage. The same test
+  records the observed consequence: during an outage a signed-in caller is refused (so they see the
+  signed-out state) and the session itself survives.
 
 ### Remaining limits
 
 - **Not deployed.** No environment, provider, secret store or monitoring exists; every probe, drill
   and failure case was exercised locally against synthetic data.
+- **The keys are not in a managed key store.** Rotation is proven locally, but where the keys live,
+  who may rotate them and how often - and how a provider's own rotation or object versioning
+  interacts with the re-seal pass - are still owner decisions.
 - **No scheduled backup and no real restore.** The drill is logical, same-host and driver-driven; it
   cannot bound data loss (the copy is taken live) and its timings are not a production RTO.
 - **No destructive deletion, ever.** Clinical retention categories stay report-only.
 - **No external provider was called**, so nothing has left this machine - and therefore no provider
   behaviour, retention or cost has been observed either.
 - **Clinical validation, DPIA-equivalent review and incident ownership remain owner decisions**, as do
-  the key re-seal scripts and the retention schedule.
+  a managed key store and rotation cadence and the retention schedule. (The key re-seal scripts were
+  listed here as missing and were then built in the close-out below.)
 - **Dev-only advisories** in the test toolchain (vitest/vite/esbuild) remain open by choice; the
   production audit is clean.
 
@@ -1559,7 +1595,9 @@ and re-verified. No control is claimed as satisfied by a document alone.
 `48aa7da` production configuration gate, proxy-trust fix, readiness/shutdown and structured logging -
 `02907c2` the synthetic restore drill, its index-fidelity fix and the key-lesson unit tests -
 `a8b8a04` the keyboard reachability/focus/activation journey - `56251a5` the CI restore-drill and
-reconciliation step - plus this records commit (runbook, provider register, threat model, readiness
-report, README, structure, architecture, system design and this entry), whose own hash is deliberately
-not quoted because amending it would invalidate the reference. Five Part 10 commits; **79 commits** in
-the repository, no padding.
+reconciliation step - the records commit (runbook, provider register, threat model, readiness report,
+README, structure, architecture, system design and this entry) - then the close-out: the reconciliation
+repair path made testable and tested, the key re-seal command with its rotation proof, and the closing
+commit that fixes dependency-outage semantics and updates every record with the final evidence. The
+last commit's own hash is deliberately not quoted because amending it would invalidate the reference.
+**Eight Part 10 commits**; **82 commits** in the repository, no padding.

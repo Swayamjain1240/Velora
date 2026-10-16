@@ -435,7 +435,19 @@ policy rather than by destruction**:
   reading back: collection set, counts, per-collection content checksums, index signatures, object
   bytes, and real decryption of stored documents compared with their recorded `sha256`. It proves the
   source was untouched and drops the copy unless `--keep` is passed. `scripts/reconcile-documents.js`
-  remains the drift report/repair path for a partial restore. Both run in CI on the seeded database.
+  remains the drift report/repair path for a partial restore, and each drift class it can repair
+  (lost/tampered/mismatched object, orphan) is created and repaired under test. `scripts/reseal-keys.js`
+  completes the recovery story for the OTHER disaster a restore cannot fix: a key that must be retired.
+  Through a two-key window it re-seals every TOTP seed and every stored object from the previous key to
+  the current one, dry run by default, operator-attributed, compare-and-set per record, and verified
+  against the recorded `sha256`. The drill, the reconciliation report and the re-seal dry run all run
+  locally on the seeded database; the drill and reconciliation also run in CI on every push.
+- **A dependency outage is answered honestly.** A driver-level connectivity error becomes a retryable
+  `503 SERVICE_UNAVAILABLE` with a generic body in every environment (logged as
+  `dependency.unavailable`) instead of a misleading `500`, so a client, a load balancer and an operator
+  read the same thing the readiness probe reports. Storage tampering and other defects still return
+  `500`, so the two are never conflated. Verified by closing the real connection rather than stubbing
+  it.
 - **What is still absent.** No backup schedule exists (so no RPO can be quoted), the object-store and
   database providers are unselected, monitoring/on-call routing is unselected, and no deployment,
   penetration test or load test has happened - see
@@ -526,6 +538,8 @@ policy rather than by destruction**:
 | D78 | Readiness reports `draining` before the listener closes; a shutdown that overruns the grace window exits non-zero | close first, exit 0 | a load balancer must be able to drain the instance, and an unclean stop must be visible rather than silent |
 | D79 | The restore drill verifies by READING the restored copy back (including AES-GCM decryption against the recorded hash) | compare counts only | counts cannot catch a wrong key or a mistranslated index; the drill found a partial-unique-index rebuild defect on its first run |
 | D80 | Index options (partial filter, TTL, collation, sparse) are recreated AND compared during a restore | recreate keys and uniqueness only | a partial unique index restored as a full one rejects legitimate rows (the exact defect found in D79) |
+| D81 | An encryption key is rotated through a two-key window (`*_PREVIOUS` + `scripts/reseal-keys.js`), and a previous key equal to the current one is refused at startup | swap the key and hope, or migrate with an offline dump | the data is sealed per record; rotating in place strands every authenticator and every document, and a same-value "rotation" would silently change nothing |
+| D82 | A dependency outage answers a retryable `503 SERVICE_UNAVAILABLE`, matching what the readiness probe reports | let the driver error surface as a `500` | a client, a load balancer and an operator must read "dependency is down" the same way; a 500 means "the code is broken" and is neither retryable nor accurate. Found by closing the real connection in a test |
 
 ## 10. Known limitations (Parts 1-10)
 
@@ -540,9 +554,11 @@ policy rather than by destruction**:
 - No production deployment or clinical validation yet, and **no scheduled backup**: a logical,
   same-host restore is verified on every push (Part 10), but it is taken live, so RPO is unbounded and
   no provider-level, off-host or point-in-time restore has been exercised.
-- Key rotation is implemented only for the session pepper. Rotating `MFA_ENCRYPTION_KEY` or
-  `DOCUMENT_ENCRYPTION_KEY` needs a re-seal script that does not exist yet, so neither may be rotated
-  in place today.
+- Key rotation is implemented for all three: the session pepper (which deliberately invalidates every
+  session and every MFA recovery code) and, through the two-key window plus `scripts/reseal-keys.js`,
+  `MFA_ENCRYPTION_KEY` and `DOCUMENT_ENCRYPTION_KEY`. Rotation is proven locally by re-sealing real
+  data and checking it back; the keys do not yet live in a managed key store, which is an owner
+  decision.
 - Part 2 honours only the `view_profile` caregiver scope; `view_episodes`, `view_documents`,
   `view_plan` and `view_tasks` are declared but deliberately inert until their parts land.
 - Patient/caregiver invitation links are still log/response-delivered in development (no mail

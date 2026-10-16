@@ -105,6 +105,72 @@ test('readiness fails closed when the encrypted storage root is unusable, and sa
   assert.equal(restored.status, 200, JSON.stringify(restored.body));
 });
 
+test('a real database outage is reported as the failing side, not as a healthy process', async () => {
+  // The storage side is proven honest above; this closes the ACTUAL connection so
+  // the database side fails for real rather than through a stub. It is the last
+  // test in the file because it takes the shared connection down and puts it back.
+  const mongoose = require('mongoose');
+  const { connectDb } = require('../../src/config/db');
+  await documentStorage.ensureRoot();
+  const uri = process.env.MONGODB_TEST_URI;
+
+  // A genuinely signed-in caller, so the request below is an authenticated one
+  // that LOSES its dependency rather than an anonymous request that was never
+  // going to reach the database anyway.
+  const clinic = await harness.makeClinic({ codePrefix: 'OUTAGE' });
+  const coord = await harness.makeMember(clinic.clinic, { roleKey: 'care_coordinator' });
+  const caller = await harness.signInStaff(app, coord.user.email);
+  assert.equal((await caller.a.get('/api/auth/me')).status, 200, 'the session works while the database is up');
+
+  await mongoose.connection.close();
+  try {
+    const ready = await harness.agent(app).get('/api/ready');
+    assert.equal(ready.status, 503, JSON.stringify(ready.body));
+    assert.equal(ready.body.ok, false);
+    assert.equal(ready.body.status, 'unavailable');
+    // The database is named as the failing dependency while storage is still
+    // reported honestly as OK - a probe that failed everything would be useless.
+    assert.equal(ready.body.checks.database, 'not_connected');
+    assert.equal(ready.body.checks.storage, 'ok');
+    assert.ok(!JSON.stringify(ready.body).includes('27019'), 'must not disclose the endpoint');
+
+    // Liveness stays up: a database outage is not a reason to restart a process.
+    const live = await harness.agent(app).get('/api/health');
+    assert.equal(live.status, 200);
+    assert.equal(live.body.status, 'healthy');
+
+    // A request that needs the database must agree with the probe: a RETRYABLE
+    // 503, never a misleading 500, and never any data. The envelope is generic in
+    // every environment and still carries the correlation id.
+    const request = await caller.a.get('/api/auth/me');
+    assert.equal(request.status, 503, JSON.stringify(request.body));
+    assert.equal(request.body.error.code, 'SERVICE_UNAVAILABLE');
+    assert.match(request.headers['x-request-id'], /^[0-9a-f-]{36}$/);
+    const payload = JSON.stringify(request.body);
+    assert.ok(!payload.includes('stack'), 'no stack in the response');
+    assert.ok(!payload.includes('27019'), 'no database endpoint in the response');
+    assert.ok(!/replicaSet|mongodb:\/\//.test(payload), 'no connection string in the response');
+    assert.ok(!/force closed|buffering/i.test(payload), 'no driver text in the response');
+
+    const clinical = await caller.a.get('/api/patients');
+    assert.equal(clinical.status, 503, JSON.stringify(clinical.body));
+    assert.equal(clinical.body.error.code, 'SERVICE_UNAVAILABLE');
+    assert.equal(clinical.body.patients, undefined, 'a clinical read must return no data');
+  } finally {
+    await connectDb(uri);
+  }
+
+  // The probe recovers on its own once the dependency is back, and logs the
+  // state change rather than one line per probe.
+  const recovered = await harness.agent(app).get('/api/ready');
+  assert.equal(recovered.status, 200, JSON.stringify(recovered.body));
+  assert.equal(recovered.body.status, 'ready');
+  assert.deepEqual(recovered.body.checks, { database: 'ok', storage: 'ok' });
+
+  // The surviving session is the ORIGINAL one: the outage did not corrupt it.
+  assert.equal((await caller.a.get('/api/auth/me')).status, 200);
+});
+
 test('trust proxy is the validated environment decision, not a hardcoded hop', () => {
   assert.equal(app.get('trust proxy'), 2);
   assert.equal(process.env.PROXY_HOPS, '2');

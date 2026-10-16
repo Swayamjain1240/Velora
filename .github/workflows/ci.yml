@@ -140,10 +140,14 @@ jobs:
         # verifies them by reading them back (including decrypting stored
         # documents) and then drops the copy. The reconciliation report is
         # read-only: it must find no drift, and it never repairs without an
-        # operator attribution.
+        # operator attribution. The key-rotation re-seal runs in its harmless
+        # default mode (no *_PREVIOUS variable staged), which proves the command
+        # still loads, connects and reports honestly instead of doing nothing
+        # silently.
         run: |
           node server/scripts/restore-drill.js
           node server/scripts/reconcile-documents.js
+          node server/scripts/reseal-keys.js
       - name: Extraction fails closed with no provider enabled
         # The AI journey above runs with the fake provider; this restart proves the
         # SHIPPED default (no provider) fails closed and drafting by hand still works.

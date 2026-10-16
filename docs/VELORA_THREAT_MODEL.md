@@ -117,8 +117,8 @@ parameters, uploaded bytes, and every document's text once it is parsed.
 | | |
 |---|---|
 | Attack path | exhaust the process with large bodies, slow requests, unbounded lists, or AI/export jobs |
-| Mitigations | bounded JSON body, request/header timeouts, bounded connection pool, global rate limit plus tighter Mongo-backed limits on sensitive routes, capped export size, capped retention run size, bounded audit search range, per-hour/per-day AI budgets, bounded reminder batch, graceful drain with a bounded grace window |
-| Residual | a single-process deployment remains a single point of failure; horizontal scaling needs a shared limiter (already Mongo-backed) and a load balancer honouring `/api/ready` (**BLOCKED** on hosting) |
+| Mitigations | bounded JSON body, request/header timeouts, bounded connection pool, global rate limit plus tighter Mongo-backed limits on sensitive routes, capped export size, capped retention run size, bounded audit search range, per-hour/per-day AI budgets, bounded reminder batch, graceful drain with a bounded grace window. A dependency outage is answered honestly rather than as a panic: `/api/health` stays 200 (no restart loop), `/api/ready` and any request that needs the database answer 503 with a retryable, generic body, and the audit/reconciliation commands remain runnable so an operator can diagnose |
+| Residual | a single-process deployment remains a single point of failure; horizontal scaling needs a shared limiter (already Mongo-backed) and a load balancer honouring `/api/ready` (**BLOCKED** on hosting). A database outage refuses signed-in callers rather than serving stale data — availability, not confidentiality, is what is lost |
 
 ---
 
@@ -126,8 +126,10 @@ parameters, uploaded bytes, and every document's text once it is parsed.
 
 1. **No provider is selected**, so backup durability, cross-region recovery, notification delivery
    and AI assistance are all unavailable — deliberate, and recorded as owner decisions.
-2. **Key rotation for MFA secrets and stored documents is not implemented** (no re-seal script),
-   even though the data layout supports it.
+2. **Key rotation for MFA secrets and stored documents is implemented and proven locally
+   (`scripts/reseal-keys.js`), but the keys are not yet held in a managed key store**, so who may
+   rotate them, how often, and how a provider's own rotation interacts with them is still an owner
+   decision (**BLOCKED** on provider selection).
 3. **Evidence is local and synthetic.** No deployment, no real data, no destructive retention run,
    no clinical validation.
 4. **Client-host security headers and TLS** are deployment responsibilities that no code in this

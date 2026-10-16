@@ -14,6 +14,46 @@ function notFoundHandler(req, res, next) {
   });
 }
 
+// A dependency that cannot be reached is not a defect in the request. The readiness
+// probe already answers 503 for exactly this condition, so a REQUEST must not
+// disagree with the probe: a retryable 503 tells a client, a load balancer and an
+// operator the same thing, while a 500 ("the code is broken") would be misleading
+// and unactionable during an outage (controls #9, #12). Storage tampering and
+// other 500-class failures are deliberately NOT matched here.
+const DEPENDENCY_ERROR_NAMES = new Set([
+  'MongoServerSelectionError',
+  'MongoServerClosedError',
+  'MongoNetworkError',
+  'MongoNetworkTimeoutError',
+  'MongoNotConnectedError',
+  'MongoTopologyClosedError',
+  'MongoPoolClosedError',
+  'MongooseServerSelectionError',
+]);
+const DEPENDENCY_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EPIPE',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+]);
+
+function isDependencyError(err) {
+  if (!err) return false;
+  const name = String(err.name || '');
+  if (DEPENDENCY_ERROR_NAMES.has(name)) return true;
+  if (DEPENDENCY_ERROR_CODES.has(String(err.code || ''))) return true;
+  // Mongoose reports a connection that is closed or still buffering with its own
+  // generic error name, so the stable wordings are matched rather than a status.
+  if (name.startsWith('Mongoose')) {
+    return /force closed|buffering timed out|not connected|connection .*closed/i.test(
+      String(err.message || '')
+    );
+  }
+  return false;
+}
+
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
   const env = getEnv();
@@ -45,6 +85,24 @@ function errorHandler(err, req, res, next) {
   // line to the response header, and only the route plus the error are recorded
   // - never a body, a token or a document. The stack is kept out of a production
   // line (control #12).
+  if (isDependencyError(err)) {
+    // Alert-worthy: this line is the operational signal that a dependency went
+    // away, and the response body stays generic in every environment.
+    getLogger().error('dependency.unavailable', {
+      requestId: req.id,
+      method: req.method,
+      route: req.path,
+      status: 503,
+      err,
+    });
+    return res.status(503).json({
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'The service is temporarily unavailable. Please retry shortly.',
+      },
+    });
+  }
+
   getLogger().error('request.unhandled_error', {
     requestId: req.id,
     method: req.method,
@@ -67,4 +125,4 @@ function errorHandler(err, req, res, next) {
   });
 }
 
-module.exports = { notFoundHandler, errorHandler };
+module.exports = { notFoundHandler, errorHandler, isDependencyError };

@@ -116,6 +116,7 @@ Alert-worthy operational events (structured log lines; one per STATE CHANGE, not
 |---|---|---|
 | `readiness.unavailable` | error | database or encrypted storage is not usable; requests will fail |
 | `readiness.recovered` | info | back in service |
+| `dependency.unavailable` | error | a request could not reach a dependency (the database) and answered a retryable 503 — **this is the line to alert on during an outage** |
 | `server.proxy_not_trusted` | warn | `TRUST_PROXY=false`: rate limits and audit IPs are the socket address |
 | `shutdown.begin` / `shutdown.complete` | info | graceful drain started / finished |
 | `shutdown.forced` | error | in-flight requests exceeded `SHUTDOWN_GRACE_MS`; process exits non-zero |
@@ -231,17 +232,21 @@ AES-GCM decryption of stored documents (compare with the recorded `sha256`). It 
 source to prove the drill changed nothing, never restores over the live or application database,
 and drops the target unless `--keep`.
 
-Observed on the seeded synthetic database (16 October 2026, this host):
+Observed on the seeded synthetic database (16 October 2026, final Part 10 run on this host; an
+earlier run on the same volume reported 4176 rows / 162 objects / 6 054 128 bytes, so the numbers
+below move with the data rather than being a fixed claim):
 
 ```text
 PASS  collections restored                    48 of 48
-PASS  row counts identical                    4176 rows across 48 collections
+PASS  row counts identical                    5071 rows across 48 collections
 PASS  content checksums identical             0 mismatch(es)
 PASS  indexes identical                       name/key/uniqueness/partial filter/TTL
-PASS  object store bytes identical            162 objects, 6054128 bytes restored
+PASS  object store bytes identical            192 objects, 6063933 bytes restored
 PASS  restored documents decrypt + match hash 25 of 25 ready documents
 PASS  source unchanged by the drill           read-only
-observations: dump 220 ms, restore 8001 ms, object copy 348 ms, verify 396 ms
+observations: dump 286 ms, restore 9498 ms, object copy 398 ms, verify 526 ms
+observed recovery time: ~10.7 s (copy + verify) for this synthetic volume on this host
+observed recovery point: whatever existed when the copy STARTED - not a checkpoint
 ```
 
 **The drill found a real defect in itself on its first run**, which is the point of running it: a
@@ -352,7 +357,7 @@ rotation behaviour (versioned objects, server-side re-encryption, key-store audi
 | Failure | Behaviour |
 |---|---|
 | MongoDB unreachable at startup | process exits non-zero with `startup.database_unreachable` |
-| MongoDB unreachable while running | `/api/ready` → 503 (`database`); requests fail closed with a safe error; pool selection timeout bounds the wait |
+| MongoDB unreachable while running | `/api/ready` → 503 naming `database`; a request that needs the database answers **503 `SERVICE_UNAVAILABLE`** (retryable, generic in every environment, correlated by request id) rather than a misleading 500, and returns no data. Verified by closing the real connection in `tests/integration/health.test.js`. **Observed consequence:** during an outage a signed-in user is refused, so they see the signed-out state until the dependency returns — a session survives the outage itself |
 | Encrypted storage root missing/unwritable | `/api/ready` → 503 (`storage`); uploads and downloads fail closed; no metadata row is written for a failed upload |
 | Extraction provider selected but misconfigured | process exits non-zero at boot; if a provider is disabled at runtime the job fails closed with `PROVIDER_DISABLED` and the manual drafting path stays available |
 | Reminder delivery failing | bounded attempts (`REMINDER_MAX_ATTEMPTS`), the failure is a delivery FACT (never a missed dose); failed deliveries surface in the `failed_reminders` queue and in the closure preflight (advisory, not blocking) |

@@ -50,9 +50,10 @@ Velora/
   server/
     package.json
     scripts/{seed.js,seedScheduleJourney.js,mongo-test-rs.js,reconcile-documents.js,
-             restore-drill.js,syntheticPdf.js,evaluate-extraction.js}
+             reseal-keys.js,restore-drill.js,syntheticPdf.js,evaluate-extraction.js}
                                   # synthetic clinic + care teams; Part 7 schedule journey fixture;
                                   # local replica set; document dry run/repair;
+                                  # MFA/document key re-seal for a rotation (dry run, attributed);
                                   # logical restore drill (rows + indexes + objects + decryption);
                                   # synthetic PDF builder; deterministic extraction evaluation harness
     src/
