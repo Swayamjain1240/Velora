@@ -1544,6 +1544,15 @@ boundaries, dependency advisories, accessibility depth - each with the reason st
 unchanged and re-verified. Key rotation moved from NOT IMPLEMENTED to VERIFIED by the re-seal drill.
 No control is claimed as satisfied by a document alone.
 
+Tally against the final matrix in the readiness report, stated exactly so the two documents cannot
+disagree: **25 controls = 23 PASSED and 2 PARTIAL**. Of the 23, five carry a qualification the
+matrix spells out - #15 and #23 are local-only evidence, #13 is PASSED with a documented dev-only
+advisory finding, #1 is PASSED with rotation proven locally (a managed key store is still blocked on
+provider selection), and #7 is PASSED for the API with the client host's own headers/TLS blocked on
+deployment. The 2 PARTIAL are #11 (client-origin headers) and #16 (database network boundary);
+accessibility depth is not a control at all - it is work item 9, which is PARTIAL for the reasons
+listed there (no screen-reader, contrast, cross-browser, device or zoom evidence).
+
 ### Part 10 close-out (second pass on the frozen build)
 
 The first pass recorded two honest gaps - key rotation and the untested reconciliation REPAIR path -
@@ -1601,3 +1610,27 @@ repair path made testable and tested, the key re-seal command with its rotation 
 commit that fixes dependency-outage semantics and updates every record with the final evidence. The
 last commit's own hash is deliberately not quoted because amending it would invalidate the reference.
 **Eight Part 10 commits**; **82 commits** in the repository, no padding.
+
+### Duck review at close (claims re-checked against the code, not against each other)
+
+A final pass tested the records against the running code rather than against one another. What held:
+the client contains **no** `dangerouslySetInnerHTML` (only a comment explaining why), so the stored-XSS
+claim is a fact about the code; the client reads exactly **one** build-time value
+(`VITE_API_BASE_URL`, an API base path) and **no** server variable is prefixed `VITE_`; `/api/health`
+and `/api/ready` are mounted before the rate limiter and before `loadSession`/`csrfProtection`; Part 10
+added **no dependency** to either workspace and did **not** touch the lockfile (only two npm scripts);
+`.env` is untracked while `.env.example` is tracked; the tree and every reachable commit are clean of
+key, token and credentialed-URI patterns. Two drifts were found and fixed:
+
+1. **README carried a stale test count** ("388 unit + integration tests"). The suite is 403 after this
+   part's additions. Fixed.
+2. **The control tally in this log did not match the matrix it summarises** (it claimed 21/3 and
+   listed accessibility depth as a control). The matrix is 23 PASSED / 2 PARTIAL with five qualified
+   passes, and accessibility depth is work item 9. The tally above now states the matrix exactly, so
+   the summary and the table can no longer disagree.
+
+Re-affirmed as unverified rather than quietly assumed: **nothing is pushed** (44 commits ahead of
+`origin/main`), so CI has never executed this work and the local gate above is the only evidence; no
+deployment, provider, key store, backup schedule or monitoring exists; the drill's timings are this
+host's, not an RTO; and no claim of zero bugs, compliance, clinical validation, production readiness
+or real-patient readiness appears anywhere in these records.

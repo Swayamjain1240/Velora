@@ -231,7 +231,7 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 388 unit + integration tests (replica-set MongoDB test DB)
+npm test -w server               # 403 unit + integration tests (replica-set MongoDB test DB)
 npm test -w client               # 61 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
