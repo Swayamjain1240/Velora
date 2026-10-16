@@ -162,7 +162,10 @@ jobs:
             curl -fsS http://localhost:4100/api/health >/dev/null && break
             sleep 2
           done
-          npx playwright test e2e/extractions.spec.js -g "no provider enabled"
+          # The journey skips itself when the RUNNER sees the fake provider (the
+          # job-level default above), so without this override the step would
+          # report green without ever asserting the shipped fail-closed default.
+          EXTRACTION_PROVIDER=none npx playwright test e2e/extractions.spec.js -g "no provider enabled"
 
   security:
     name: Dependency audit and secret scan
