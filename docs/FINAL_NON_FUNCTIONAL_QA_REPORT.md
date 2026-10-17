@@ -1,7 +1,7 @@
 # Velora — Final Non-Functional QA Report
 
 **Branch:** `test/non-functional-security-qa` (created from the functional-QA branch; all existing work preserved)
-**Branch tip commit at the time of writing:** `b6c4a68` (docs) — preceded by `e617abc` (NQ-1/NQ-2 fix), `68e3e2f` (NQ-3 fix), `bce3e39` (QA harness + evidence), on top of the functional-QA tip `4bc1001`. The branch is pushed to `origin`.
+**Pass commits:** `e617abc` (NQ-1/NQ-2 fix) · `68e3e2f` (NQ-3 fix) · `bce3e39` (QA harness + evidence) · the docs commit that carries this report. The branch tip is the commit containing this document (`git log -1 --oneline` on `test/non-functional-security-qa`), on top of the functional-QA tip `4bc1001`; the branch is pushed to `origin`.
 **Repository:** https://github.com/Swayamjain1240/Velora
 **Pass owner:** non-functional QA (security · performance · reliability · accessibility reviewer)
 **Environment:** **isolated non-production only** — API `NODE_ENV=test` on `127.0.0.1:4101`, disposable single-node MongoDB replica set `velora_test` on `127.0.0.1:27019`, seeded synthetic identities (`*.synthetic.invalid`), fixture clinic B in the same disposable DB, `EXTRACTION_PROVIDER=fake` (local, no network). Browser journeys ran against a second isolated DB (`velora_e2e`). **No production system, real patient data or live provider was ever contacted.**
@@ -107,7 +107,7 @@ Three focused commits, each with its own tests; no history rewrite, no force pus
 
 | Required element | Value / location |
 | --- | --- |
-| Exact branch and commit | `test/non-functional-security-qa` @ `b6c4a68` (fixes `e617abc`, `68e3e2f`; harness `bce3e39`) — pushed to `origin` |
+| Exact branch and commit | `test/non-functional-security-qa` — fix commits `e617abc` (NQ-1/NQ-2) and `68e3e2f` (NQ-3), harness/evidence `bce3e39`, tip = this document's own commit; pushed to `origin` |
 | Test environment | §2 above, plus the performance report's environment block (loopback API, disposable replica set, synthetic data, fake provider) |
 | Commands and tools | §3 above (`node --test`, Vitest, ESLint, Vite build, Playwright, `qa/*.js` probes, Mongo driver, `npm audit`, `git grep` history scan) |
 | Workload / data profile | [FINAL_PERFORMANCE_REPORT.md](FINAL_PERFORMANCE_REPORT.md) §2 (seeded clinic, 3 document episodes, plan/schedule/extraction journeys, synthetic patients and documents) |
