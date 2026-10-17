@@ -1,6 +1,7 @@
 # Velora — Final Non-Functional QA Report
 
 **Branch:** `test/non-functional-security-qa` (created from the functional-QA branch; all existing work preserved)
+**Branch tip commit at the time of writing:** `b6c4a68` (docs) — preceded by `e617abc` (NQ-1/NQ-2 fix), `68e3e2f` (NQ-3 fix), `bce3e39` (QA harness + evidence), on top of the functional-QA tip `4bc1001`. The branch is pushed to `origin`.
 **Repository:** https://github.com/Swayamjain1240/Velora
 **Pass owner:** non-functional QA (security · performance · reliability · accessibility reviewer)
 **Environment:** **isolated non-production only** — API `NODE_ENV=test` on `127.0.0.1:4101`, disposable single-node MongoDB replica set `velora_test` on `127.0.0.1:27019`, seeded synthetic identities (`*.synthetic.invalid`), fixture clinic B in the same disposable DB, `EXTRACTION_PROVIDER=fake` (local, no network). Browser journeys ran against a second isolated DB (`velora_e2e`). **No production system, real patient data or live provider was ever contacted.**
@@ -102,7 +103,29 @@ Three focused commits, each with its own tests; no history rewrite, no force pus
 - **Browser journeys:** the accessibility + one-viewport subset passed 37/37; the complete journey suite is run by CI on the branch.
 - **A green GitHub Actions run on this branch is still required** before merge: the local run proves the branch on this machine; CI proves it on a clean runner (Docker replica set, fresh install, Playwright browsers).
 
-## 6. Honest limits of this pass
+## 6. Final-report checklist (each required element and where it lives)
+
+| Required element | Value / location |
+| --- | --- |
+| Exact branch and commit | `test/non-functional-security-qa` @ `b6c4a68` (fixes `e617abc`, `68e3e2f`; harness `bce3e39`) — pushed to `origin` |
+| Test environment | §2 above, plus the performance report's environment block (loopback API, disposable replica set, synthetic data, fake provider) |
+| Commands and tools | §3 above (`node --test`, Vitest, ESLint, Vite build, Playwright, `qa/*.js` probes, Mongo driver, `npm audit`, `git grep` history scan) |
+| Workload / data profile | [FINAL_PERFORMANCE_REPORT.md](FINAL_PERFORMANCE_REPORT.md) §2 (seeded clinic, 3 document episodes, plan/schedule/extraction journeys, synthetic patients and documents) |
+| Measurements | [FINAL_PERFORMANCE_REPORT.md](FINAL_PERFORMANCE_REPORT.md) §3–§5 (min/p50/p90/p95/p99/max, throughput, error rate, CPU, RSS, saturation reading) |
+| Security findings | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §2 (39 probes) and §3 (25 controls) |
+| Dependency findings | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §4 (production 0; 6 dev-only advisories needing semver-major fixes) + [qa/evidence/dependency-review.json](qa/evidence/dependency-review.json) |
+| Secret-scan result | 0 hits in the tree and across 85 reachable commits; `.env*` ignored, `.env.example` allowed (this report §3) |
+| Accessibility evidence | [FINAL_ACCESSIBILITY_REPORT.md](FINAL_ACCESSIBILITY_REPORT.md) + [qa/evidence/e2e-a11y-viewports.txt](qa/evidence/e2e-a11y-viewports.txt) (37/37) |
+| Restore evidence | [FINAL_RECOVERY_REPORT.md](FINAL_RECOVERY_REPORT.md) + [qa/evidence/restore-drill.txt](qa/evidence/restore-drill.txt) (PASSED) and the reconciliation dry run/apply |
+| Browser / device coverage | Chromium 1248 only; 6 emulated viewport sizes (1440×900, 768×1024, 390×844, 320×568, 844×390, 320×400); **no** Firefox/WebKit/real-device coverage |
+| Fixed defects | §4 above (NQ-1, NQ-2, NQ-3) with retests |
+| Remaining risks | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §6 (R-1…R-9) and [FINAL_DEFECT_LOG.md](FINAL_DEFECT_LOG.md) (D-4…D-12) |
+| Duck verdict | **DRIFT FIXED (three defects), residual risk recorded** — [VELORA_MERN_DUCK_LOG.md](VELORA_MERN_DUCK_LOG.md), 17 October entry |
+| Merge readiness | **Ready for owner review** once CI is green on the branch — [FINAL_READINESS_REPORT.md](FINAL_READINESS_REPORT.md) |
+| Production-readiness blockers | Ten blocking items in [FINAL_READINESS_REPORT.md](FINAL_READINESS_REPORT.md) (deployment/TLS edge, production DB posture, backups + RPO/RTO, client CSP, providers, clinical evaluation, privacy sign-off, dev-toolchain upgrade, observability, independent penetration test) |
+| Clinical / privacy / provider decisions still required | [FINAL_READINESS_REPORT.md](FINAL_READINESS_REPORT.md) "Decision list still open" (8 items) |
+
+## 7. Honest limits of this pass
 
 - **No penetration test, no fuzzing, no external scanner.** Probes were defensive and loopback-only.
 - **No production or production-like environment existed.** TLS, proxies, real MongoDB auth, multi-instance deployment and the hosting-layer CSP could not be exercised (D-7, D-10).
