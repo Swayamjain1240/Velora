@@ -1,0 +1,1200 @@
+/* Velora component layer: shell, navigation, controls, surfaces.
+ *
+ * Class names are the ones the screens already use; the redesign changes their
+ * appearance and keeps their layout contracts (internal scroll regions, flex
+ * chains) intact so the one-viewport rule still holds.
+ */
+
+/* ================= Application shell ================= */
+.shell {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  overflow: hidden;
+  background:
+    radial-gradient(900px 520px at 8% -10%, rgba(109, 40, 217, 0.22), transparent 62%),
+    radial-gradient(700px 480px at 92% 108%, rgba(139, 92, 246, 0.12), transparent 60%),
+    var(--bg);
+  transition: grid-template-columns var(--dur-base) var(--ease-out);
+}
+
+.shell--compact {
+  grid-template-columns: var(--sidebar-width-compact) minmax(0, 1fr);
+}
+
+/* ---------- Sidebar ---------- */
+.shell__sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-3);
+  background: linear-gradient(180deg, rgba(16, 14, 25, 0.96), rgba(11, 9, 18, 0.92));
+  border-right: 1px solid var(--border);
+  position: relative;
+  z-index: var(--z-sidebar);
+}
+
+.shell__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-2);
+  min-height: 40px;
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(145deg, var(--brand-500), var(--brand-600));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), var(--shadow-md);
+  color: var(--text-on-brand);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text);
+}
+
+.brand-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-1);
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-3);
+}
+
+.nav-group__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-faint);
+  padding: var(--space-2) var(--space-2) var(--space-1);
+}
+
+.shell__nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 9px var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  min-height: var(--tap-target);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.shell__nav a svg {
+  flex: 0 0 auto;
+  opacity: 0.82;
+}
+
+.shell__nav a:hover {
+  background: rgba(167, 139, 250, 0.08);
+  color: var(--text);
+}
+
+.shell__nav a:active {
+  transform: scale(0.99);
+}
+
+.shell__nav a.active {
+  background: var(--brand-wash);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--brand-line);
+}
+
+.shell__nav a.active::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, var(--brand-300), var(--brand-500));
+}
+
+.shell__nav a.active svg {
+  opacity: 1;
+  color: var(--brand-300);
+}
+
+.shell__sidebar-foot {
+  margin-top: auto;
+  padding: var(--space-3) var(--space-2) 0;
+  border-top: 1px solid var(--border-quiet);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.clinic-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border-quiet);
+  min-width: 0;
+}
+
+.clinic-chip__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.clinic-chip__name {
+  font-size: var(--text-sm);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clinic-chip__role {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+/* Compact (icon rail) mode */
+.shell--compact .brand-text,
+.shell--compact .nav-label,
+.shell--compact .nav-group__label,
+.shell--compact .clinic-chip__text,
+.shell--compact .shell__sidebar-foot .btn span {
+  display: none;
+}
+
+.shell--compact .shell__nav a {
+  justify-content: center;
+  padding: 10px;
+}
+
+.shell--compact .nav-group {
+  margin-bottom: var(--space-2);
+}
+
+.shell--compact .clinic-chip {
+  justify-content: center;
+  padding: var(--space-2);
+}
+
+/* ---------- Body column + top bar ---------- */
+.shell__body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.shell__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--topbar-height);
+  padding: var(--space-2) var(--space-5);
+  background: rgba(8, 7, 13, 0.72);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: var(--z-sticky);
+}
+
+.shell__collapse {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-quiet);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.shell__collapse:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.shell__context {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.shell__context-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell__context-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell__user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+.shell__who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  max-width: 280px;
+  min-width: 0;
+}
+
+.shell__who-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--brand-wash);
+  border: 1px solid var(--brand-line);
+  color: var(--brand-300);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, var(--surface-3), var(--surface-2));
+  border: 1px solid var(--brand-line);
+  color: var(--brand-300);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Main region ---------- */
+.shell__main {
+  padding: var(--space-5);
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  scroll-behavior: smooth;
+}
+
+.shell__transition {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+/* ================= Surfaces ================= */
+.card {
+  background: linear-gradient(180deg, rgba(23, 19, 33, 0.9), rgba(16, 14, 25, 0.96));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  /* width:100% matters: with `margin-inline:auto` a flex item does not stretch,
+   * so without it a wide child (a tab row, a table) would expand the card past
+   * the viewport instead of scrolling inside its own bounded region. */
+  width: 100%;
+  min-width: 0;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: break-word;
+  box-shadow: var(--shadow-md);
+}
+
+.card > h1:first-child,
+.card > .detail-head:first-child {
+  margin-top: 0;
+}
+
+.card h1 {
+  font-size: var(--text-xl);
+}
+
+.card h2 {
+  font-size: var(--text-lg);
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.card h2:first-of-type {
+  margin-top: 0;
+}
+
+.card--tabs {
+  min-height: 0;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-bottom: var(--space-3);
+}
+
+.detail-head h1 {
+  margin: 0;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-2) 0 var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-md);
+}
+
+.summary dt {
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+
+.summary dd {
+  margin: 0;
+  color: var(--text);
+}
+
+/* ---------- Page header pattern ---------- */
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.page-head h1 {
+  margin: 0 0 var(--space-1);
+}
+
+.page-eyebrow {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--brand-400);
+}
+
+.page-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-base);
+}
+
+/* ---------- Information cards (overview and detail summaries) ---------- */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+  align-content: start;
+  min-height: 0;
+}
+
+.info-card {
+  background: var(--surface-inset);
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+}
+
+.info-card h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+}
+
+.info-card ul {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--text-secondary);
+}
+
+.info-card li {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.info-card li + li {
+  margin-top: var(--space-1);
+}
+
+.info-card--accent {
+  border-color: var(--brand-line);
+  background: linear-gradient(160deg, rgba(139, 92, 246, 0.10), rgba(23, 19, 33, 0.6));
+}
+
+.info-card--accent h2 {
+  color: var(--brand-300);
+}
+
+/* ================= Buttons ================= */
+.btn {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-4);
+  min-height: var(--tap-target);
+  background: var(--surface-3);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.btn:hover {
+  background: #2a2140;
+  border-color: var(--brand-line);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn--primary {
+  background: linear-gradient(180deg, var(--brand-action), #6b2fd6);
+  border-color: rgba(196, 181, 253, 0.4);
+  color: var(--text-on-brand);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 10px 24px -16px rgba(124, 58, 237, 0.9);
+}
+
+.btn--primary:hover {
+  background: linear-gradient(180deg, #8b5cf6, var(--brand-action-hover));
+  border-color: rgba(196, 181, 253, 0.55);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--border-quiet);
+  color: var(--text-secondary);
+}
+
+.btn--ghost:hover {
+  background: rgba(167, 139, 250, 0.08);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.btn--danger {
+  background: var(--danger-wash);
+  border-color: var(--danger-line);
+  color: #fca5a5;
+  align-self: flex-start;
+  margin-top: var(--space-3);
+}
+
+.btn--danger:hover {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: var(--danger);
+  color: #fecaca;
+}
+
+.btn--sm {
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+}
+
+/* ================= Forms ================= */
+label {
+  display: block;
+  font-weight: var(--weight-medium);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 10px var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  color: var(--text);
+  width: 100%;
+  min-height: var(--tap-target);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+textarea {
+  min-height: 84px;
+  resize: vertical;
+  line-height: var(--leading-base);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-faint);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: rgba(167, 139, 250, 0.42);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brand-400);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.22);
+  background: #0e0b17;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  accent-color: var(--brand-500);
+  flex: 0 0 auto;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--brand-300) 50%),
+    linear-gradient(135deg, var(--brand-300) 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 2px), calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: var(--space-8);
+}
+
+/* Password visibility control: the input keeps its full width and the button
+ * floats inside the field's padding, so the touch target is 36px without
+ * shrinking the text field. */
+.password-field {
+  position: relative;
+  display: flex;
+}
+
+.password-field input {
+  padding-right: 52px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+
+.password-toggle:hover {
+  color: var(--text);
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: var(--text-xs);
+  margin-top: var(--space-1);
+}
+
+.error {
+  color: #fca5a5;
+  background: var(--danger-wash);
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+
+.notice {
+  color: #86efac;
+  background: var(--success-wash);
+  border: 1px solid var(--success-line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+
+.inline-form {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-md);
+}
+
+.inline-form label {
+  margin: 0 0 var(--space-1);
+}
+
+.inline-form input,
+.inline-form select {
+  width: auto;
+  min-width: 160px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-regular);
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.check input {
+  width: auto;
+}
+
+.scopes {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: center;
+  background: var(--surface-inset);
+}
+
+.scopes legend {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: 0 var(--space-1);
+}
+
+/* ================= Tabs ================= */
+.tabs {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  gap: var(--space-1);
+  margin: var(--space-3) 0;
+  padding: var(--space-1);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-4);
+  min-height: 36px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.tab:hover {
+  color: var(--text);
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.tab--active {
+  background: var(--brand-wash);
+  border-color: var(--brand-line);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ================= Tables ================= */
+.panel-scroll {
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-md);
+  background: rgba(11, 9, 18, 0.5);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px var(--space-3);
+  border-bottom: 1px solid var(--border-quiet);
+  vertical-align: middle;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-raised);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody tr {
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.table tbody tr:hover {
+  background: rgba(167, 139, 250, 0.06);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.table__actions select {
+  width: auto;
+  min-width: 120px;
+}
+
+/* ================= Pagination ================= */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.pager .btn {
+  min-height: 32px;
+}
+
+/* ================= Badges / pills =================
+ * Every pill carries a text label, so colour is never the only signal; the dot
+ * adds a second, pre-attentive cue that survives greyscale and low vision. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+  flex: 0 0 auto;
+}
+
+.pill--ready,
+.pill--plan-approved,
+.pill--answered,
+.pill--submitted,
+.pill--taken {
+  background: var(--success-wash);
+  border-color: var(--success-line);
+  color: #86efac;
+}
+
+.pill--rejected,
+.pill--quarantined,
+.pill--plan-needs_clarification,
+.pill--reopened,
+.pill--needs_review {
+  background: var(--danger-wash);
+  border-color: var(--danger-line);
+  color: #fca5a5;
+}
+
+.pill--uploading,
+.pill--plan-draft,
+.pill--open,
+.pill--scheduled,
+.pill--reported_done {
+  background: var(--info-wash);
+  border-color: var(--info-line);
+  color: var(--info);
+}
+
+.pill--failed,
+.pill--plan-superseded,
+.pill--skipped,
+.pill--closed,
+.pill--cancelled,
+.pill--none,
+.pill--no_response {
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #cbd5e1;
+}
+
+.pill--plan-in_review,
+.pill--assigned,
+.pill--needs_help {
+  background: var(--warning-wash);
+  border-color: var(--warning-line);
+  color: #fcd34d;
+}
+
+.pill--prn {
+  background: var(--brand-wash);
+  border-color: var(--brand-line);
+  color: var(--brand-300);
+}
+
+/* ================= Wizard / stepper ================= */
+.wizard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.stepper {
+  list-style: none;
+  display: flex;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0 0 var(--space-1);
+  flex-wrap: wrap;
+  counter-reset: step;
+}
+
+.stepper__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-pill);
+  padding: 4px var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  background: var(--surface-inset);
+}
+
+.stepper__item::before {
+  counter-increment: step;
+  content: counter(step);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.stepper__item--active {
+  border-color: var(--brand-line);
+  color: var(--text);
+  background: var(--brand-wash);
+  font-weight: var(--weight-semibold);
+}
+
+.stepper__item--active::before {
+  background: var(--brand-action);
+  color: var(--text-on-brand);
+}
+
+.wizard__body {
+  overflow: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-right: var(--space-1);
+}
+
+.wizard__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-quiet);
+}
+
+/* ================= Responsive shell ================= */
+@media (max-width: 1100px) {
+  .shell__who-name {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  /* One column: the sidebar becomes a compact top rail and the navigation turns
+   * into a horizontally scrollable row of the same links (no duplicate nav, so
+   * the accessible name stays unique and every destination stays visible). */
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .shell__sidebar {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .shell__brand {
+    padding: 0;
+    flex: 0 0 auto;
+  }
+
+  .brand-sub,
+  .shell__sidebar-foot {
+    display: none;
+  }
+
+  .shell__nav {
+    flex-direction: row;
+    gap: var(--space-1);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex: 1 1 auto;
+    padding: 0;
+    scrollbar-width: none;
+  }
+
+  .shell__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-group {
+    flex-direction: row;
+    margin: 0;
+    gap: var(--space-1);
+  }
+
+  .nav-group__label {
+    display: none;
+  }
+
+  .shell__nav a {
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    gap: var(--space-2);
+    white-space: nowrap;
+  }
+
+  .shell__nav a.active::before {
+    display: none;
+  }
+
+  .shell__header {
+    min-height: 56px;
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .shell__collapse {
+    display: none;
+  }
+
+  .shell__main {
+    padding: var(--space-3);
+  }
+
+  .card {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+  }
+}
+
+@media (max-width: 720px) {
+  .brand-text {
+    display: none;
+  }
+
+  .shell__context-sub {
+    display: none;
+  }
+
+  /* Identity stays on the phone: initials + a truncated name, with the role
+   * badge dropped so the Sign out control never loses its place. */
+  .shell__who {
+    max-width: 132px;
+  }
+
+  .shell__who-name {
+    display: inline;
+    max-width: 92px;
+  }
+
+  .role-badge {
+    display: none;
+  }
+
+  .table th,
+  .table td {
+    padding: 8px var(--space-2);
+  }
+}
+
+@media (max-width: 480px) {
+  .shell__main {
+    padding: var(--space-2);
+  }
+
+  .card {
+    padding: var(--space-3);
+  }
+
+  /* Touch targets grow on phones without changing the desktop rhythm. */
+  .btn,
+  .shell__nav a {
+    min-height: var(--tap-target-touch);
+  }
+
+  .tabs {
+    margin: var(--space-2) 0;
+  }
+}

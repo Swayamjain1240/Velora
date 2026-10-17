@@ -11,24 +11,37 @@ export default function Dashboard() {
 
   return (
     <section className="card" aria-labelledby="dashboard-title">
-      <h1 id="dashboard-title">Welcome{user ? `, ${user.name}` : ''}</h1>
-      {clinic && (
-        <p>
-          Signed in to <strong>{clinic.name}</strong> as{' '}
-          <strong>{membership.roleKey.replace(/_/g, ' ')}</strong>.
-        </p>
-      )}
-      <h2>What is ready in Part 1</h2>
-      <ul>
-        <li>Secure staff authentication with mandatory MFA</li>
-        <li>Clinic staff administration and invitations</li>
-        <li>Separate, verified clinical-reviewer eligibility</li>
-      </ul>
-      <h2>Safety boundaries (always in force)</h2>
-      <ul>
-        <li>Velora does not diagnose, prescribe, or decide urgency.</li>
-        <li>Nothing reaches a patient without clinician approval.</li>
-      </ul>
+      <header className="page-head">
+        <div>
+          <p className="page-eyebrow">Overview</p>
+          <h1 id="dashboard-title">Welcome{user ? `, ${user.name}` : ''}</h1>
+          {clinic && (
+            <p className="page-sub">
+              Signed in to <strong>{clinic.name}</strong> as{' '}
+              <strong>{membership.roleKey.replace(/_/g, ' ')}</strong>.
+            </p>
+          )}
+        </div>
+      </header>
+
+      <div className="info-grid">
+        <section className="info-card">
+          <h2>What is ready in Part 1</h2>
+          <ul>
+            <li>Secure staff authentication with mandatory MFA</li>
+            <li>Clinic staff administration and invitations</li>
+            <li>Separate, verified clinical-reviewer eligibility</li>
+          </ul>
+        </section>
+
+        <section className="info-card info-card--accent">
+          <h2>Safety boundaries (always in force)</h2>
+          <ul>
+            <li>Velora does not diagnose, prescribe, or decide urgency.</li>
+            <li>Nothing reaches a patient without clinician approval.</li>
+          </ul>
+        </section>
+      </div>
     </section>
   );
 }

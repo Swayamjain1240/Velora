@@ -62,4 +62,41 @@ Companion to the authoritative `VELORA_MERN_DUCK_LOG.pdf` (v2.0). This file hold
 
 ---
 
+## Entry — 17 October 2026, UI/UX redesign stage 1 (dark-purple system)
+
+**DUCK REVIEW — 17 October 2026, Asia/Kolkata**
+**Repository / branch / commit / dirty state:** `Swayamjain1240/Velora` · `feat/ui-redesign-dark-purple` (from `main` @ `036c27a`) · clean after the stage commit.
+**Current part and VEL IDs:** presentation pass across Parts 1–10; VEL-017 (one-viewport) holds; Security-25 controls 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 21–25 unaffected.
+**Status: ON TRACK — stage 1 of 7 delivered; no requirement drift.**
+
+**Evidence inspected:** the three authority PDFs (text extracts), `README.md`, the full client source (39 feature components, 8,344 JSX lines), `client/src/styles.css` (439 lines, 9 tokens, light theme), the 12 Playwright specs, the 11 client test files, dependencies and lockfile, and the current bundle output. No animation, icon, chart or component library existed.
+
+**Findings that drove the work:** no token layer or dark theme; a single wrapping header that became multi-row on phones; unstyled native controls; one flat card surface; status pills whose light backgrounds cannot survive a dark theme; no motion and no reduced-motion path; a scaffold-grade landing and sign-in.
+
+**Corrections made (presentation only):**
+1. New token layer (`client/src/styles/tokens.css`) and layered stylesheet (base/components/screens). White-on-`#8B5CF6` measures 4.22:1, so filled controls use `#7C3AED` (5.7:1) while the brighter accent stays decorative.
+2. Rebuilt `AppShell` as a fixed sidebar shell with grouped, role-identical navigation, collapsible icon rail, contextual top bar and a mobile rail. Every role predicate and link is unchanged; Sign out remains visible at all six sizes.
+3. Restyled all existing classes (buttons, fields, tables, tabs, pills, wizards, plans, today, threads, check-ins, documents) without renaming a class, id, label or test-id.
+4. Added a password-visibility control to `Login` (`aria-pressed`, labelled), and a premium landing/auth surface.
+5. Added the GSAP motion layer with `gsap.context()` cleanup, no animation above 450 ms, content never animated from zero opacity, a failsafe that forces visibility, and a reduced-motion path that skips animation entirely.
+6. Restructured the Overview into a page header plus information cards so the dashboard is not a large empty panel.
+
+**Two layout defects found and fixed by measurement:**
+- `margin-inline:auto` on a flex item stopped the card stretching; a wide tab row expanded it to 759 px inside a 320 px viewport. Fixed with `width:100%; min-width:0` (also on `.panel-scroll`).
+- The landing glow used a viewport-fixed pseudo-layer, producing a hard-edged band on a short page; moved onto the page.
+
+**Verification (on this branch):** client 61/61 pass · lint clean · production build clean · `e2e/viewports.spec.js` + `e2e/accessibility.spec.js` 31/31 pass · six-size audit of 144 route/role combinations 0 failures (no vertical overflow, no horizontal page overflow, no clipping, Sign out visible) · reduced-motion probe shows opacity 1 with no inline style · `npm audit --omit=dev` 0 · GSAP 3.15.0 under its standard no-charge licence.
+
+**Failed, blocked or not-run checks:** server suite not run (no server change); other browser journeys not re-run this stage; axe/Lighthouse, screen reader, 200 % zoom, Firefox/Safari and visual regression NOT RUN. The dev-only global limiter (300 req/min) produced login redirects under rapid browser testing; logged as OBS-002 and deliberately not changed, because the redesign must not alter auth semantics.
+
+**External API disclosures:** none added. No new network origin; no web font; GSAP bundles locally.
+
+**Documentation updated:** `docs/UI_REDESIGN_DUCK_REVIEW.md`, `docs/UI_DESIGN_SYSTEM.md`, this log, `README.md`.
+
+**Unresolved decisions/risks:** stages 2–7 (shared dialogs/drawers/toasts/skeletons/charts, structural screen pass, mobile table→card presentation, optional Three.js accent, full QA) remain. Bundle grows 30.9 kB gzip from GSAP; code-splitting is the documented remedy if that must shrink.
+
+**Next authorized action:** owner review of stage 1, then stage 2 (shared controls) on the same branch.
+
+---
+
 *Append new entries below this line.*

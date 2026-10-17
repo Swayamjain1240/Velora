@@ -123,6 +123,22 @@ Every authenticated application screen must fit within one viewport without page
 
 Required verification sizes are `1440x900`, `768x1024`, `390x844`, `320x568`, `844x390` and `320x400`. A marketing landing page may intentionally scroll.
 
+## Interface
+
+The application uses a dark, purple-accented design system documented in
+[`docs/UI_DESIGN_SYSTEM.md`](docs/UI_DESIGN_SYSTEM.md); the pre-implementation audit is in
+[`docs/UI_REDESIGN_DUCK_REVIEW.md`](docs/UI_REDESIGN_DUCK_REVIEW.md).
+
+- Tokens live in `client/src/styles/tokens.css`; no component hard-codes a colour that exists there.
+- The authenticated shell is fixed to the viewport with a collapsible sidebar on desktop and a compact
+  navigation rail below 900 px. Sign out stays visible at every size.
+- Motion is centralised in `client/src/lib/motion.js` (GSAP 3.15, `gsap.context()` cleanup). Content is
+  never animated from zero opacity, `prefers-reduced-motion` disables animation entirely, and no
+  transition exceeds 450 ms.
+- The redesign is presentation-only and is being delivered in stages; screens not yet restructured
+  still inherit the tokens, surfaces and controls. Known gaps are listed in
+  [`docs/UI_DESIGN_SYSTEM.md`](docs/UI_DESIGN_SYSTEM.md#13-known-limitations-this-stage).
+
 ## Duck review
 
 At the start and end of every part:

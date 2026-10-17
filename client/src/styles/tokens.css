@@ -1,0 +1,151 @@
+/* Velora design tokens - single source of truth for the dark-purple system.
+ *
+ * Rules that keep this layer honest:
+ *  - No component may hard-code a colour that exists here.
+ *  - Text pairs are chosen for WCAG AA on their intended surface; the comment
+ *    beside each pair records the measured ratio.
+ *  - Motion is expressed only through these tokens so durations cannot drift.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---------- Surfaces ---------- */
+  --bg: #08070d;
+  --bg-deep: #05040a;
+  --surface-1: #100e19;
+  --surface-2: #171321;
+  --surface-3: #211a30;
+  --surface-inset: #0b0912;
+  --overlay: rgba(5, 4, 10, 0.72);
+
+  /* ---------- Brand ---------- */
+  /* brand-500 is for graphics and accents; brand-action carries white text at
+   * 5.7:1, so interactive fills never rely on the lighter accent. */
+  --brand-300: #c4b5fd;
+  --brand-400: #a78bfa;
+  --brand-500: #8b5cf6;
+  --brand-action: #7c3aed;
+  --brand-action-hover: #6d28d9;
+  --brand-600: #6d28d9;
+  --brand-wash: rgba(139, 92, 246, 0.14);
+  --brand-wash-strong: rgba(139, 92, 246, 0.24);
+  --brand-line: rgba(167, 139, 250, 0.18);
+
+  /* ---------- Text (ratios on --surface-1) ---------- */
+  --text: #f8f7fc; /* 18.9:1 */
+  --text-secondary: #b8b2c7; /* 9.1:1 */
+  --text-muted: #9a93aa; /* 6.2:1 - still AA for body copy */
+  --text-faint: #7d7690; /* decorative meta only, never sole information */
+  --text-on-brand: #ffffff;
+
+  /* ---------- Semantic status ---------- */
+  --success: #3ddc97;
+  --success-wash: rgba(61, 220, 151, 0.12);
+  --success-line: rgba(61, 220, 151, 0.34);
+  --warning: #fbbf24;
+  --warning-wash: rgba(251, 191, 36, 0.12);
+  --warning-line: rgba(251, 191, 36, 0.34);
+  --danger: #f87171;
+  --danger-wash: rgba(248, 113, 113, 0.12);
+  --danger-line: rgba(248, 113, 113, 0.36);
+  --info: #7dd3fc;
+  --info-wash: rgba(125, 211, 252, 0.12);
+  --info-line: rgba(125, 211, 252, 0.34);
+
+  /* ---------- Lines and elevation ---------- */
+  --border: rgba(167, 139, 250, 0.15);
+  --border-strong: rgba(167, 139, 250, 0.3);
+  --border-quiet: rgba(248, 247, 252, 0.07);
+  --focus: #c4b5fd;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 10px 30px -12px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 30px 70px -30px rgba(0, 0, 0, 0.85);
+  --glow-brand: 0 0 0 1px rgba(139, 92, 246, 0.28), 0 18px 50px -24px rgba(109, 40, 217, 0.7);
+
+  /* ---------- Typography ---------- */
+  --font-sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-display: clamp(2.25rem, 4vw + 1rem, 3.75rem);
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-base: 1.55;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --tracking-tight: -0.015em;
+  --tracking-wide: 0.06em;
+
+  /* ---------- Spacing (4px scale) ---------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+
+  /* ---------- Radii ---------- */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+
+  /* ---------- Layout ---------- */
+  --sidebar-width: 264px;
+  --sidebar-width-compact: 76px;
+  --topbar-height: 64px;
+  --content-max: 1440px;
+  --tap-target: 40px;
+  --tap-target-touch: 44px;
+
+  /* ---------- Motion ---------- */
+  --dur-instant: 90ms;
+  --dur-fast: 150ms;
+  --dur-base: 240ms;
+  --dur-slow: 380ms;
+  --dur-reveal: 450ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* ---------- Z-index scale ---------- */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 20;
+  --z-sidebar: 30;
+  --z-drawer: 40;
+  --z-overlay: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+}
+
+/* Breakpoints are documented here for the same reason the rest of the scale is
+ * centralised; CSS custom properties cannot be used inside media queries, so the
+ * media rules use the literal values recorded below.
+ *   sm  480px   compact phones
+ *   md  720px   phones / small tablets
+ *   lg  900px   tablet -> desktop split
+ *   xl  1200px  wide desktop
+ *   xxl 1440px  reference desktop
+ */

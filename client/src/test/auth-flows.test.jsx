@@ -49,7 +49,9 @@ describe('Login flow', () => {
   it('shows the safe server error on bad credentials', async () => {
     renderAt('/login', <Login />);
     await userEvent.type(await screen.findByLabelText(/email/i), 'staff@synthetic.invalid');
-    await userEvent.type(screen.getByLabelText(/password/i), 'badPassword');
+    // The login form now has a "Show password" toggle whose accessible name also
+    // matches /password/i; select the field itself, not any control near it.
+    await userEvent.type(screen.getByLabelText(/password/i, { selector: 'input' }), 'badPassword');
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     await waitFor(() => {
@@ -60,7 +62,7 @@ describe('Login flow', () => {
   it('routes to the MFA step when the server says mfa_verify', async () => {
     renderAt('/login', <Login />);
     await userEvent.type(await screen.findByLabelText(/email/i), 'staff@synthetic.invalid');
-    await userEvent.type(screen.getByLabelText(/password/i), 'goodPassword1');
+    await userEvent.type(screen.getByLabelText(/password/i, { selector: 'input' }), 'goodPassword1');
     await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     // Navigation attempted; with MemoryRouter the guard shows the loading or
