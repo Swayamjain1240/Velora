@@ -109,6 +109,18 @@ async function updateMember({ clinicId, membershipId, actor, changes, ip, userAg
 
 async function createInvitation({ clinicId, email, roleKey, actor, ip, userAgent }) {
   const normalizedEmail = String(email).toLowerCase();
+  // NQ-3: a live invitation already exists. Answer with a clear conflict rather
+  // than minting a second usable token; the partial unique index is the atomic
+  // backstop for parallel requests (duplicate key -> 409 by the error handler).
+  const pending = await Invitation.findOne({
+    clinic: clinicId,
+    email: normalizedEmail,
+    acceptedAt: null,
+    revokedAt: null,
+  });
+  if (pending) {
+    throw errors.conflict('An active invitation already exists for that email.');
+  }
   const existingUser = await User.findOne({ email: normalizedEmail });
   if (existingUser) {
     const alreadyMember = await ClinicMembership.findOne({

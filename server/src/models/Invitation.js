@@ -36,4 +36,24 @@ const invitationSchema = new mongoose.Schema(
 invitationSchema.index({ clinic: 1, email: 1, acceptedAt: 1 });
 invitationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
+// NQ-3: at most ONE ACTIVE invitation per clinic+email. Before this index a
+// double-clicked "invite" button, a client retry or two parallel requests left
+// several live tokens for the same person (measured: 8 parallel posts -> 8 active
+// invitations). Accepting or revoking a record removes it from the partial
+// index, so re-inviting after a revoke still works, and any surviving race is
+// answered as a 409 by the duplicate-key mapping.
+invitationSchema.index(
+  { clinic: 1, email: 1 },
+  {
+    unique: true,
+    // Equality-to-null matches an unset field AND a null one, so a record only
+    // participates in the unique index while it is still live. ($exists:false is
+    // rejected by MongoDB in a partial filter expression - it rewrites to $not.)
+    partialFilterExpression: {
+      acceptedAt: null,
+      revokedAt: null,
+    },
+  }
+);
+
 module.exports = mongoose.model('Invitation', invitationSchema);
