@@ -1,0 +1,455 @@
+{
+  "ranAt": "2026-10-17T10:51:15.454Z",
+  "environment": {
+    "baseUrl": "http://127.0.0.1:4101",
+    "nodeEnv": "test",
+    "database": "mongodb://127.0.0.1:27019/velora_test (local disposable replica set)",
+    "data": "seeded synthetic clinic (seed.js) + fixture tenant B",
+    "hardware": "developer Windows machine; absolute numbers are NOT production numbers",
+    "approvedSlo": "none found in docs -> characterization only (production acceptance BLOCKED)",
+    "apiPid": 32104
+  },
+  "startup": {
+    "coldToHealthyMs": 2015
+  },
+  "characterization": {
+    "auth/session probe": {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 9.37,
+      "p50": 14.91,
+      "p90": 18.44,
+      "p95": 21.08,
+      "p99": 25.78,
+      "max": 25.78,
+      "mean": 15.33
+    },
+    "paginated patient list": {
+      "path": "/api/patients?page=1&limit=20",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 25.58,
+      "p50": 30.35,
+      "p90": 34.66,
+      "p95": 36.93,
+      "p99": 40.69,
+      "max": 40.69,
+      "mean": 31.32
+    },
+    "single patient read": {
+      "path": "/api/patients/6ad3522bcc094e6f3a0816de",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 15.6,
+      "p50": 30.29,
+      "p90": 34.04,
+      "p95": 35.03,
+      "p99": 35.21,
+      "max": 35.21,
+      "mean": 29.68
+    },
+    "episode list": {
+      "path": "/api/episodes?page=1&limit=20",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 17.49,
+      "p50": 30.91,
+      "p90": 33.36,
+      "p95": 33.81,
+      "p99": 34.08,
+      "max": 34.08,
+      "mean": 30.5
+    },
+    "dashboard queues": {
+      "path": "/api/dashboard",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 23.79,
+      "p50": 30.75,
+      "p90": 34.95,
+      "p95": 38.1,
+      "p99": 43.74,
+      "max": 43.74,
+      "mean": 31.54
+    },
+    "today view": {
+      "path": "/api/today?patientId=6ad34f65962d568076d27e54&date=2026-10-17",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 24.91,
+      "p50": 45.33,
+      "p90": 49.27,
+      "p95": 50.25,
+      "p99": 53.39,
+      "max": 53.39,
+      "mean": 43.53
+    },
+    "audit page": {
+      "path": "/api/audit?page=1&limit=20",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 12.87,
+      "p50": 30.26,
+      "p90": 35.03,
+      "p95": 36.91,
+      "p99": 45.41,
+      "max": 45.41,
+      "mean": 28.27
+    },
+    "metrics read": {
+      "path": "/api/metrics",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 13.66,
+      "p50": 30.22,
+      "p90": 34.31,
+      "p95": 34.98,
+      "p99": 36.05,
+      "max": 36.05,
+      "mean": 29.69
+    },
+    "health (anon baseline)": {
+      "path": "/api/health",
+      "method": "GET",
+      "iterations": 40,
+      "statuses": {
+        "200": 40
+      },
+      "count": 40,
+      "min": 1.12,
+      "p50": 15.17,
+      "p90": 15.84,
+      "p95": 16.04,
+      "p99": 16.38,
+      "max": 16.38,
+      "mean": 13.56
+    },
+    "auth verify (wrong password, Argon2id)": {
+      "iterations": 5,
+      "statuses": {
+        "403": 5
+      },
+      "count": 5,
+      "min": 48.44,
+      "p50": 63.53,
+      "p90": 64.49,
+      "p95": 64.49,
+      "p99": 64.49,
+      "max": 64.49,
+      "mean": 59.84
+    },
+    "mutation (patient create)": {
+      "path": "/api/patients",
+      "method": "POST",
+      "iterations": 10,
+      "statuses": {
+        "201": 10
+      },
+      "count": 10,
+      "min": 47.23,
+      "p50": 61.65,
+      "p90": 63.47,
+      "p95": 63.82,
+      "p99": 63.82,
+      "max": 63.82,
+      "mean": 59.32
+    },
+    "document upload": {
+      "status": 201,
+      "ms": 99.67,
+      "bytes": 451
+    },
+    "document download": {
+      "path": "/api/episodes/6ad34f65962d568076d27e48/documents/6ad35115cc094e6f3a065937/download",
+      "method": "GET",
+      "iterations": 10,
+      "statuses": {
+        "200": 10
+      },
+      "count": 10,
+      "min": 44.54,
+      "p50": 46.47,
+      "p90": 48.22,
+      "p95": 50.98,
+      "p99": 50.98,
+      "max": 50.98,
+      "mean": 46.88
+    },
+    "AI fake-provider job (create+run+complete)": {
+      "status": 200,
+      "finalState": "needs_review",
+      "totalMs": 31,
+      "createMs": 28.46
+    },
+    "clinical approval transaction": {
+      "status": "BLOCKED-LIVE",
+      "note": "asserted by server/tests/integration/plans.test.js (approval invariants, 409 paths); live probe would mutate journey state"
+    },
+    "post-load recovery (20 sequential reads)": {
+      "statuses": {
+        "200": 20
+      },
+      "count": 20,
+      "min": 23.98,
+      "p50": 31.72,
+      "p90": 35.06,
+      "p95": 35.39,
+      "p99": 37.14,
+      "max": 37.14,
+      "mean": 31.4
+    }
+  },
+  "load": [
+    {
+      "name": "baseline (C=1)",
+      "concurrency": 1,
+      "durationMs": 10012,
+      "requests": 375,
+      "rps": 37.46,
+      "statuses": {
+        "200": 375
+      },
+      "serverErrors": 0,
+      "bucketWipeDuringPhase": true,
+      "resources": {
+        "rssMbStart": 111.16,
+        "rssMbEnd": 111.11,
+        "cpuSecondsUsed": 2.02
+      },
+      "count": 375,
+      "min": 6.36,
+      "p50": 28.77,
+      "p90": 38.54,
+      "p95": 41.1,
+      "p99": 47.71,
+      "max": 66.08,
+      "mean": 26.41
+    },
+    {
+      "name": "expected load (C=5)",
+      "concurrency": 5,
+      "durationMs": 20043,
+      "requests": 2124,
+      "rps": 105.97,
+      "statuses": {
+        "200": 2124
+      },
+      "serverErrors": 0,
+      "bucketWipeDuringPhase": true,
+      "resources": {
+        "rssMbStart": 116.88,
+        "rssMbEnd": 205.4,
+        "cpuSecondsUsed": 15.97
+      },
+      "count": 2124,
+      "min": 9.49,
+      "p50": 46.55,
+      "p90": 64.14,
+      "p95": 71.36,
+      "p99": 87.99,
+      "max": 116.62,
+      "mean": 46.9
+    },
+    {
+      "name": "stress ramp (C=10)",
+      "concurrency": 10,
+      "durationMs": 20097,
+      "requests": 2361,
+      "rps": 117.48,
+      "statuses": {
+        "200": 2361
+      },
+      "serverErrors": 0,
+      "bucketWipeDuringPhase": true,
+      "resources": {
+        "rssMbStart": 214.29,
+        "rssMbEnd": 214.25,
+        "cpuSecondsUsed": 16.72
+      },
+      "count": 2361,
+      "min": 26.77,
+      "p50": 83.03,
+      "p90": 112.85,
+      "p95": 130.38,
+      "p99": 160.1,
+      "max": 218.37,
+      "mean": 84.75
+    },
+    {
+      "name": "stress ramp (C=20)",
+      "concurrency": 20,
+      "durationMs": 20124,
+      "requests": 2192,
+      "rps": 108.92,
+      "statuses": {
+        "200": 2192
+      },
+      "serverErrors": 0,
+      "bucketWipeDuringPhase": true,
+      "resources": {
+        "rssMbStart": 210.32,
+        "rssMbEnd": 219.7,
+        "cpuSecondsUsed": 16.51
+      },
+      "count": 2192,
+      "min": 71.65,
+      "p50": 177.7,
+      "p90": 236.76,
+      "p95": 297.27,
+      "p99": 351.98,
+      "max": 428.15,
+      "mean": 182.97
+    },
+    {
+      "name": "stress saturation (C=40)",
+      "concurrency": 40,
+      "durationMs": 15182,
+      "requests": 1772,
+      "rps": 116.72,
+      "statuses": {
+        "200": 1772
+      },
+      "serverErrors": 0,
+      "bucketWipeDuringPhase": true,
+      "resources": {
+        "rssMbStart": 215.42,
+        "rssMbEnd": 218.91,
+        "cpuSecondsUsed": 12.33
+      },
+      "count": 1772,
+      "min": 138.01,
+      "p50": 327.57,
+      "p90": 447.43,
+      "p95": 571.68,
+      "p99": 652.05,
+      "max": 696.1,
+      "mean": 340.4
+    },
+    {
+      "name": "spike reads (C=40 x5s)",
+      "concurrency": 40,
+      "durationMs": 5158,
+      "requests": 548,
+      "rps": 106.24,
+      "statuses": {
+        "200": 548
+      },
+      "serverErrors": 0,
+      "bucketWipeDuringPhase": true,
+      "resources": {
+        "rssMbStart": 213.96,
+        "rssMbEnd": 217.81,
+        "cpuSecondsUsed": 2
+      },
+      "count": 548,
+      "min": 153.85,
+      "p50": 364.91,
+      "p90": 490.53,
+      "p95": 593.95,
+      "p99": 675.01,
+      "max": 737.76,
+      "mean": 371.67
+    },
+    {
+      "name": "spike logins (20 parallel)",
+      "concurrency": 20,
+      "durationMs": 225,
+      "requests": 20,
+      "rps": 88.89,
+      "statuses": {
+        "403": 20
+      },
+      "count": 20,
+      "min": 106.43,
+      "p50": 178.5,
+      "p90": 221.73,
+      "p95": 221.92,
+      "p99": 222.45,
+      "max": 222.45,
+      "mean": 175.14
+    },
+    {
+      "name": "limiter under pressure (150 hits, no wipe)",
+      "durationMs": 1187,
+      "requests": 150,
+      "statuses": {
+        "200": 119,
+        "429": 31
+      },
+      "healthDuring": 200,
+      "metricsAfter": 429,
+      "metricsBefore": 200,
+      "expected": ">=1 x 429 RATE_LIMITED, no 5xx, health still 200",
+      "verdict": "PASS"
+    },
+    {
+      "name": "soak (C=5, 60s)",
+      "concurrency": 5,
+      "durationMs": 60859,
+      "requests": 6700,
+      "rps": 110.09,
+      "statuses": {
+        "200": 6700
+      },
+      "count": 6700,
+      "min": 7.31,
+      "p50": 45.01,
+      "p90": 61.15,
+      "p95": 67.34,
+      "p99": 81.74,
+      "max": 117.1,
+      "mean": 44.62,
+      "healthRttMs": {
+        "count": 60,
+        "min": 3,
+        "p50": 7,
+        "p90": 17,
+        "p95": 19,
+        "p99": 27,
+        "max": 27,
+        "mean": 9.15
+      },
+      "resources": {
+        "rssMbStart": 273.51,
+        "rssMbEnd": 276.78,
+        "rssGrowthMb": 3.27,
+        "cpuSecondsUsed": 54.22
+      }
+    }
+  ],
+  "resources": [],
+  "notes": []
+}

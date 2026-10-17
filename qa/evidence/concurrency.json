@@ -1,0 +1,35 @@
+{
+  "ranAt": "2026-10-17T10:35:29.045Z",
+  "results": [
+    {
+      "id": "CON-1",
+      "verdict": "PASS",
+      "detail": "8 parallel invitations for one email -> {\"201\":1,\"409\":7} (active invitations created=1, any5xx=false)"
+    },
+    {
+      "id": "CON-2",
+      "verdict": "PASS",
+      "detail": "20 parallel patient-list reads -> 20x200, distinct totals=[2]"
+    },
+    {
+      "id": "CON-3",
+      "verdict": "PASS",
+      "detail": "6 in-flight reads racing logout -> {\"200\":7} (no 5xx=true)"
+    },
+    {
+      "id": "CON-4",
+      "verdict": "NOTE",
+      "detail": "TOTP code used twice (two sessions, same window): first=200, replay=200 - accepted by design of the RFC 6238 window; single-use replay memo NOT implemented (P3, see defect log)"
+    },
+    {
+      "id": "CON-5",
+      "verdict": "PASS",
+      "detail": "6 parallel patient creates -> {\"201\":6} (no 5xx=true)"
+    },
+    {
+      "id": "CON-6",
+      "verdict": "SUITE",
+      "detail": "invitation double-accept, patient activation races, caregiver revoke/use, episode correction revision, assignment intervals, care-plan approve-vs-edit (409), reminder dedup, closure re-derivation, export request and retention execution are covered by tests/integration/{auth,caregiver,episodes,plans,reminders,closures,retention}.test.js inside MongoDB transactions - see the QA report for the mapping"
+    }
+  ]
+}

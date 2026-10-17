@@ -1,0 +1,287 @@
+{
+  "baseUrl": "http://127.0.0.1:4101",
+  "ranAt": "2026-10-17T10:41:54.609Z",
+  "results": [
+    {
+      "id": "SEC-1",
+      "category": "auth",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "unknown email -> 403 FORBIDDEN; wrong password -> 403 FORBIDDEN"
+    },
+    {
+      "id": "SEC-2",
+      "category": "auth",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "429 after RATE_LIMITED observed"
+    },
+    {
+      "id": "SEC-3",
+      "category": "auth",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "session cookie httpOnly=true sameSite=Lax secure=false path=/"
+    },
+    {
+      "id": "SEC-3b",
+      "category": "auth",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "csrf cookie httpOnly=false sameSite=Lax (the CSRF cookie is intentionally JS-readable so the app can echo it in X-CSRF-Token)"
+    },
+    {
+      "id": "SEC-3c",
+      "category": "auth-hst",
+      "verdict": "NOTE",
+      "expectedSeverityIfFailed": "P3",
+      "detail": "Secure flag absent on http:// test instance (expected: Secure is issued only for https/production; verify at deploy TLS)"
+    },
+    {
+      "id": "SEC-4",
+      "category": "auth",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "me before=200, logout=200, me after=401"
+    },
+    {
+      "id": "SEC-5",
+      "category": "auth",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "pre=200, revoke=200, other-after=401, self-after=401"
+    },
+    {
+      "id": "SEC-6",
+      "category": "auth",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "login next=mfa_enroll; /me without TOTP -> 401 (must not be 200)"
+    },
+    {
+      "id": "SEC-7",
+      "category": "auth",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "wrong TOTP -> 403"
+    },
+    {
+      "id": "SEC-8",
+      "category": "auth",
+      "verdict": "NOTE",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "single-use reset/invitation races are asserted by server/tests/integration/auth.test.js (evidence: suite run); live token capture would require reading mail, which stays fake-only"
+    },
+    {
+      "id": "SEC-9",
+      "category": "authz",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "clinic-B session read of clinic-A patient 6ad34feccc094e6f3a047504 -> 404"
+    },
+    {
+      "id": "SEC-10",
+      "category": "authz",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "clinic B list contains 0 clinic-A rows (0 expected); total=0 status=200"
+    },
+    {
+      "id": "SEC-11",
+      "category": "authz",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "foreign dashboard query -> 200 contains no clinic-A identifiers"
+    },
+    {
+      "id": "SEC-12",
+      "category": "authz",
+      "verdict": "NOTE",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "episode 6ad34f65962d568076d27e48 has no documents (documents.test.js covers download IDOR in-suite)"
+    },
+    {
+      "id": "SEC-13",
+      "category": "authz",
+      "verdict": "NOTE",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "admin audit read -> 200 (admin-without-clinical-record access is asserted in accessMatrix.test.js; live status recorded here)"
+    },
+    {
+      "id": "SEC-14",
+      "category": "authz",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "GET /api/patients=401 POST /api/patients=401 GET /api/dashboard=401 GET /api/today=401 GET /api/episodes=401 GET /api/audit=401 GET /api/metrics=401 POST /api/privacy-requests=401 GET /api/retention/runs=401 POST /api/auth/clinics=401"
+    },
+    {
+      "id": "SEC-15",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "operator object email/password -> 400 BAD_REQUEST (no 5xx, no auth)"
+    },
+    {
+      "id": "SEC-16",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "operator query params -> 400 (accepted-and-ignored or 400; never 5xx)"
+    },
+    {
+      "id": "SEC-17",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "__proto__/constructor body -> 400; server stayed healthy (served next request)"
+    },
+    {
+      "id": "SEC-18",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "stored XSS string create -> 400 content-type=application/json; charset=utf-8 (markup rejected at the validation boundary - stronger than escaping)"
+    },
+    {
+      "id": "SEC-19",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "2MB JSON body -> 413"
+    },
+    {
+      "id": "SEC-20",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "form-encoded body -> 400"
+    },
+    {
+      "id": "SEC-21",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "duplicate-key JSON -> 403"
+    },
+    {
+      "id": "SEC-22",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "traversal filename -> 400 BAD_FILENAME; well-formed name -> 201 accepted"
+    },
+    {
+      "id": "SEC-22b",
+      "category": "authz",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P0",
+      "detail": "owner download -> 200 (attachment disposition), foreign clinic download -> 404"
+    },
+    {
+      "id": "SEC-23",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "mass-assignment patch -> 400; privileged field persisted=false"
+    },
+    {
+      "id": "SEC-24",
+      "category": "input",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P3",
+      "detail": "unknown field body -> 400"
+    },
+    {
+      "id": "SEC-25",
+      "category": "headers",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "nosniff=nosniff x-frame-options=SAMEORIGIN referrer-policy=no-referrer permissions-policy=(none) strict-transport-security=(absent) cache-control=no-store, private"
+    },
+    {
+      "id": "SEC-25bCSP",
+      "category": "headers",
+      "verdict": "NOTE",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "content-security-policy header present on API responses: yes (CSP is enforced on the built client asset response; verify in client build)"
+    },
+    {
+      "id": "SEC-26",
+      "category": "headers",
+      "verdict": "BLOCKED",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "client origin not reachable: fetch failed"
+    },
+    {
+      "id": "SEC-27",
+      "category": "cors",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "Origin https://evil.example -> ACAO=(absent, correct)"
+    },
+    {
+      "id": "SEC-27b",
+      "category": "cors",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "allowlisted origin -> ACAO=http://localhost:5173"
+    },
+    {
+      "id": "SEC-27c",
+      "category": "cors",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "OPTIONS preflight evil origin -> ACAO=(absent)"
+    },
+    {
+      "id": "SEC-28",
+      "category": "csrf",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "cookie-auth POST without X-CSRF-Token -> 403 (expect 401/403)"
+    },
+    {
+      "id": "SEC-29",
+      "category": "csrf",
+      "verdict": "NOTE",
+      "expectedSeverityIfFailed": "P3",
+      "detail": "mutation with foreign Origin + valid CSRF token -> 400 (no Origin allowlist layer; CSRF rests on double-submit token + SameSite=Lax)"
+    },
+    {
+      "id": "SEC-30",
+      "category": "info",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P1",
+      "detail": "80 responses scanned; leaks=[]"
+    },
+    {
+      "id": "SEC-31",
+      "category": "info",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P3",
+      "detail": "unknown route -> 404 NOT_FOUND"
+    },
+    {
+      "id": "SEC-32",
+      "category": "info",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "metrics -> 200, secret-shaped strings=false"
+    },
+    {
+      "id": "SEC-33",
+      "category": "privacy",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "today view (patientId=set) -> 403; clinical-text/phone patterns in previews=false"
+    },
+    {
+      "id": "SEC-34",
+      "category": "privacy",
+      "verdict": "PASS",
+      "expectedSeverityIfFailed": "P2",
+      "detail": "privacy request list -> 200; download-link TTL/single-use asserted in retention.test.js"
+    }
+  ],
+  "probeResponsesScanned": 84
+}

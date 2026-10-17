@@ -1,0 +1,302 @@
+{
+  "ranAt": "2026-10-17T11:05:46.159Z",
+  "lockfile": {
+    "committed": true,
+    "lockfileVersion": 3,
+    "pinnedExactly": true
+  },
+  "workspaces": {
+    "server": {
+      "name": "velora-server",
+      "dependencies": [
+        {
+          "name": "@node-rs/argon2",
+          "range": "^2.0.2",
+          "kind": "runtime",
+          "installedVersion": "2.2.2",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "cookie-parser",
+          "range": "^1.4.7",
+          "kind": "runtime",
+          "installedVersion": "1.4.7",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "cors",
+          "range": "^2.8.5",
+          "kind": "runtime",
+          "installedVersion": "2.8.6",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "dotenv",
+          "range": "^16.4.5",
+          "kind": "runtime",
+          "installedVersion": "16.6.1",
+          "license": "BSD-2-Clause",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "express",
+          "range": "^4.21.2",
+          "kind": "runtime",
+          "installedVersion": "4.22.3",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "express-rate-limit",
+          "range": "^7.4.1",
+          "kind": "runtime",
+          "installedVersion": "7.5.1",
+          "license": "MIT",
+          "lifecycleScripts": [
+            "prepare: run-s compile && husky install config/husky"
+          ],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "helmet",
+          "range": "^8.0.0",
+          "kind": "runtime",
+          "installedVersion": "8.3.0",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "mongoose",
+          "range": "^8.8.0",
+          "kind": "runtime",
+          "installedVersion": "8.24.5",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "otpauth",
+          "range": "^9.3.6",
+          "kind": "runtime",
+          "installedVersion": "9.5.2",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "zod",
+          "range": "^3.23.8",
+          "kind": "runtime",
+          "installedVersion": "3.25.76",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "supertest",
+          "range": "^7.0.0",
+          "kind": "dev",
+          "installedVersion": "7.3.1",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": false,
+          "copyleftFlag": false
+        }
+      ]
+    },
+    "client": {
+      "name": "velora-client",
+      "dependencies": [
+        {
+          "name": "react",
+          "range": "^18.3.1",
+          "kind": "runtime",
+          "installedVersion": "18.3.1",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "react-dom",
+          "range": "^18.3.1",
+          "kind": "runtime",
+          "installedVersion": "18.3.1",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "react-router-dom",
+          "range": "^7.18.4",
+          "kind": "runtime",
+          "installedVersion": "7.18.4",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "@testing-library/jest-dom",
+          "range": "^6.6.3",
+          "kind": "dev",
+          "installedVersion": "6.9.1",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "@testing-library/react",
+          "range": "^16.0.1",
+          "kind": "dev",
+          "installedVersion": "16.3.3",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "@testing-library/user-event",
+          "range": "^14.5.2",
+          "kind": "dev",
+          "installedVersion": "14.6.7",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        },
+        {
+          "name": "@vitejs/plugin-react",
+          "range": "^4.3.3",
+          "kind": "dev",
+          "installedVersion": "4.7.0",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": false,
+          "copyleftFlag": false
+        },
+        {
+          "name": "eslint",
+          "range": "^8.57.1",
+          "kind": "dev",
+          "installedVersion": "8.57.1",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": false,
+          "copyleftFlag": false
+        },
+        {
+          "name": "eslint-plugin-react",
+          "range": "^7.37.2",
+          "kind": "dev",
+          "installedVersion": "7.37.5",
+          "license": "MIT",
+          "lifecycleScripts": [
+            "prepack: npm run build-types && npmignore --auto --commentLines=autogenerated"
+          ],
+          "imported": false,
+          "copyleftFlag": false
+        },
+        {
+          "name": "eslint-plugin-react-hooks",
+          "range": "^4.6.2",
+          "kind": "dev",
+          "installedVersion": "4.6.2",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": false,
+          "copyleftFlag": false
+        },
+        {
+          "name": "jsdom",
+          "range": "^25.0.1",
+          "kind": "dev",
+          "installedVersion": "25.0.1",
+          "license": "MIT",
+          "lifecycleScripts": [
+            "prepare: npm run convert-idl && npm run generate-js-globals"
+          ],
+          "imported": false,
+          "copyleftFlag": false
+        },
+        {
+          "name": "vite",
+          "range": "^5.4.10",
+          "kind": "dev",
+          "installedVersion": "5.4.21",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": false,
+          "copyleftFlag": false
+        },
+        {
+          "name": "vitest",
+          "range": "^2.1.4",
+          "kind": "dev",
+          "installedVersion": "2.1.9",
+          "license": "MIT",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        }
+      ]
+    },
+    ".": {
+      "name": "velora",
+      "dependencies": [
+        {
+          "name": "@playwright/test",
+          "range": "^1.48.2",
+          "kind": "dev",
+          "installedVersion": "1.64.0",
+          "license": "Apache-2.0",
+          "lifecycleScripts": [],
+          "imported": true,
+          "copyleftFlag": false
+        }
+      ]
+    }
+  },
+  "summary": {
+    "directDependencies": 25,
+    "runtime": 13,
+    "dev": 12,
+    "withLifecycleScripts": 3,
+    "copyleft": [],
+    "notImportedByFirstParty": [
+      "supertest (dev)",
+      "@vitejs/plugin-react (dev)",
+      "eslint (dev)",
+      "eslint-plugin-react (dev)",
+      "eslint-plugin-react-hooks (dev)",
+      "jsdom (dev)",
+      "vite (dev)"
+    ],
+    "licenses": [
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "MIT"
+    ]
+  }
+}

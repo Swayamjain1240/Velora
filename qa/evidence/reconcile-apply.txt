@@ -1,0 +1,25 @@
+    orphan removed: 04da0aaf-48b8-45a2-9efb-33640fd683be
+    orphan removed: 488846df-1c11-4837-99d6-188162cd1a1c
+    orphan removed: 6050abff-dac9-4620-a587-55bc677798d8
+    orphan removed: 86b24e57-9dfb-4a37-bc96-0da8302fc8a2
+    orphan removed: a4bcf0b6-11aa-428a-b163-913d649afed9
+    orphan removed: c99e140e-29c7-4459-9e3a-14c978b162b9
+    orphan removed: cbb7e923-46f5-4f1c-bc0d-4e6b399f2dcd
+    orphan removed: eb0117aa-fd6f-47ad-9644-80ffe5b36a18
+Document reconciliation report
+  metadata rows (live):   0
+  stored objects:         8
+  missing objects:        0
+  unreadable objects:     0
+  integrity mismatches:   0
+  orphan objects:         8
+    orphan: 04da0aaf-48b8-45a2-9efb-33640fd683be
+    orphan: 488846df-1c11-4837-99d6-188162cd1a1c
+    orphan: 6050abff-dac9-4620-a587-55bc677798d8
+    orphan: 86b24e57-9dfb-4a37-bc96-0da8302fc8a2
+    orphan: a4bcf0b6-11aa-428a-b163-913d649afed9
+    orphan: c99e140e-29c7-4459-9e3a-14c978b162b9
+    orphan: cbb7e923-46f5-4f1c-bc0d-4e6b399f2dcd
+    orphan: eb0117aa-fd6f-47ad-9644-80ffe5b36a18
+
+APPLIED by qa.nonfunctional@synthetic.invalid: 0 document(s) failed, 8 orphan object(s) removed, all audited.

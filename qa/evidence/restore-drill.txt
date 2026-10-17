@@ -1,0 +1,31 @@
+Velora synthetic restore drill (logical, same-host)
+  source database: velora_test (read-only)
+  target database: velora_restore_drill_20261017112830
+
+  PASS  collections restored - 49 of 49 collections present in the target
+  PASS  row counts identical - 849 rows across 49 collections, 0 mismatch(es)
+  PASS  content checksums identical - deterministic sha256 per collection, 0 mismatch(es)
+  PASS  indexes identical - name/key/uniqueness/partial filter/TTL compared per collection
+  PASS  object store bytes identical - 8 encrypted object(s), 5536 bytes, 5536 restored
+  PASS  restored documents decrypt and match their recorded hash - no ready document in this database (row/object checks above still applied)
+  PASS  source unchanged by the drill - read-only: every source checksum is unchanged
+
+RESULT: PASSED
+{
+  "collections": 49,
+  "rows": 849,
+  "encryptedObjects": 8,
+  "objectBytes": 5536,
+  "dumpMs": 131,
+  "restoreMs": 3705,
+  "objectsCopyMs": 21,
+  "verifyMs": 206,
+  "targetDatabase": "velora_restore_drill_20261017112830",
+  "rpoNote": "This drill restores the newest state present at run time. It does NOT bound data loss: there is no scheduled backup, so RPO depends on the future backup cadence the owner selects.",
+  "rtoNote": "Copy + verify took the milliseconds above for this synthetic volume on this host. It is not a production RTO, which depends on volume, network and the chosen provider.",
+  "limitations": [
+    "Logical same-host restore driven by the MongoDB driver: no mongodump/mongorestore and no provider snapshot.",
+    "The document key is required for the object store to be usable; the drill reads it from configuration, as a real restore would.",
+    "No cross-region, cross-provider or point-in-time restore was exercised."
+  ]
+}

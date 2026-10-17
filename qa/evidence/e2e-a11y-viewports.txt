@@ -1,0 +1,62 @@
+Seeded 3 synthetic document-journey episodes (draft, closed, patient-linked).
+Seeded the Part 5 care-plan journey episode (draft, ready source, assigned reviewer).
+Seeded the Part 6 extraction journey episode (draft, ready source, assigned reviewer).
+Seeded the Part 7 journey: plan approved, 3 schedule(s) prepared and activated (2026-10-15 onward, Europe/London).
+
+All synthetic accounts share password: SyntheticDevPass!24
+These are fabricated identities for development only.
+
+[e2e] enrolled session written for reviewer@synthetic.invalid
+[e2e] enrolled session written for admin@synthetic.invalid
+[e2e] enrolled session written for docsview@synthetic.invalid
+[e2e] enrolled session written for patient.docs@synthetic.invalid
+[e2e] enrolled session written for caregiver.docs@synthetic.invalid
+[e2e] enrolled session written for plan.coordinator@synthetic.invalid
+[e2e] enrolled session written for plan.reviewer@synthetic.invalid
+[e2e] enrolled session written for plan.patient@synthetic.invalid
+[e2e] enrolled session written for ai.patient@synthetic.invalid
+[e2e] enrolled session written for schedule.patient@synthetic.invalid
+[e2e] enrolled session written for schedule.caregiver@synthetic.invalid
+[e2e] enrolled session written for schedule.coordinator@synthetic.invalid
+
+Running 37 tests using 1 worker
+
+  ok  1 [chromium] › e2e\accessibility.spec.js:50:1 › the shell is keyboard-reachable, shows focus, and activates a control without a pointer (2.1s)
+  ok  2 [chromium] › e2e\detail-viewports.spec.js:57:3 › detail screens fit one viewport at desktop 1440x900 (2.2s)
+  ok  3 [chromium] › e2e\detail-viewports.spec.js:57:3 › detail screens fit one viewport at tablet 768x1024 (2.2s)
+  ok  4 [chromium] › e2e\detail-viewports.spec.js:57:3 › detail screens fit one viewport at mobile 390x844 (2.2s)
+  ok  5 [chromium] › e2e\detail-viewports.spec.js:57:3 › detail screens fit one viewport at small mobile 320x568 (2.2s)
+  ok  6 [chromium] › e2e\detail-viewports.spec.js:57:3 › detail screens fit one viewport at landscape 844x390 (2.4s)
+  ok  7 [chromium] › e2e\detail-viewports.spec.js:57:3 › detail screens fit one viewport at short 320x400 (2.2s)
+  ok  8 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at desktop 1440x900 (viewport-reviewer.json) (1.8s)
+  ok  9 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at desktop 1440x900 (viewport-admin.json) (1.8s)
+  ok 10 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at desktop 1440x900 (docs-coordinator.json) (1.2s)
+  ok 11 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at desktop 1440x900 (docs-patient.json) (1.2s)
+  ok 12 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at desktop 1440x900 (docs-caregiver.json) (763ms)
+  ok 13 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at tablet 768x1024 (viewport-reviewer.json) (1.8s)
+  ok 14 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at tablet 768x1024 (viewport-admin.json) (1.8s)
+  ok 15 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at tablet 768x1024 (docs-coordinator.json) (1.2s)
+  ok 16 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at tablet 768x1024 (docs-patient.json) (1.2s)
+  ok 17 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at tablet 768x1024 (docs-caregiver.json) (774ms)
+  ok 18 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at mobile 390x844 (viewport-reviewer.json) (1.8s)
+  ok 19 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at mobile 390x844 (viewport-admin.json) (1.7s)
+  ok 20 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at mobile 390x844 (docs-coordinator.json) (1.1s)
+  ok 21 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at mobile 390x844 (docs-patient.json) (1.1s)
+  ok 22 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at mobile 390x844 (docs-caregiver.json) (720ms)
+  ok 23 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at small mobile 320x568 (viewport-reviewer.json) (1.7s)
+  ok 24 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at small mobile 320x568 (viewport-admin.json) (1.7s)
+  ok 25 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at small mobile 320x568 (docs-coordinator.json) (1.1s)
+  ok 26 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at small mobile 320x568 (docs-patient.json) (1.1s)
+  ok 27 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at small mobile 320x568 (docs-caregiver.json) (698ms)
+  ok 28 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at landscape 844x390 (viewport-reviewer.json) (1.7s)
+  ok 29 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at landscape 844x390 (viewport-admin.json) (1.7s)
+  ok 30 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at landscape 844x390 (docs-coordinator.json) (1.1s)
+  ok 31 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at landscape 844x390 (docs-patient.json) (1.1s)
+  ok 32 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at landscape 844x390 (docs-caregiver.json) (712ms)
+  ok 33 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at short 320x400 (viewport-reviewer.json) (1.7s)
+  ok 34 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at short 320x400 (viewport-admin.json) (1.7s)
+  ok 35 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at short 320x400 (docs-coordinator.json) (1.1s)
+  ok 36 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at short 320x400 (docs-patient.json) (1.1s)
+  ok 37 [chromium] › e2e\viewports.spec.js:61:5 › authenticated screens fit one viewport at short 320x400 (docs-caregiver.json) (657ms)
+
+  37 passed (1.1m)
