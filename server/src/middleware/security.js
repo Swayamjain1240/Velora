@@ -12,7 +12,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 // HSTS is honoured only over HTTPS and yanks a browser onto HTTPS for a year, so
 // it is sent in production only: advertising it from a plain-HTTP development
 // origin would be a lie about the deployment (control #11).
-const securityHeaders = helmet({
+const helmetHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'none'"],
@@ -27,6 +27,20 @@ const securityHeaders = helmet({
     ? { maxAge: 31_536_000, includeSubDomains: true, preload: false }
     : false,
 });
+
+// Every API response defaults to NO-STORE (NQ-2 fix): most controllers already
+// set it, but a cacheable clinical JSON body (a list a controller forgot to
+// mark) would be a disclosure through a browser or shared cache. A controller
+// that deliberately set a stronger directive keeps it.
+function securityHeaders(req, res, next) {
+  helmetHeaders(req, res, (err) => {
+    if (err) return next(err);
+    if (!res.getHeader('Cache-Control')) {
+      res.setHeader('Cache-Control', 'no-store, private');
+    }
+    next();
+  });
+}
 
 // Exact credentialed CORS allowlist (control #10): never a wildcard origin.
 function corsPolicy() {
