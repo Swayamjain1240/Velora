@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import { useMediaQuery } from '../../lib/useMediaQuery';
 
 const PAGE_SIZE = 10;
 const STEPS = ['Details', 'Review'];
@@ -18,6 +19,9 @@ export default function PatientList({ onOpen }) {
   const [notice, setNotice] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(0);
+  // A phone gets one card per patient instead of a six-column table squeezed
+  // into 320px. Same data, same pagination, same actions.
+  const isCompact = useMediaQuery('(max-width: 720px)');
   const [form, setForm] = useState({ fullName: '', dateOfBirth: '', contactEmail: '', contactPhone: '' });
   const [saving, setSaving] = useState(false);
 
@@ -87,6 +91,32 @@ export default function PatientList({ onOpen }) {
               New patient
             </button>
           </div>
+          {isCompact ? (
+            <ul className="record-cards" aria-label="Patients assigned to you">
+              {items.map((p) => (
+                <li className="record-card" key={p.id}>
+                  <div className="record-card__head">
+                    <span className="record-card__title">{p.fullName}</span>
+                    <span className={`pill pill--${p.status}`}>{p.status}</span>
+                  </div>
+                  <dl className="record-card__meta">
+                    <div><dt>Reference</dt><dd>{p.reference}</dd></div>
+                    <div><dt>Account</dt><dd>{p.hasAccount ? 'linked' : 'invited'}</dd></div>
+                  </dl>
+                  <div className="record-card__actions">
+                    <button type="button" className="btn btn--ghost" onClick={() => onOpen(p.id)}>
+                      Open
+                    </button>
+                  </div>
+                </li>
+              ))}
+              {items.length === 0 && (
+                <li className="record-card record-card--empty">
+                  No patients are assigned to you yet.
+                </li>
+              )}
+            </ul>
+          ) : (
           <div className="panel-scroll">
             <table className="table">
               <caption className="visually-hidden">Patients assigned to you</caption>
@@ -119,6 +149,7 @@ export default function PatientList({ onOpen }) {
               </tbody>
             </table>
           </div>
+          )}
           <nav className="pager" aria-label="Pagination">
             <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>
               Previous

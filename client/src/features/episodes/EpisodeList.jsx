@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import { useMediaQuery } from '../../lib/useMediaQuery';
 
 const PAGE_SIZE = 10;
 const STEPS = ['Patient', 'Discharge', 'Review'];
@@ -28,6 +29,8 @@ export default function EpisodeList({ onOpen }) {
   const [notice, setNotice] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(0);
+  // Phones get one card per episode rather than a six-column table.
+  const isCompact = useMediaQuery('(max-width: 720px)');
   const [patients, setPatients] = useState([]);
   const [form, setForm] = useState({
     patientId: '',
@@ -104,6 +107,33 @@ export default function EpisodeList({ onOpen }) {
           <div className="inline-form">
             <button type="button" className="btn btn--primary" onClick={openWizard}>New episode</button>
           </div>
+          {isCompact ? (
+            <ul className="record-cards" aria-label="Episodes you are on the team of">
+              {items.map((e) => (
+                <li className="record-card" key={e.id}>
+                  <div className="record-card__head">
+                    <span className="record-card__title">{e.reference}</span>
+                    <span className={`pill pill--${e.status}`}>{e.status}</span>
+                  </div>
+                  <dl className="record-card__meta">
+                    <div><dt>Discharge</dt><dd>{e.dischargeDate}</dd></div>
+                    <div><dt>Timezone</dt><dd>{e.dischargeTimezone}</dd></div>
+                    <div><dt>Revision</dt><dd>{e.revision}</dd></div>
+                  </dl>
+                  <div className="record-card__actions">
+                    <button type="button" className="btn btn--ghost" onClick={() => onOpen(e.id)}>
+                      Open
+                    </button>
+                  </div>
+                </li>
+              ))}
+              {items.length === 0 && (
+                <li className="record-card record-card--empty">
+                  No episodes are assigned to you yet.
+                </li>
+              )}
+            </ul>
+          ) : (
           <div className="panel-scroll">
             <table className="table">
               <caption className="visually-hidden">Episodes you are on the team of</caption>
@@ -134,6 +164,7 @@ export default function EpisodeList({ onOpen }) {
               </tbody>
             </table>
           </div>
+          )}
           <nav className="pager" aria-label="Pagination">
             <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
             <span>Page {page} of {totalPages}</span>

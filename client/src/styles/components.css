@@ -885,6 +885,81 @@ select {
   min-width: 120px;
 }
 
+/* Phone presentation for record lists: the same rows as cards, chosen in React
+ * (not by hiding a table), so no screen reader ever meets both versions. */
+.record-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.record-card {
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-md);
+  background: var(--surface-inset);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.record-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.record-card__title {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-base);
+  color: var(--text);
+}
+
+.record-card__meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+}
+
+.record-card__meta div {
+  min-width: 0;
+}
+
+.record-card__meta dt {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+}
+
+.record-card__meta dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.record-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.record-card--empty {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
 /* ================= Pagination ================= */
 .pager {
   display: flex;
