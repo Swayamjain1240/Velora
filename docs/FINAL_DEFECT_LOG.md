@@ -1,4 +1,4 @@
-# Velora — Final Defect Log (QA pass, 16 October 2026)
+# Velora — Final Defect Log (functional QA pass, 16 October 2026)
 
 Branch `test/complete-functional-qa`, base `036c27a`. Severities per P0–P3 definitions.
 
@@ -42,3 +42,88 @@ Branch `test/complete-functional-qa`, base `036c27a`. Severities per P0–P3 def
 ---
 
 **No P0 or P1 product defects were found in this pass.** This states what the suite observed; it is not a claim of zero bugs.
+
+---
+
+# Non-functional QA pass — 17 October 2026 (branch `test/non-functional-security-qa`)
+
+## Fixed and retested in this pass
+
+### NQ-1 — An oversized or malformed request body answered `500`
+
+| Field | Detail |
+| --- | --- |
+| Category | Security / reliability (error handling) |
+| Severity | **P2** (P1 within an outage: the log fills with false crash signals and the caller gets an unactionable response) |
+| Requirement | SECURITY-25 #8 (bounded resources), #9 (safe errors), #12 (debug off) |
+| Environment | isolated test API, synthetic data |
+| Reproduction | `POST /api/auth/login` with a 2 MB JSON body (or `{"email": ` malformed) → `500 INTERNAL_ERROR` |
+| Measurement / evidence | `qa/security-probes.js` SEC-19: `2MB JSON body -> 500`; server log line `request.unhandled_error`; also reproduced with a truncated JSON body |
+| Expected | `413 PAYLOAD_TOO_LARGE` for an oversized body, `400 BAD_REQUEST` for malformed JSON, with a fixed, non-echoing message |
+| Actual | `500` with a development-only message derived from the parser error |
+| Root cause | `errorHandler` only recognised `AppError`, duplicate-key and Mongoose errors; body-parser failures (`entity.too.large`, `entity.parse.failed`, `encoding.unsupported`, `charset.unsupported`, `request.aborted`) fell through to the generic 500 branch, and `http-errors` marked `expose:true` was ignored |
+| Fix | `server/src/middleware/errorHandler.js`: `BODY_PARSE_ERRORS` map + `isBodyParseError()`; a 4xx branch honouring `expose === true`; a `warn` log line `request.body_rejected` (no stack, no echo) |
+| Retest | live: SEC-19 `413`; new integration tests `server/tests/integration/httpHardening.test.js` (5/5 pass, including malformed JSON → 400 and unsupported charset → 415) |
+| Residual risk | none identified; the mapping is by stable `err.type`, so a future parser error name falls back to the previous behaviour |
+| Commit | `e617abc` — `fix(server): answer a bad body as a client error and never cache an API response` |
+
+### NQ-2 — Authenticated JSON responses could be cached
+
+| Field | Detail |
+| --- | --- |
+| Category | Security / privacy (cache control) |
+| Severity | **P2** (clinical list data retained by a browser or shared cache is a disclosure path) |
+| Requirement | SECURITY-25 #9, #15; Part 3 privacy "no clinical data in caches" |
+| Environment | isolated test API |
+| Reproduction | `GET /api/patients?page=1&limit=1` with a valid session → response carried **no** `Cache-Control` header |
+| Measurement / evidence | `qa/security-probes.js` SEC-25: `cache-control=undefined` on an authenticated list read, while `/api/health` and several controllers did set `no-store` |
+| Expected | every API response is `no-store` by default, with a controller free to set a stronger value |
+| Actual | the header was applied controller-by-controller; `patientController` (and others) omitted it, so a list response was cacheable |
+| Root cause | no default cache policy in the shared middleware chain; the policy lived in per-controller helpers such as `noStore(res)` |
+| Fix | `server/src/middleware/security.js`: `securityHeaders()` now wraps helmet and sets `Cache-Control: no-store, private` unless a controller already set `Cache-Control` |
+| Retest | live SEC-25: `cache-control=no-store, private`; new integration tests in `httpHardening.test.js` assert the default on both an unauthenticated and an authentication-path response (5/5 pass) |
+| Residual risk | a future response that deliberately wants caching must set the header explicitly — intended behaviour |
+| Commit | `e617abc` — same commit as NQ-1 (both are response-layer hardening in the shared middleware chain) |
+
+### NQ-3 — Parallel invitations for one email created several live tokens
+
+| Field | Detail |
+| --- | --- |
+| Category | Security / integrity (duplicate state, race) |
+| Severity | **P2** (each extra token is a live credential for that address; a confused operator sees several valid invites) |
+| Requirement | SECURITY-25 #6 (validate input), #23 (test every path); Part 1 invitation single-use design |
+| Environment | isolated test API, synthetic clinic |
+| Reproduction | 8 parallel `POST /api/staff/invitations` for the same email (`qa/concurrency-probes.js` CON-1) |
+| Measurement / evidence | before fix: `{"201":8}` and `Invitation.countDocuments({email, acceptedAt:null, revokedAt:null}) === 8`; the persisted duplicates also **blocked the new unique index build** (`E11000 ... index: clinic_1_email_1`) — a deployment-relevant consequence |
+| Expected | exactly one active invitation per clinic+email; the other calls answered `409 CONFLICT`; accepting or revoking frees the address for a new invite |
+| Actual | unlimited active invitations; no uniqueness constraint existed, and the service did not even check for a pending invitation |
+| Root cause | `staffService.createInvitation` only rejected an existing clinic member; the invitation model had no unique constraint on a live `(clinic, email)` pair, so concurrent requests all inserted |
+| Fix | (1) `Invitation.js`: partial **unique** index on `(clinic, email)` where `acceptedAt: null, revokedAt: null` (equality-to-null, so the row leaves the index once accepted/revoked); (2) `staffService.createInvitation`: explicit pending-invitation check → `409` with a clear message; (3) `server/scripts/dedupe-invitations.js` (dry-run default, `--apply --operator` required, revokes older duplicates without deleting rows) to clear pre-existing duplicates before the index can build |
+| Retest | live CON-1: `{"201":1,"409":7}`, active invitations = 1; new integration tests `server/tests/integration/invitationUniqueness.test.js` (3/3 pass: sequential duplicate refused, parallel race leaves one token, revoke-then-reinvite works); the dedupe command was exercised on the disposable DB (dry run → apply 7 revocations → clean dry run) |
+| Residual risk | a deployment running the old code must run `dedupe-invitations.js --apply` **before** the index build, otherwise Mongoose's index creation fails loudly (fail-closed, not silent). Recorded in the runbook-facing notes. |
+| Commit | `68e3e2f` — `fix(server): keep only one active invitation per clinic and email` |
+
+---
+
+## Open findings (not fixed in this pass)
+
+| ID | Category | Severity | Finding | Evidence | Why it was not fixed | Owner decision / recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| D-4 | Security — MFA | **P3** | A TOTP code is accepted more than once inside its 30 s window (two separate pending sessions, same code) | `qa/concurrency-probes.js` CON-4: `first=200, replay=200` | RFC 6238 defines a time-window token, not a nonce; adding a single-use step memo touches the shared verification path used by several suites and changes documented behaviour | Implement a per-user `lastAcceptedStep` conditional update (NIST 800-63B preference) or explicitly accept the window semantics in the product policy |
+| D-5 | Supply chain | **P2 (dev only)** | 6 advisories in the dev toolchain: `tinypool` (critical), `vitest` (critical), `vite` (high), `esbuild`, `vite-node`, `@vitest/mocker` (moderate) | `npm audit --json` (see the security audit §4) | Every fix requires a **semver-major** jump (`vite@8`, `vitest@5`); the project rule is to review compatibility and changelogs instead of forcing an upgrade inside a QA pass | Schedule the upgrade as its own change and re-run server/client suites, browser journeys and the QA probes |
+| D-6 | Observability | **P3** | `/api/metrics` exposes no process memory, event-loop delay, Mongo pool state, queue depth or per-route latency histogram | `qa/perf-load.js` had to sample RSS/CPU from the OS and proxy event-loop health with a 1 Hz health round-trip | Adding in-process gauges is a feature change with its own tests | Add a metrics expansion ticket; until then operators cannot see saturation coming |
+| D-7 | Security — headers | **P2 (deployment)** | The client shell (Vite dev server / static host) serves no CSP header and `client/index.html` has no CSP meta | `qa/security-probes.js` SEC-26 (client origin not part of the test API) + source review | The API's CSP does not govern the SPA's own origin; the correct place is the hosting layer, which does not exist in this repo | Set `default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'` at the hosting layer and re-verify in a deployed environment |
+| D-8 | Security — CSRF depth | **P3** | No Origin/Referer allowlist layer on cookie-authenticated mutations; a foreign `Origin` with a valid token proceeds to validation | SEC-29: `400` (validation) rather than `403` | The double-submit token bound to the server-side session is already enforced (SEC-28 `403`), and a cross-site attacker cannot read the cookie (same-origin policy). Adding an Origin check risks breaking non-browser clients and needs suite-wide threading | Add the check deliberately, with tests, if defence-in-depth is required |
+| D-9 | Supply chain | **P3** | CI actions are pinned to major tags (`@v4`, `@v2`), not commit SHAs | `.github/workflows/ci.yml` review | Tag pinning is standard practice; SHA pinning is a hardening step | Pin to SHAs once the workflow is stable |
+| D-10 | Security — infrastructure | **P1 (deployment)** | MongoDB authentication, TLS and network boundary were never exercised (only a local disposable replica set with no credentials) | environment inspection | No production-like MongoDB was available in this controlled non-production pass | Production DB must require auth + TLS on a private network; verify with a connection-refused/auth-failure drill before go-live |
+| D-11 | Documentation | **P3** | `README.md` metrics/observability description now names the three new tests and the invitation-dedupe step | README sync in this pass | fixed as part of the docs commit | — |
+| D-12 | Test stability | **P3** | `plans.test.js:798` ("parallel approval cannot produce two current versions") failed **once** during a contended full-suite run: the second parallel approval was answered as an **idempotent retry** (`200`, `idempotent: true`) instead of `409` | contended full run log; the assertion expects `[200, 409]` and got `[200, 200]`; re-run alone 24/24 pass; full quiet suite 420/420 | The application behaviour matches its documented idempotent-retry design; only the assertion assumes the two requests are strictly concurrent | Give the test a start barrier (or accept the idempotent outcome) so it tests concurrency deliberately instead of depending on scheduling |
+
+---
+
+## Defects deliberately NOT chased (with reason)
+
+- **`GET /api/plans` returned 0 items for an episode whose plan the same session had just created** (observed while wiring the extraction-job timing). Plan listing is a functional surface already walked by the previous functional QA pass and by `plans.test.js`; the perf driver does not depend on it. Recorded here as an observation for the functional backlog rather than re-litigated in a non-functional pass.
+- **Post-load `p95` degradation to ~570 ms at C=40** — a property of a single-process deployment, not a defect. Recorded in the performance report as a scaling limit.
+- **`qa/security-probes.js` SEC-12** returns NOTE when the first episode has no documents; the download-IDOR assertion is covered by SEC-22b (owner 200 vs foreign 404) and by `documents.test.js`.
+

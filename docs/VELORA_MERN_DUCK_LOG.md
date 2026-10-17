@@ -33,4 +33,33 @@ Companion to the authoritative `VELORA_MERN_DUCK_LOG.pdf` (v2.0). This file hold
 
 ---
 
+## Entry — 17 October 2026, complete non-functional QA pass
+
+**DUCK REVIEW — 17 October 2026, Asia/Kolkata**
+**Repository / branch / commit / dirty state:** `Swayamjain1240/Velora` · `test/non-functional-security-qa` (from functional-QA tip `4bc1001`) · working tree clean apart from this branch's own additions.
+**Current part and VEL IDs:** post-implementation non-functional QA of Parts 1–10, VEL-001–VEL-021, Security-25.
+**Verdict: DRIFT FIXED (three defects), residual risk recorded**
+
+**Evidence inspected:** the authority documents, README, all `docs/` reports, CI workflow, dependencies/lockfile/`.env.example`, indexes, session architecture, provider adapters, storage, workers, logging, health/readiness and the backup/restore evidence — plus the source and test tree of every surface re-probed live.
+
+**Requirement findings (summary):** all 21 VEL areas carry forward as VERIFIED on the functional branch; this pass re-verified the non-functional half live — security, privacy/tenant isolation, performance characterization, bounded load/stress/spike/soak, concurrency, recovery, supply chain, observability, configuration, AI and document safety, and the one-viewport rule.
+
+**Security-25 findings:** #1–#19, #21–#22, #24–#25 VERIFIED with local evidence (39 live probes, 0 FAIL); #18 via a current-tree plus 85-commit scan; #20 satisfied by three focused fix commits; #23 PARTIAL (penetration testing and real-provider journeys remain out of scope). #11 PARTIAL: API headers verified, the static client shell has no CSP at the hosting layer (owner item).
+
+**Corrections made (three code defects fixed and retested):** NQ-1 a malformed/oversized body answered `500` (now `413`/`400`/`415`); NQ-2 authenticated JSON responses had no default `Cache-Control` (now `no-store, private` everywhere); NQ-3 parallel invitations for one email created 8 live tokens (now one active invitation, backed by a partial unique index plus a `dedupe-invitations.js` command for existing data). Two new regression suites were added (`httpHardening.test.js`, `invitationUniqueness.test.js`).
+
+**Verification (this branch's final tree):** server **420/420** (`npm test -w server`, quiet run, exit 0) including the 8 new tests; client **61/61** + lint + build; browser journeys for accessibility + one-viewport **37/37** (6 sizes × 5 sessions); security probes **39/39**; concurrency probes **6/6** (1 P3 note: TOTP window reuse); load/stress/spike/soak with **0 5xx** in every phase and stable RSS in a 60 s soak; restore drill **PASSED** (49 collections / 849 rows / 8 objects byte-identical / indexes identical); reconciliation found 8 orphan objects (QA-run residue), repaired with operator attribution, re-check clean; production dependency audit **0 vulnerabilities**.
+
+**Failed, blocked or not-run checks:** no penetration test, no external scanner, no real provider, no production-like environment, no multi-hour soak, no cross-browser/device matrix, no 200 % zoom or screen-reader walkthrough, no live chaos on shared infrastructure, no clinical evaluation. One contention-induced test flake (`plans.test.js:798`) is logged as D-12 and cleared by an isolated re-run (24/24) and the quiet full run (420/420). A green GitHub Actions run on this branch is the remaining merge gate.
+
+**External API disclosures:** none required — no provider is selected; the local fake extraction provider was used and performs no network I/O.
+
+**Documentation updated:** the eight `FINAL_*` reports of this pass, `FINAL_DEFECT_LOG.md` (appended, functional entries preserved), README status/commands/tree, and this log.
+
+**Unresolved decisions/risks:** deployment and TLS-edge verification, production database posture and backup cadence/RPO, hosting-layer CSP, provider selection plus clinical evaluation, TOTP single-use policy, dev-toolchain upgrade (6 advisories, semver-major), observability expansion, independence of the next security assessment. All are listed with owners in `FINAL_READINESS_REPORT.md`.
+
+**Next authorized action:** owner review of this branch and its reports; run CI green on the branch; then decide the deployment, provider and clinical-evaluation items before any real-patient use.
+
+---
+
 *Append new entries below this line.*

@@ -6,7 +6,7 @@ Velora is a planned JavaScript MERN application that helps clinics convert priva
 
 Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
 
-> **Current status - 16 October 2026:** **Parts 1-10 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, manual source-linked care plans with clinical review/approval, AI-assisted draft extraction with reviewed language, approved medication schedules/tasks/day view with append-only actor-attributed logs, clinic-defined check-ins, the clarification queue, the assigned-team dashboard, in-app reminders, and the Part 9 workflow surfaces: operational episode closure/reopen, a categorised append-only audit trail with scoped paginated search, privacy requests (export/correction/deletion-request) with time-limited encrypted exports, configurable retention with dry-run/holds, and operational workflow metrics. Part 5 completed the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. Part 10 completed the production-hardening and recovery gate: a validated production configuration that refuses an unusable security posture, an operator-decided proxy trust setting, liveness plus readiness probes with a graceful drain, bounded request/pool budgets, structured redacting logs, a synthetic restore drill that restores rows, indexes, encrypted objects and the document key into an isolated database and verifies them by reading them back, rotatable MFA/document encryption keys with a proven re-seal command, document reconciliation whose repair path is tested, retryable `503` behaviour when a dependency is gone, and the final threat model, provider decision register and [readiness report](docs/VELORA_READINESS_REPORT.md). Part 10 landed in eight commits. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. Still not done, by design: **no deployment, no external provider, no scheduled backup, no real destructive deletion, no real patient data and no clinical validation** - the owner, clinical, privacy and provider decisions are listed in the readiness report. Dev-only dependency advisories in the test toolchain remain open (production audit is clean).
+> **Current status - 16 October 2026:** **Parts 1-10 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, manual source-linked care plans with clinical review/approval, AI-assisted draft extraction with reviewed language, approved medication schedules/tasks/day view with append-only actor-attributed logs, clinic-defined check-ins, the clarification queue, the assigned-team dashboard, in-app reminders, and the Part 9 workflow surfaces: operational episode closure/reopen, a categorised append-only audit trail with scoped paginated search, privacy requests (export/correction/deletion-request) with time-limited encrypted exports, configurable retention with dry-run/holds, and operational workflow metrics. Part 5 completed the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. Part 10 completed the production-hardening and recovery gate: a validated production configuration that refuses an unusable security posture, an operator-decided proxy trust setting, liveness plus readiness probes with a graceful drain, bounded request/pool budgets, structured redacting logs, a synthetic restore drill that restores rows, indexes, encrypted objects and the document key into an isolated database and verifies them by reading them back, rotatable MFA/document encryption keys with a proven re-seal command, document reconciliation whose repair path is tested, retryable `503` behaviour when a dependency is gone, and the final threat model, provider decision register and [readiness report](docs/VELORA_READINESS_REPORT.md). Part 10 landed in eight commits. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. Still not done, by design: **no deployment, no external provider, no scheduled backup, no real destructive deletion, no real patient data and no clinical validation** - the owner, clinical, privacy and provider decisions are listed in the readiness report. Dev-only dependency advisories in the test toolchain remain open (production audit is clean). The 17 October **non-functional QA pass** (branch `test/non-functional-security-qa`) then re-verified security, privacy, performance, bounded load/stress/spike/soak, concurrency, recovery, supply chain and the one-viewport rule against an isolated synthetic stack, **fixed three defects** - a body-parser failure now answers `413`/`400`/`415` instead of `500`, every API response defaults to `Cache-Control: no-store, private`, and only **one active staff invitation** can exist per clinic+email - and left the remaining items with named owners in [docs/FINAL_READINESS_REPORT.md](docs/FINAL_READINESS_REPORT.md).
 
 ## Project authority
 
@@ -53,6 +53,8 @@ The repository shape:
 Velora/
   client/
   server/
+  e2e/
+  qa/            # non-functional QA harness: security, perf/load, concurrency, dependency review
   docs/
   .github/workflows/
   .env.example
@@ -102,6 +104,9 @@ Every protected operation must be enforced on the Express server using the authe
 - Apply security headers, safe structured errors, rate/resource limits, dependency audits and Git tree/history secret scans.
 - Before any external API, disclose provider, purpose, API-key name, environment variable and exact backend/frontend location.
 - Security is verified throughout every part, followed by an explicit end-of-part audit.
+- Every API response defaults to `Cache-Control: no-store, private`; a controller may set a stronger directive.
+- A body-parser failure is a CLIENT error: oversized → `413`, malformed → `400`, unsupported charset/encoding → `415`, never a `500`.
+- At most ONE active staff invitation exists per clinic+email (partial unique index); accepting or revoking frees the address.
 
 The complete 25-point contract is defined in the Master PDF and repeated in every implementation prompt.
 
@@ -231,14 +236,17 @@ Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGI
 
 ```bash
 npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 412 unit + integration tests (replica-set MongoDB test DB;
-                                # includes the QA apiContract + accessMatrix suites)
+npm test -w server               # 420 unit + integration tests (replica-set MongoDB test DB;
+                                # includes the QA apiContract + accessMatrix suites and the
+                                # non-functional regressions httpHardening + invitationUniqueness)
 npm test -w client               # 61 client unit tests (Vitest)
 npm run lint -w client           # ESLint
 npm run build -w client          # production build
 npx playwright test              # 66 browser journeys (2 opt-in/skipped; 64 run) at six viewport sizes
 npm run restore:drill -w server         # logical restore drill: rows + indexes + objects + decryption
 npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
+node server/scripts/dedupe-invitations.js --apply --operator <email>   # revoke duplicate ACTIVE
+                                # invitations before the unique (clinic,email) index can build
 npm run evaluate:extraction -w server   # synthetic extraction evaluation (software behaviour, not clinical)
 npm audit --omit=dev             # production dependency audit
 ```
