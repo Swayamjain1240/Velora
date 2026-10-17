@@ -15,7 +15,7 @@ Companion reports: [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) · [FINAL_
 
 | Area | Verdict | Evidence |
 | --- | --- | --- |
-| Security | **PASSED** (3 defects fixed, 8 open items with owners) | 39 live probes, 0 FAIL · [security audit](FINAL_SECURITY_AUDIT.md) |
+| Security | **PASSED** (3 defects fixed, 8 open items with owners) | 40 live probes, 0 FAIL (33 PASS · 6 NOTE · 1 BLOCKED) · [security audit](FINAL_SECURITY_AUDIT.md) |
 | Privacy | **PASSED** | tenant isolation probes, no-store default, redacted logs/audit, export TTL asserted by suite |
 | Performance | **CHARACTERIZED — production acceptance BLOCKED** (no approved SLO) | 14 measured operations · [performance report](FINAL_PERFORMANCE_REPORT.md) |
 | Load | **PASSED (bounded)** | C=5 20 s: 2 124 req, 105.97 rps, 0 5xx |
@@ -74,7 +74,7 @@ Legend: **PASSED** · **FAILED** · **FIXED AND RETESTED** · **BLOCKED** · **N
 | Client unit tests | `npm test -w client` | **61/61 pass** (11 files) |
 | Client lint | `npm run lint -w client` | clean |
 | Client production build | `npm run build -w client` | built (368.38 kB JS / 101.34 kB gzip; 13.47 kB CSS) |
-| Security probes | `node qa/security-probes.js` | **39 checks, 0 FAIL** |
+| Security probes | `node qa/security-probes.js` | **40 checks, 0 FAIL** (33 PASS · 6 NOTE · 1 BLOCKED) |
 | Concurrency probes | `node qa/concurrency-probes.js` | **6 checks, 0 FAIL** (1 NOTE: TOTP window) |
 | Performance/load/stress/spike/soak | `QA_API_PID=<pid> node qa/perf-load.js` | **0 5xx in every phase**; numbers in the performance report |
 | Dependency/licence review | `node qa/dep-review.js` | 25 direct deps, MIT/Apache-2.0/BSD-2-Clause, no install hooks |
@@ -112,7 +112,7 @@ Three focused commits, each with its own tests; no history rewrite, no force pus
 | Commands and tools | §3 above (`node --test`, Vitest, ESLint, Vite build, Playwright, `qa/*.js` probes, Mongo driver, `npm audit`, `git grep` history scan) |
 | Workload / data profile | [FINAL_PERFORMANCE_REPORT.md](FINAL_PERFORMANCE_REPORT.md) §2 (seeded clinic, 3 document episodes, plan/schedule/extraction journeys, synthetic patients and documents) |
 | Measurements | [FINAL_PERFORMANCE_REPORT.md](FINAL_PERFORMANCE_REPORT.md) §3–§5 (min/p50/p90/p95/p99/max, throughput, error rate, CPU, RSS, saturation reading) |
-| Security findings | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §2 (39 probes) and §3 (25 controls) |
+| Security findings | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §2 (40 probes) and §3 (25 controls) |
 | Dependency findings | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §4 (production 0; 6 dev-only advisories needing semver-major fixes) + [qa/evidence/dependency-review.json](qa/evidence/dependency-review.json) |
 | Secret-scan result | 0 hits in the tree and across 85 reachable commits; `.env*` ignored, `.env.example` allowed (this report §3) |
 | Accessibility evidence | [FINAL_ACCESSIBILITY_REPORT.md](FINAL_ACCESSIBILITY_REPORT.md) + [qa/evidence/e2e-a11y-viewports.txt](qa/evidence/e2e-a11y-viewports.txt) (37/37) |

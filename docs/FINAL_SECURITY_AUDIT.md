@@ -2,7 +2,7 @@
 
 **Branch:** `test/non-functional-security-qa`
 **Environment:** isolated test stack — API `NODE_ENV=test` on `127.0.0.1:4101`, disposable MongoDB replica set `velora_test`, seeded synthetic identities only (`*.synthetic.invalid`), fixture tenant B created in the same disposable DB, `EXTRACTION_PROVIDER=fake`. **No probe ever left loopback.**
-**Method:** defensive live HTTP probes (`node qa/security-probes.js`, 39 checks), concurrency probes (`node qa/concurrency-probes.js`), first-party source review, dependency/licence review (`node qa/dep-review.js`), Git tree/history secret scan, plus the project's own integration suite.
+**Method:** defensive live HTTP probes (`node qa/security-probes.js`, 40 checks), concurrency probes (`node qa/concurrency-probes.js`), first-party source review, dependency/licence review (`node qa/dep-review.js`), Git tree/history secret scan, plus the project's own integration suite.
 **Evidence:** [qa/evidence/security-probes.json](../qa/evidence/security-probes.json), [qa/evidence/concurrency.json](../qa/evidence/concurrency.json), [qa/evidence/dependency-review.json](../qa/evidence/dependency-review.json)
 
 ## 1. Result summary
@@ -13,13 +13,13 @@
 | Authorisation / tenant isolation / IDOR (reads, lists, counts, documents, downloads) | **PASSED** (live + suite) |
 | Input security (NoSQL injection, prototype pollution, XSS boundary, oversized body, duplicate keys, unknown fields, mass assignment, filename traversal) | **PASSED** after fix **NQ-1** |
 | Browser security (headers, CSP, CORS, CSRF, cache) | **PASSED** after fix **NQ-2**; one accepted residual (no Origin allowlist) |
-| Information exposure (stack traces, driver errors, paths, secrets, cache) | **PASSED** (76 response bodies scanned) |
+| Information exposure (stack traces, driver errors, paths, secrets, cache) | **PASSED** (84 response bodies scanned) |
 | Concurrency / duplicate-state races | **PASSED** after fix **NQ-3**; one hardening gap (TOTP replay memo) |
 | Supply chain (production advisories, licences, lockfile, install scripts) | **PASSED for production deps (0 advisories)**; 6 **dev-only** advisories remain — owner decision |
 | Secret hygiene (ignore rules, current tree, 85-commit reachable history) | **PASSED** — no secret-shaped material found |
 | Penetration testing / exploit development | **NOT RUN** — out of scope for this pass |
 
-## 2. Live probe results (39 checks, 0 FAIL)
+## 2. Live probe results (40 checks — 33 PASS, 6 NOTE, 1 BLOCKED, 0 FAIL)
 
 | ID | Check | Observed |
 | --- | --- | --- |
@@ -44,7 +44,7 @@
 | SEC-25 | Response headers | `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: no-referrer`, `CSP frame-ancestors 'none'`, `Cache-Control: no-store, private` (was missing — fixed, NQ-2); **HSTS absent outside production by design** |
 | SEC-27/27b/27c | CORS allowlist | foreign origin → no `Access-Control-Allow-Origin` (also on preflight); allowlisted origin echoed exactly; `Allow-Credentials` only with the allowlist |
 | SEC-28 | CSRF | cookie-auth `POST` without `X-CSRF-Token` → `403` |
-| SEC-30 | Information exposure across every probe response | 76 bodies scanned for stack frames, `node_modules`, source paths, driver errors, `mongodb://`, key names → **0 leaks** |
+| SEC-30 | Information exposure across every probe response | 84 bodies scanned for stack frames, `node_modules`, source paths, driver errors, `mongodb://`, key names → **0 leaks** |
 | SEC-31/32 | Error and metrics shape | unknown route `404 NOT_FOUND` envelope; `/api/metrics` exposes no connection strings or secret-shaped strings |
 | SEC-33/34 | Privacy surfaces | today view 200 with no clinical-text/phone patterns in previews; privacy-request list 200 (artifact TTL/single-use asserted in `retention.test.js`) |
 

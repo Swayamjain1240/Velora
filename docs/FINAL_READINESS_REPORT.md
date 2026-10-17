@@ -14,7 +14,7 @@
 | Client suite | **61/61 pass** |
 | Client lint | clean |
 | Client production build | clean (368.38 kB JS / 101.34 kB gzip, 13.47 kB CSS) |
-| Security probes | **39 checks, 0 FAIL** |
+| Security probes | **40 checks, 0 FAIL** (33 PASS · 6 NOTE · 1 BLOCKED) |
 | Concurrency probes | **6 checks, 0 FAIL** (1 P3 NOTE: TOTP window reuse) |
 | Load / stress / spike / soak | **0 5xx** in every phase, bounded run |
 | Restore drill + reconciliation | **PASSED** |

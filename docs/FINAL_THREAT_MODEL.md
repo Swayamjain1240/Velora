@@ -43,7 +43,7 @@ Companion to [VELORA_THREAT_MODEL.md](VELORA_THREAT_MODEL.md) (the product threa
 | Memory exhaustion through a huge body | DoS | 2 MB JSON → `413` (was `500`, fixed NQ-1); documents stream under a hard byte cap |
 | Cached clinical data in a browser/shared cache | Information disclosure | `Cache-Control: no-store, private` on every API response (was inconsistent, fixed NQ-2) |
 | Duplicate live invitations for one address | Spoofing (extra valid tokens) | service pre-check + partial unique index; 8 parallel posts → 1×201 + 7×409 (fixed NQ-3) |
-| Error/stack/path leakage | Information disclosure | 76 response bodies scanned, 0 leaks; unknown route returns a safe envelope (SEC-30) |
+| Error/stack/path leakage | Information disclosure | 84 response bodies scanned, 0 leaks; unknown route returns a safe envelope (SEC-30) |
 | Dependency compromise | Supply chain | production audit clean; dev-toolchain advisories recorded and not force-upgraded; no install-time hooks in direct deps |
 | Secret leakage via Git | Information disclosure | current tree + 85-commit history scanned, no secret-shaped material |
 
