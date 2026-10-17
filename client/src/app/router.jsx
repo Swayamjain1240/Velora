@@ -1,7 +1,7 @@
 'use strict';
 
 import { useState } from 'react';
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import Landing from '../features/public/Landing';
 import Login from '../features/auth/Login';
@@ -30,9 +30,32 @@ import RetentionPanel from '../features/retention/RetentionPanel';
 import MetricsPanel from '../features/metrics/MetricsPanel';
 
 // Route guard (UX only - the server is the real boundary, control #3).
+//
+// A failed status check is not the same as a missing session: only the server's
+// 401/403 signs the user out. A network failure, a 429 or a 5xx must not send a
+// signed-in user to the login form, so it renders a retry state instead.
 function Protected({ children }) {
-  const { loading, authenticated, mfaPending } = useAuth();
-  if (loading) return <div className="centered" role="status">Loading…</div>;
+  const { loading, authenticated, mfaPending, unavailable, refresh } = useAuth();
+  if (loading) return <div className="centered" role="status">Checking your session…</div>;
+  if (unavailable && !authenticated) {
+    return (
+      <main className="panel-page">
+        <section className="panel" aria-labelledby="unavailable-title">
+          <h1 id="unavailable-title">Velora is temporarily unreachable</h1>
+          <p>
+            Your session has not been signed out. Check your connection and try again -
+            nothing you entered has been lost.
+          </p>
+          <button type="button" className="btn btn--primary" onClick={() => refresh()}>
+            Try again
+          </button>
+          <p className="panel__links">
+            <Link to="/login">Go to sign in</Link>
+          </p>
+        </section>
+      </main>
+    );
+  }
   if (!authenticated) {
     return <Navigate to={mfaPending ? '/login/mfa' : '/login'} replace />;
   }

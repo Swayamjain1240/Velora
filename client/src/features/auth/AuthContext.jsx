@@ -9,18 +9,37 @@ import { api, ApiError } from '../../lib/api';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [state, setState] = useState({ loading: true, authenticated: false });
+  const [state, setState] = useState({ loading: true, authenticated: false, unavailable: false });
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
+    const read = () => api('/auth/status');
     try {
-      const data = await api('/auth/status');
-      setState({ loading: false, ...data });
+      const data = await read();
+      setState({ loading: false, unavailable: false, ...data });
       return data;
     } catch (err) {
-      setState({ loading: false, authenticated: false });
-      if (!(err instanceof ApiError && err.status === 401)) setError(err.message);
-      return { authenticated: false };
+      // 401/403 is the server saying "no valid session": sign out.
+      const signedOut = err instanceof ApiError && (err.status === 401 || err.status === 403);
+      if (signedOut) {
+        setState({ loading: false, authenticated: false, unavailable: false });
+        return { authenticated: false };
+      }
+
+      // Anything else (offline, 429 from the coarse limiter, 5xx) says nothing
+      // about the session. Retry once, then show a retry state rather than a
+      // login form: sending a signed-in user back to sign in would ask them to
+      // retype a password because of a momentary failure.
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const data = await read();
+        setState({ loading: false, unavailable: false, ...data });
+        return data;
+      } catch {
+        setError(err.message);
+        setState((prev) => ({ ...prev, loading: false, unavailable: true }));
+        return { authenticated: false, unavailable: true };
+      }
     }
   }, []);
 
@@ -35,6 +54,7 @@ export function AuthProvider({ children }) {
     setState({
       loading: false,
       authenticated: false,
+      unavailable: false,
       ...data,
       mfaPending: data.next === 'mfa_verify' || data.next === 'mfa_enroll',
       mfaEnrollmentRequired: data.next === 'mfa_enroll',
@@ -61,7 +81,7 @@ export function AuthProvider({ children }) {
       await api('/auth/logout', { method: 'POST' });
     } finally {
       // Always drop local state, even if the call failed.
-      setState({ loading: false, authenticated: false });
+      setState({ loading: false, authenticated: false, unavailable: false });
     }
   }, []);
 
