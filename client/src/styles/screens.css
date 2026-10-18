@@ -21,10 +21,64 @@
 }
 
 .landing__hero {
+  position: relative;
   text-align: center;
   padding: var(--space-12) 0 var(--space-10);
-  max-width: 760px;
+  max-width: var(--landing-max);
   margin: 0 auto;
+  /* The canvas is allowed to bleed to the hero edges; clipping here is what
+   * keeps a negative inset from creating page-level horizontal overflow. */
+  overflow: hidden;
+}
+
+.landing__hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ---------- Recovery Network canvas (decorative) ---------- */
+.hero-visual {
+  position: absolute;
+  z-index: 0;
+  top: -70px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1040px, 118%);
+  height: clamp(320px, 54vh, 540px);
+  pointer-events: none;
+  opacity: 0.92;
+  mask-image: radial-gradient(closest-side at 50% 46%, #000 52%, transparent 100%);
+  -webkit-mask-image: radial-gradient(closest-side at 50% 46%, #000 52%, transparent 100%);
+}
+
+.hero-visual__scene {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-visual canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Static fallback: also what a browser without WebGL sees, so it must look
+ * intentional rather than broken. */
+.hero-visual__fallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(34% 34% at 50% 46%, rgba(196, 181, 253, 0.30), transparent 70%),
+    radial-gradient(52% 52% at 50% 46%, rgba(139, 92, 246, 0.22), transparent 72%),
+    radial-gradient(70% 70% at 50% 46%, rgba(109, 40, 217, 0.16), transparent 78%);
+}
+
+/* Foreground text keeps AA contrast even where the scene is brightest. */
+.landing__hero-content h1,
+.landing__hero-content .tagline {
+  text-shadow: 0 2px 22px rgba(8, 7, 13, 0.85);
 }
 
 .landing__eyebrow {
@@ -755,6 +809,15 @@
   .landing__hero {
     padding: var(--space-8) 0 var(--space-6);
   }
+
+  /* On a phone the scene is a smaller, dimmer band behind the headline -
+   * never a reason for the headline or the sign-in link to move off screen. */
+  .hero-visual {
+    top: -30px;
+    width: 126%;
+    height: clamp(240px, 46vh, 330px);
+    opacity: 0.75;
+  }
 }
 
 @media (max-width: 480px) {
@@ -778,5 +841,238 @@
 
   .summary dt {
     margin-top: var(--space-2);
+  }
+}
+
+/* ---------- Care-plan version history: a timeline rail ---------- */
+/* The version history is a timeline of a plan's life (drafted, reviewed,
+ * approved, superseded). A 1 px rail and a node per version express that with
+ * CSS on the existing table - no second canvas, no JS, no markup beyond one
+ * class. A short opacity/translate settle plays once when the tab opens. */
+.table--timeline tbody td:first-child {
+  position: relative;
+  padding-left: var(--space-6);
+}
+
+.table--timeline tbody td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: -6px;
+  bottom: -6px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--border) 12%, var(--border) 88%, transparent);
+}
+
+.table--timeline tbody td:first-child::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.16);
+}
+
+.table--timeline tbody tr:first-child td:first-child::before {
+  top: 0;
+}
+
+.table--timeline tbody tr:last-child td:first-child::before {
+  bottom: 0;
+  background: linear-gradient(180deg, var(--border) 0%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .table--timeline tbody tr {
+    animation: timeline-row 260ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+
+  .table--timeline tbody tr:nth-child(2) { animation-delay: 40ms; }
+  .table--timeline tbody tr:nth-child(3) { animation-delay: 80ms; }
+  .table--timeline tbody tr:nth-child(4) { animation-delay: 120ms; }
+  .table--timeline tbody tr:nth-child(n + 5) { animation-delay: 160ms; }
+}
+
+@keyframes timeline-row {
+  from {
+    opacity: 0.6;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Depth, without a second canvas ---------- */
+/* A short perspective settle on the Overview cards. Purely CSS, one property
+ * pair, and skipped entirely when the user asks for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .info-card {
+    transform-origin: 50% 0%;
+    animation: card-depth 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+
+  .info-card:nth-child(2) {
+    animation-delay: 60ms;
+  }
+}
+
+@keyframes card-depth {
+  from {
+    opacity: 0.6;
+    transform: perspective(900px) rotateX(1.4deg) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(900px) rotateX(0deg) translateY(0);
+  }
+}
+
+/* ---------- Short viewports: landscape phones, 320 x 400 ---------- */
+/* A centred panel taller than the viewport is the one place `place-items:
+ * center` can hide the top of a form. Short viewports align it to the top,
+ * compress the vertical rhythm, and let the panel page scroll as a last resort.
+ * The 3D scene is never allowed to take space from the form. */
+@media (max-height: 620px) {
+  .panel-page {
+    align-items: start;
+    padding-block: var(--space-3);
+  }
+
+  .panel {
+    gap: var(--space-1);
+    padding: var(--space-4);
+  }
+
+  .panel__brand {
+    margin-bottom: var(--space-2);
+  }
+
+  .panel h1 {
+    font-size: var(--text-xl);
+    margin-bottom: var(--space-1);
+  }
+
+  .panel > p {
+    font-size: var(--text-sm);
+    margin-block: 0 var(--space-1);
+  }
+
+  .panel .btn {
+    margin-top: var(--space-2);
+  }
+
+  .panel__links {
+    margin-top: var(--space-1);
+  }
+
+  .landing__hero {
+    padding-block: var(--space-6) var(--space-4);
+  }
+}
+
+/* ---------- Very short viewports: the sign-in form must not scroll ---------- */
+/* L9: at 844x390 and 320x400 the form was 31-37 px taller than the viewport, so
+ * the reset link needed a small scroll. The submit button was always visible,
+ * but "fits" is the contract at these sizes, not "almost fits". Only the
+ * vertical rhythm changes: no label, input, control or link is removed, and the
+ * paragraph explaining MFA stays. */
+@media (max-height: 480px) {
+  .panel-page {
+    padding-block: var(--space-2);
+  }
+
+  .panel {
+    gap: 3px;
+    padding: var(--space-3);
+  }
+
+  .panel__brand {
+    margin-bottom: var(--space-1);
+  }
+
+  .panel h1 {
+    margin-bottom: 0;
+  }
+
+  .panel > p {
+    line-height: 1.35;
+  }
+
+  .panel .btn {
+    margin-top: var(--space-1);
+  }
+
+  .panel__links {
+    margin-top: 0;
+  }
+}
+
+/* ---------- Forced colours and high contrast ---------- */
+/* L12: Windows High Contrast / forced-colors strips backgrounds and shadows, so
+ * a surface separated only by a translucent fill disappears. These rules keep
+ * every boundary a real border in system colours, use the system focus colour,
+ * and hide the decorative scene, whose value is entirely in its colour. */
+@media (forced-colors: active) {
+  .hero-visual,
+  .panel-page::after,
+  .landing__glow {
+    display: none !important;
+  }
+
+  .panel,
+  .card,
+  .info-card,
+  .table,
+  .pill,
+  .badge,
+  .notice,
+  .empty {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+    background-image: none;
+  }
+
+  .btn {
+    border: 1px solid ButtonText;
+  }
+
+  .btn--primary {
+    background: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonText;
+  }
+
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .pill,
+  .badge {
+    forced-color-adjust: none;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --border: rgba(237, 233, 254, 0.55);
+    --border-quiet: rgba(237, 233, 254, 0.4);
+    --text-muted: #ddd6fe;
+  }
+
+  .pill,
+  .badge,
+  .card,
+  .panel {
+    border-width: 1px;
+    border-color: var(--border);
   }
 }

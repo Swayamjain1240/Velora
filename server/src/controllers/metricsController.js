@@ -1,6 +1,7 @@
 'use strict';
 
 const metricsService = require('../services/metricsService');
+const processMetrics = require('../services/processMetrics');
 
 function noStore(res) {
   res.setHeader('Cache-Control', 'no-store, private, max-age=0');
@@ -18,7 +19,12 @@ async function overview(req, res, next) {
       to,
     });
     noStore(res);
-    return res.json(result);
+    // D-6: process health travels beside the workflow metrics, never inside
+    // them - these numbers are about the server, not about care.
+    return res.json({
+      ...result,
+      runtime: processMetrics.snapshot(),
+    });
   } catch (err) {
     return next(err);
   }

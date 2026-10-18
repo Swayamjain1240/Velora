@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../auth/AuthContext';
@@ -697,7 +698,7 @@ export default function CarePlanPanel({ episodeId, episodeStatus, onDenied }) {
               )}
 
               {tab === 'history' && (
-                <table className="table">
+                <ResponsiveTable className="table--timeline">
                   <caption className="visually-hidden">Care plan version history</caption>
                   <thead>
                     <tr>
@@ -731,7 +732,7 @@ export default function CarePlanPanel({ episodeId, episodeStatus, onDenied }) {
                       </tr>
                     )}
                   </tbody>
-                </table>
+                </ResponsiveTable>
               )}
             </div>
           )}

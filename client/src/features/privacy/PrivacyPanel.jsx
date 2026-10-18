@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -133,7 +134,7 @@ export default function PrivacyPanel() {
 
       {!request && (
         <div className="panel-scroll">
-          <table className="table">
+          <ResponsiveTable>
             <caption className="visually-hidden">Privacy requests</caption>
             <thead>
               <tr><th scope="col">Reference</th><th scope="col">Type</th><th scope="col">State</th><th scope="col">Identity</th><th scope="col">Owner</th><th scope="col">Open</th></tr>
@@ -151,7 +152,7 @@ export default function PrivacyPanel() {
               ))}
               {items.length === 0 && <tr><td colSpan={6}>No privacy requests yet.</td></tr>}
             </tbody>
-          </table>
+          </ResponsiveTable>
           <nav className="pager" aria-label="Privacy request pagination">
             <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => load(page - 1)}>Previous</button>
             <span>Page {page} of {pages}</span>

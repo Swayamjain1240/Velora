@@ -358,3 +358,90 @@ test('rate limiting: repeated login attempts trip the atomic limiter', async () 
   }
   assert.ok(sawLimit, 'expected a 429 within repeated failed logins');
 });
+
+test('D-4: a TOTP code cannot authenticate two sessions, and the next code still works', async () => {
+  const { admin } = await seedAdmin();
+  const owner = harness.agent(app);
+  const login1 = await owner
+    .post('/api/auth/login')
+    .send({ email: admin.user.email, password: PASSWORD });
+  const csrf1 = harness.csrfFrom(login1);
+  const enrolled = await harness.enrollMfa(owner, csrf1, admin.user.email);
+  const secret = enrolled.setup.body.secretBase32;
+
+  // Enrollment does not consume the step, so the very code the user just typed
+  // still works for the first sign-in on another device.
+  const second = harness.agent(app);
+  const login2 = await second
+    .post('/api/auth/login')
+    .send({ email: admin.user.email, password: PASSWORD });
+  const csrf2 = harness.csrfFrom(login2);
+  const code = harness.totpCode(secret, admin.user.email);
+  const verified = await second
+    .post('/api/auth/mfa/verify')
+    .set('X-CSRF-Token', csrf2)
+    .send({ code });
+  assert.strictEqual(verified.status, 200, JSON.stringify(verified.body));
+
+  // A third pending session replaying the SAME code inside the same window must
+  // be refused: one code is one authentication.
+  const third = harness.agent(app);
+  const login3 = await third
+    .post('/api/auth/login')
+    .send({ email: admin.user.email, password: PASSWORD });
+  const csrf3 = harness.csrfFrom(login3);
+  const replay = await third
+    .post('/api/auth/mfa/verify')
+    .set('X-CSRF-Token', csrf3)
+    .send({ code });
+  assert.strictEqual(replay.status, 403, 'a replayed code must be refused');
+  assert.strictEqual((await third.get('/api/auth/me')).status, 401);
+
+  // A genuinely new code (next counter step) is still accepted.
+  const fresh = await third
+    .post('/api/auth/mfa/verify')
+    .set('X-CSRF-Token', csrf3)
+    .send({ code: harness.totpCode(secret, admin.user.email, { stepOffset: 1 }) });
+  assert.strictEqual(fresh.status, 200, JSON.stringify(fresh.body));
+  assert.strictEqual((await third.get('/api/auth/me')).status, 200);
+});
+
+test('D-8: a foreign Origin or Referer cannot ride a cookie-authenticated mutation', async () => {
+  const { admin } = await seedAdmin();
+  const a = harness.agent(app);
+  const login = await a.post('/api/auth/login').send({ email: admin.user.email, password: PASSWORD });
+  const csrf = harness.csrfFrom(login);
+  await harness.enrollMfa(a, csrf, admin.user.email);
+
+  const body = { email: 'origin-check@synthetic.invalid', roleKey: 'care_coordinator' };
+  const foreignOrigin = await a
+    .post('/api/staff/invitations')
+    .set('X-CSRF-Token', csrf)
+    .set('Origin', 'https://evil.example')
+    .send(body);
+  assert.strictEqual(foreignOrigin.status, 403);
+  assert.match(foreignOrigin.body.error.message, /origin/i);
+
+  const foreignReferer = await a
+    .post('/api/staff/invitations')
+    .set('X-CSRF-Token', csrf)
+    .set('Referer', 'https://evil.example/form')
+    .send({ ...body, email: 'origin-referer@synthetic.invalid' });
+  assert.strictEqual(foreignReferer.status, 403);
+
+  // The configured client origin passes and reaches the handler.
+  const allowed = await a
+    .post('/api/staff/invitations')
+    .set('X-CSRF-Token', csrf)
+    .set('Origin', 'http://localhost:5173')
+    .send({ ...body, email: 'origin-allowed@synthetic.invalid' });
+  assert.strictEqual(allowed.status, 201, JSON.stringify(allowed.body));
+
+  // A same-origin Referer is also accepted.
+  const allowedReferer = await a
+    .post('/api/staff/invitations')
+    .set('X-CSRF-Token', csrf)
+    .set('Referer', 'http://localhost:5173/app/queues')
+    .send({ ...body, email: 'origin-referer-ok@synthetic.invalid' });
+  assert.strictEqual(allowedReferer.status, 201, JSON.stringify(allowedReferer.body));
+});

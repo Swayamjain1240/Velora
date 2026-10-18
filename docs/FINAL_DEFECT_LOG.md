@@ -127,3 +127,90 @@ Branch `test/complete-functional-qa`, base `036c27a`. Severities per P0–P3 def
 - **Post-load `p95` degradation to ~570 ms at C=40** — a property of a single-process deployment, not a defect. Recorded in the performance report as a scaling limit.
 - **`qa/security-probes.js` SEC-12** returns NOTE when the first episode has no documents; the download-IDOR assertion is covered by SEC-22b (owner 200 vs foreign 404) and by `documents.test.js`.
 
+
+---
+
+# Completion pass — 18 October 2026 (branch `feat/ui-redesign-dark-purple`)
+
+Every open finding above was re-examined. Fixes below are code changes with a
+regression test; the full suites were re-run afterwards (server 424 tests, client
+77 tests, 76 browser journeys plus the provider-disabled journey).
+
+## D-4 — TOTP replay · **P3** · FIXED
+
+- **Finding:** the same six-digit code authenticated two separate pending sessions
+  inside its 30 s window.
+- **Fix:** `mfaService.verifyTotp` validates the code, derives the counter step it
+  belongs to, and claims it with one conditional update on the user
+  (`mfa.lastTotpStep: { $lt: step }`). Only one caller can move the step forward.
+  Enrollment confirmation passes `consume: false`: MFA is not enabled yet, so a
+  code replayed there authenticates nobody, and the code the user just typed must
+  still work for the first sign-in.
+- **Retest:** `auth.test.js` — "a TOTP code cannot authenticate two sessions, and
+  the next code still works" (first 200, replay 403, next step 200). The re-seal
+  test now verifies the same code deliberately with `consume: false`, because it
+  tests key rotation, not authentication.
+- **Residual:** a user who enrolls and signs in on a second device within the same
+  30 s window uses a fresh code from the authenticator; that is standard TOTP
+  behaviour.
+
+## D-5 — dev-toolchain advisories · **P2 (dev only)** · FIXED
+
+- **Fix:** Vite 8.3.4, Vitest 5.0.5, `@vitejs/plugin-react` 6.1.2, jsdom 30.1.3.
+  `npm audit` now reports **0 vulnerabilities** (was 6, including two critical in
+  `tinypool`).
+- **Retest:** client 77/77, lint clean, production build clean, full browser suite
+  against the Vite 8 dev server.
+
+## D-6 — metrics had no process visibility · **P3** · FIXED
+
+- **Fix:** `server/src/services/processMetrics.js` adds a bounded collector:
+  process uptime/RSS/heap/CPU, event-loop mean/p95/p99/max, Mongo readyState and
+  pool counters, and per-route latency (count, average, approximate p95, max,
+  5xx count) in a fixed 60-route map keyed by the route PATTERN. `/api/metrics`
+  returns it as `runtime`, beside (never inside) the workflow metrics.
+- **Retest:** `metrics.test.js` — shape, `mongo.state`, a `GET /api/patients/:patientId`
+  pattern label, no concrete identifier anywhere in the payload, and the same
+  permission gate as the metrics themselves.
+
+## D-7 — no CSP for the client shell · **P2 (deployment)** · FIXED
+
+- **Fix:** `client/vite.config.js` injects `default-src 'self'; script-src 'self';
+  style-src 'self' 'unsafe-inline'; …` as a meta tag at build time and disables
+  Vite's inline module-preload polyfill, so the built shell contains **no inline
+  script**. Dev and preview servers send an equivalent header that also allows the
+  HMR websocket and the React refresh preamble.
+- **Retest:** `dist/index.html` inspected (meta present, one external module
+  script); the dev server answers with the header; production preview rendered the
+  app with no CSP violation.
+
+## D-8 — no Origin/Referer allowlist · **P3** · FIXED
+
+- **Fix:** `originProtection` middleware runs after session resolution and before
+  the double-submit check on cookie-authenticated mutations. A present Origin (or
+  Referer when Origin is absent) must equal `CLIENT_ORIGIN`; otherwise 403.
+  Requests with neither header carry no ambient browser authority and continue to
+  the token check.
+- **Retest:** `auth.test.js` — foreign Origin 403, foreign Referer 403, configured
+  Origin 201, same-origin Referer 201.
+
+## D-12 — scheduling-dependent concurrency assertion · **P3** · FIXED
+
+- **Fix:** the test now asserts what the product guarantees — exactly one approved
+  current version and exactly one `approved` event — and allows the second
+  response to be the documented idempotent retry (`200`) or a stale conflict
+  (`409`). It is no longer a coin flip on which request wins.
+- **Retest:** suite green, including a contended full run.
+
+## Perf observation — "GET /api/plans returned 0 items" · **not reproducible**
+
+A new test mirrors the perf driver exactly (empty draft `POST`, then
+`GET …/plans?page=1&limit=1`) and passes with one item whose id equals the created
+plan. The observation is recorded as environment contention, not a product defect.
+
+## Still open
+
+`D-9` (pin CI actions to SHAs), `D-10` (production MongoDB auth/TLS drill) and the
+UI-level items in [UI_KNOWN_LIMITATIONS.md](UI_KNOWN_LIMITATIONS.md) (full stage-3
+structural pass, dialog/toast/tooltip primitives, Firefox/WebKit, real-device 3D,
+screen-reader walkthrough, i18n).

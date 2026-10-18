@@ -113,10 +113,10 @@ Three focused commits, each with its own tests; no history rewrite, no force pus
 | Workload / data profile | [FINAL_PERFORMANCE_REPORT.md](FINAL_PERFORMANCE_REPORT.md) §2 (seeded clinic, 3 document episodes, plan/schedule/extraction journeys, synthetic patients and documents) |
 | Measurements | [FINAL_PERFORMANCE_REPORT.md](FINAL_PERFORMANCE_REPORT.md) §3–§5 (min/p50/p90/p95/p99/max, throughput, error rate, CPU, RSS, saturation reading) |
 | Security findings | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §2 (40 probes) and §3 (25 controls) |
-| Dependency findings | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §4 (production 0; 6 dev-only advisories needing semver-major fixes) + [qa/evidence/dependency-review.json](qa/evidence/dependency-review.json) |
+| Dependency findings | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §4 (production 0; 6 dev-only advisories needing semver-major fixes) + [qa/evidence/dependency-review.json](../qa/evidence/dependency-review.json) |
 | Secret-scan result | 0 hits in the tree and across 85 reachable commits; `.env*` ignored, `.env.example` allowed (this report §3) |
-| Accessibility evidence | [FINAL_ACCESSIBILITY_REPORT.md](FINAL_ACCESSIBILITY_REPORT.md) + [qa/evidence/e2e-a11y-viewports.txt](qa/evidence/e2e-a11y-viewports.txt) (37/37) |
-| Restore evidence | [FINAL_RECOVERY_REPORT.md](FINAL_RECOVERY_REPORT.md) + [qa/evidence/restore-drill.txt](qa/evidence/restore-drill.txt) (PASSED) and the reconciliation dry run/apply |
+| Accessibility evidence | [FINAL_ACCESSIBILITY_REPORT.md](FINAL_ACCESSIBILITY_REPORT.md) + [qa/evidence/e2e-a11y-viewports.txt](../qa/evidence/e2e-a11y-viewports.txt) (37/37) |
+| Restore evidence | [FINAL_RECOVERY_REPORT.md](FINAL_RECOVERY_REPORT.md) + [qa/evidence/restore-drill.txt](../qa/evidence/restore-drill.txt) (PASSED) and the reconciliation dry run/apply |
 | Browser / device coverage | Chromium 1248 only; 6 emulated viewport sizes (1440×900, 768×1024, 390×844, 320×568, 844×390, 320×400); **no** Firefox/WebKit/real-device coverage |
 | Fixed defects | §4 above (NQ-1, NQ-2, NQ-3) with retests |
 | Remaining risks | [FINAL_SECURITY_AUDIT.md](FINAL_SECURITY_AUDIT.md) §6 (R-1…R-9) and [FINAL_DEFECT_LOG.md](FINAL_DEFECT_LOG.md) (D-4…D-12) |

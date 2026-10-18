@@ -2,9 +2,15 @@
 
 Describes the interface that exists on branch `feat/ui-redesign-dark-purple`.
 Scope of this document: the design system, the application shell, the sign-in
-surface, the landing page, and the motion layer — the parts changed so far.
+surface, the landing page, the motion layer and the Recovery Network 3D hero.
 Screens not yet structurally revised still inherit every token and surface rule
 here, because the stylesheet is global.
+
+Companion documents: `UI_ROUTE_SCREEN_INVENTORY.md`, `UI_COMPONENT_INVENTORY.md`,
+`UI_ANIMATION_GUIDELINES.md`, `UI_ACCESSIBILITY_CHECKLIST.md`,
+`UI_RESPONSIVE_MATRIX.md`, `UI_VISUAL_REGRESSION.md`,
+`UI_3D_RECOVERY_NETWORK.md`, `UI_STAGE1_QA_REPORT.md`,
+`UI_KNOWN_LIMITATIONS.md`.
 
 Status vocabulary: **PASSED**, **FAILED**, **FIXED**, **BLOCKED**, **NOT RUN**,
 **NOT APPLICABLE**.
@@ -80,11 +86,14 @@ so the accessible name stays unique.
 | Password field | `.password-field`, `.password-toggle` + `Login` | hidden/shown, `aria-pressed`, labelled toggle |
 | Tabs, pills, tables, pagination, stepper, wizard, panels | existing class names, restyled | default, hover, active, sticky table head |
 | Auth layout | `.panel-page`, `.panel`, `.panel__brand` | single column from 320 px up |
-| Landing hero and sections | `.landing*` | scroll page, reveal animation |
+| Landing hero and sections | `.landing*` | scroll page, reveal animation, GSAP hero entrance |
+| Recovery Network hero | `features/public/recovery/HeroVisual.jsx`, `RecoveryNetwork.jsx` | lazy scene, static fallback, reduced motion, three quality tiers |
+| Responsive table | `components/ResponsiveTable.jsx` | columns above 720 px, labelled cards below, explicit ARIA roles, late rows |
+| Skeleton | `components/Skeleton.jsx` | static under reduced motion, hidden from AT, real status text beside it |
+| Compact comparison bars | `components/MiniBars.jsx` | proportional bars, aria-hidden duplicate of the table, two layouts |
 
-Not yet built (Stage 2): dialog, drawer, toast, tooltip, skeleton, chart,
-breadcrumb, dedicated empty/error illustrations. Where those patterns already
-exist inline they are restyled but not yet extracted.
+Still not built (Stage 2): dialog, drawer, toast, tooltip, breadcrumb and
+dedicated empty/error illustrations. Confirmations stay inline.
 
 ## 6. Motion
 
@@ -96,6 +105,9 @@ exist inline they are restyled but not yet extracted.
   change, keyed on pathname so rerenders do not replay it.
 - `useReveal(ref, { selector })` staggers at most 12 children by 40 ms.
 - `gsap.context()` scopes every timeline and `ctx.revert()` runs on unmount.
+- The hero scene and the hero copy start on the same clock. The scene owns its
+  own entrance inside its render loop (no GSAP); the copy uses GSAP. One system
+  writes each property — see `UI_ANIMATION_GUIDELINES.md` §5.
 - Content starts at **0.6 opacity, never 0**, and a 600/900 ms failsafe sets it
   back to 1 if the ticker never runs (backgrounded tab, paused frame budget).
   Medical information is never withheld by an animation.
@@ -129,9 +141,15 @@ for five role sessions (reviewer, admin, coordinator, patient, caregiver):
 horizontal page overflow, no clipping by `overflow: hidden`, Sign out visible,
 and no horizontal scrolling of the main pane at rest.
 
-`e2e/viewports.spec.js` (30 tests) + `e2e/accessibility.spec.js` (1 test):
-**31/31 passed** against the API in its documented e2e topology
-(`NODE_ENV=test`, port 4100, Vite 5173), run on this branch.
+`e2e/viewports.spec.js` (30 tests), `e2e/accessibility.spec.js` (1),
+`e2e/axe.spec.js` (4), `e2e/zoom.spec.js` (2), `e2e/tables.spec.js` (3) and
+`e2e/forced-colors.spec.js` (3) all pass against the API in its documented e2e
+topology (`NODE_ENV=test`, port 4100, Vite 5173).
+
+The public auth panel follows the same rule: a second short-viewport rule
+(`max-height: 480px`) tightens only the vertical rhythm, so at 844×390 and
+320×400 the panel page scrolls by **0 px** and the submit button and reset link
+are both visible; see `UI_RESPONSIVE_MATRIX.md` §5.
 
 Two layout defects were found by that audit and fixed in this change:
 
@@ -146,33 +164,43 @@ Two layout defects were found by that audit and fixed in this change:
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Client unit/component | `npm test -w client` | **61/61 passed**, 11 files |
+| Client unit/component | `npm test -w client` | **77/77 passed**, 15 files |
 | Lint | `npm run lint -w client` | **clean** |
 | Production build | `npm run build -w client` | **built** |
-| Browser: viewport + a11y | `npx playwright test e2e/viewports.spec.js e2e/accessibility.spec.js` | **31/31 passed** |
-| Six-size audit (all five sessions) | `/tmp viewport-audit.js` (same measurements, all routes) | **144 checks, 0 failures** |
-| Reduced motion | Playwright `reducedMotion: 'reduce'` probe | **opacity 1, no inline style** |
-| Dependency audit | `npm audit --omit=dev` | **0 vulnerabilities** |
+| Browser journeys | `npx playwright test` | **76 passed + 1 opt-in skip** |
+| Accessibility (axe WCAG 2.1 A/AA) | `npx playwright test e2e/axe.spec.js` | **0 violations on 15 screens** |
+| Zoom reflow | `npx playwright test e2e/zoom.spec.js` | **200 % and 400 % pass** |
+| Phone tables | `npx playwright test e2e/tables.spec.js` | **3/3 passed** |
+| Forced colours | `npx playwright test e2e/forced-colors.spec.js` | **3/3 passed** |
+| Six-size audit (all five sessions) | `node qa/viewport-audit.js` | **144 checks, 0 failures** |
+| Layout regression gate | `node qa/layout-snapshot.js` | **36/36 surfaces match** |
+| 3D hero suite | `node qa/hero-browser-test.js` | **18 checks, 0 failures** |
+| Reduced motion | Playwright `reducedMotion: 'reduce'` probe | **0.00 % pixel change**, opacity 1 |
+| Visual capture | `node qa/ui-visual-capture.js` | 14 images + measurements |
+| Dependency audit | `npm audit` | **0 vulnerabilities** |
 
-Not run for this stage: server suite (no server change), other Playwright
-journeys (unchanged flows, but a full e2e pass belongs to Stage 7), axe,
-Lighthouse, cross-browser, screen reader, visual regression.
+Not run: Firefox/WebKit, Lighthouse, a real screen-reader walkthrough and
+real-device 3D measurement. Pixel baselines are captured but are not a merge gate
+(the structural layout gate is).
 
 ## 10. Performance
 
 Measured on the same machine, production build:
 
-| Asset | Before | After | Delta |
-| --- | --- | --- | --- |
-| JS | 368.38 kB / 101.34 kB gzip | 448.69 kB / 132.26 kB gzip | +80.31 kB / **+30.92 kB gzip** |
-| CSS | 13.47 kB / 3.02 kB gzip | 36.16 kB / 7.32 kB gzip | +22.69 kB / +4.30 kB gzip |
+| Asset | Before the redesign | Stage 1 | With the 3D hero | Load |
+| --- | --- | --- | --- | --- |
+| JS | 368.38 kB / 101.34 kB gzip | 448.69 / 132.26 | **464.11 / 132.60** | initial |
+| CSS | 13.47 kB / 3.02 kB gzip | 36.16 / 7.32 | **43.08 / 8.76** | initial |
+| Scene chunk | — | — | **13.11 / 4.99** | lazy, landing only |
 
-The JS delta is GSAP 3.15.0 plus the shell, icons and motion module. It is a
-known cost, not an accident. Follow-up options if it must shrink: import
-`gsap/gsap-core` with CSS plugin registered explicitly, or load the motion module
-through a dynamic import on first navigation.
+The stage-1 delta is GSAP 3.15.0 plus the shell, icons and motion module. The
+hero adds ~1 kB to the initial bundle (the host, capability probe and fallback)
+and defers the renderer entirely; the scene chunk is now 4.99 kB gzip. Follow-up
+options if the initial bundle must shrink further: import `gsap/gsap-core` with
+only the CSS plugin, or load the motion module through a dynamic import on first
+navigation. No 3D library remains to remove; see `UI_3D_RECOVERY_NETWORK.md` §12.
 
-## 11. Dependency decision: GSAP
+## 11. Dependency decisions
 
 - **Why:** the request names GSAP as the animation system; it provides context
   scoping and timeline cleanup that a hand-rolled rAF would have to reproduce.
@@ -183,37 +211,41 @@ through a dynamic import on first navigation.
 - **Rejected alternatives:** CSS-only transitions (no timeline control, no
   stagger cleanup), Framer Motion (an overlapping animation library).
 
-## 12. Three.js decision: omitted for now
+## 12. 3D decision: hand-written WebGL, landing hero only
 
-Three.js is not a dependency of this branch. Reasons, not preferences:
+The Recovery Network is implemented directly against WebGL; no 3D library is
+installed. `three` and `@react-three/fiber` were removed after they cost
+238.83 kB gzip for six draw calls.
 
-- The only fitting surface is the landing hero or the auth backdrop. A WebGL
-  scene there adds a renderer, a context and a GPU wake-up to a page whose job is
-  to load fast, for decoration the CSS glow already provides.
-- The request explicitly allows omission when the value is not high enough, and
-  requires lazy loading, disposal, tab-visibility pausing and a static fallback
-  if it is used.
-- Revisit criteria: a concrete hero concept, a measured budget (≤60 kB gzip on
-  the landing route, loaded after first paint), and a device test showing no
-  battery or frame-rate cost on a low-end phone.
+- **Lazy:** `HeroVisual` dynamically imports the scene; the chunk is requested on
+  `/` and never on `/login` or any `/app` screen (verified by request capture).
+- **Measured:** 13.11 kB minified / **4.99 kB gzip**, under the ≤60 kB gate. The
+  initial bundle is unaffected apart from the ~1 kB host.
+- **Bounded:** seven draw calls, no textures, no post-processing, DPR capped, loop
+  paused when the hero is off-screen or the tab is hidden, no per-frame allocation.
+- **Disposable:** programs and buffers are deleted explicitly on unmount; six
+  landing ⇄ login round-trips keep one canvas and a flat post-GC heap.
+- **Graceful:** WebGL absent, shader failure, context loss and render errors all
+  fall back to a static gradient with no user-facing error.
+- **No dependency:** nothing to audit, licence or upgrade. Full rationale in
+  `UI_3D_RECOVERY_NETWORK.md` §12.
 
 ## 13. Known limitations (this stage)
 
-1. **Structural redesign is partial.** Shell, sign-in, landing and the overview
-   are new. Patients, episodes, plans, documents, queues, today and the admin
-   consoles use the new tokens and surfaces but keep their existing layout.
-2. **Tables stay tables on phones.** They scroll inside a bounded region rather
-   than becoming cards; the request's "no desktop table compressed into a phone
-   width" goal is only partly met.
-3. **No dialogs, drawers, toasts, skeletons, tooltips or charts yet.** Existing
-   confirmations remain inline.
-4. **No axe/Lighthouse, screen-reader, zoom, cross-browser or visual-regression
-   run.** Contrast is verified by token calculation, not by tooling.
-5. **The dev-only global rate limiter can log a user out.** With
-   `NODE_ENV=development` the API allows 300 requests/minute per IP; a
-   browser-test burst exceeds it, `/api/auth/status` answers 429, and
-   `AuthContext` currently treats any non-401 failure as "not signed in",
-   rendering the login screen. Observed during this work (OBS-002). It is a
-   pre-existing behaviour, reproduced only under the development limiter, and
-   not changed here — the redesign must not quietly alter auth semantics.
-6. **Initial load carries the motion library.** See §10.
+The authoritative list is `UI_KNOWN_LIMITATIONS.md`. Summary:
+
+1. **Structural redesign is partial.** Shell, sign-in, landing, overview and the
+   two list screens are new; other feature screens use the new tokens and surfaces
+   but keep their previous layout (L1).
+2. **Tables stack into labelled cards below 720 px** and remain tables above it
+   (L3 resolved).
+3. **Skeleton and compact bars exist; dialogs, drawers, toasts and tooltips do
+   not** (L2 partly resolved).
+4. **axe, 200 %/400 % zoom and a structural layout gate run in CI; a screen-reader
+   walkthrough, Firefox/WebKit and a pixel-diff gate do not** (L4/L5/L11 partly
+   resolved, L6 open).
+5. **The 3D chunk is 4.99 kB gzip** and is still not measured on real phones (L8).
+6. **The dev-only global rate limiter (300 req/min)** can still cause retry states
+   under rapid browser testing. OBS-002 remains open; the client no longer signs a
+   user out on a 429.
+7. **Initial load carries the motion library.** See §10.

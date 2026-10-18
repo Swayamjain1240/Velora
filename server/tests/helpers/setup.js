@@ -243,7 +243,9 @@ function csrfFrom(res) {
 }
 
 // Convenience: TOTP code from a base32 secret (dev/test only exposure).
-function totpCode(base32, label) {
+// `stepOffset` asks for the code of a future counter step; the sign-in replay
+// test uses it to prove a NEW code still works after one has been consumed.
+function totpCode(base32, label, { stepOffset = 0 } = {}) {
   const otpauth = require('otpauth');
   const totp = new otpauth.TOTP({
     issuer: 'Velora',
@@ -253,7 +255,7 @@ function totpCode(base32, label) {
     period: 30,
     secret: otpauth.Secret.fromBase32(base32),
   });
-  return totp.generate();
+  return totp.generate({ timestamp: Date.now() + stepOffset * 30 * 1000 });
 }
 
 // Drives the full FIRST-TIME enrollment: setup -> verify -> recovery codes.

@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Start MongoDB replica set
         run: |
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Unit tests
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Start MongoDB replica set
@@ -132,7 +132,14 @@ jobs:
           echo "stack did not become ready" >&2
           exit 1
       - name: Browser journeys
+        # Includes the axe accessibility audit, the 200 %/400 % zoom reflow
+        # checks, the phone table-stacking checks and forced-colours mode.
         run: npx playwright test
+      - name: Layout snapshot gate
+        # L11: a deterministic gate on the numbers a layout regression moves
+        # (page overflow, main box, stacked tables, heading). Pixel baselines
+        # remain a manual capture; this step blocks the merge.
+        run: node qa/layout-snapshot.js
       - name: Operational drills (restore and reconciliation)
         # Part 10: a backup nobody has restored is a hypothesis, so the restore
         # drill runs on every push against the seeded database. It restores rows,
@@ -176,7 +183,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Production dependency audit

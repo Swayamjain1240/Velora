@@ -158,10 +158,12 @@ describe('MetricsPanel', () => {
     expect(screen.getByText(/2h average/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: 'Queue age' }));
-    expect(await screen.findByText('pending approvals')).toBeInTheDocument();
+    // The compact bar chart is aria-hidden decoration; the table cell is the
+    // accessible source for the number, so the query targets the cell role.
+    expect(await screen.findByRole('cell', { name: 'pending approvals' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: 'Workload' }));
-    expect(await screen.findByText('coord@x.invalid')).toBeInTheDocument();
+    expect(await screen.findByRole('cell', { name: 'coord@x.invalid' })).toBeInTheDocument();
   });
 });
 

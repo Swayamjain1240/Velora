@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import DocumentsPanel from '../documents/DocumentsPanel';
@@ -77,7 +78,7 @@ export default function PatientEpisodes() {
       <h1 id="pe-list-title">My recovery episodes</h1>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="panel-scroll">
-        <table className="table">
+        <ResponsiveTable>
           <caption className="visually-hidden">Your episodes</caption>
           <thead>
             <tr><th scope="col">Reference</th><th scope="col">Discharge</th><th scope="col">Status</th><th scope="col">Actions</th></tr>
@@ -95,7 +96,7 @@ export default function PatientEpisodes() {
             ))}
             {items.length === 0 && <tr><td colSpan={4}>No recovery episodes are linked to your record.</td></tr>}
           </tbody>
-        </table>
+        </ResponsiveTable>
       </div>
       <nav className="pager" aria-label="Pagination">
         <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>

@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, downloadDocument } from '../../lib/api';
 import DocumentUpload from './DocumentUpload';
@@ -177,7 +178,7 @@ export default function DocumentsPanel({
           </div>
 
           <div className="panel-scroll">
-            <table className="table">
+            <ResponsiveTable>
               <caption className="visually-hidden">Episode documents</caption>
               <thead>
                 <tr>
@@ -239,7 +240,7 @@ export default function DocumentsPanel({
                   </tr>
                 )}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
 
           <nav className="pager" aria-label="Document pagination">

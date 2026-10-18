@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -102,7 +103,7 @@ export default function ClinicSettings() {
 
       <div className="panel-scroll">
         {tab === 'members' && (
-          <table className="table">
+          <ResponsiveTable>
             <caption className="visually-hidden">Clinic members</caption>
             <thead>
               <tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Reviewer eligibility</th><th scope="col">Actions</th></tr>
@@ -147,7 +148,7 @@ export default function ClinicSettings() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ResponsiveTable>
         )}
 
         {tab === 'invites' && (
@@ -171,7 +172,7 @@ export default function ClinicSettings() {
               </select>
               <button className="btn btn--primary" type="submit">Send invitation</button>
             </form>
-            <table className="table">
+            <ResponsiveTable>
               <caption className="visually-hidden">Invitations</caption>
               <thead>
                 <tr><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Expires</th><th scope="col">Actions</th></tr>
@@ -193,7 +194,7 @@ export default function ClinicSettings() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </>
         )}
       </div>

@@ -9,15 +9,16 @@
     "client"
   ],
   "scripts": {
-    "dev": "npm run dev -w server & npm run dev -w client",
+    "dev": "node scripts/dev.js",
     "test": "npm run test -w server && npm run test -w client",
     "e2e": "playwright test",
     "gen:env": "node scripts/gen-env-values.js"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.48.2"
   },
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22.12"
   }
 }

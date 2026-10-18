@@ -1,0 +1,362 @@
+{
+  "landing@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1120,
+    "heading": "Velora",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 0,
+    "tolerance": 120
+  },
+  "landing@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Velora",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 0,
+    "tolerance": 120
+  },
+  "landing@phone": {
+    "overflowX": 0,
+    "overflowY": 104,
+    "mainWidth": 390,
+    "heading": "Velora",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 0,
+    "tolerance": 120
+  },
+  "landing@short-phone": {
+    "overflowX": 0,
+    "overflowY": 649,
+    "mainWidth": 320,
+    "heading": "Velora",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 0,
+    "tolerance": 120
+  },
+  "login@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1440,
+    "heading": "Staff sign in",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 0,
+    "tolerance": 2
+  },
+  "login@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Staff sign in",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 0,
+    "tolerance": 2
+  },
+  "login@phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 390,
+    "heading": "Staff sign in",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 0,
+    "tolerance": 2
+  },
+  "login@short-phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 320,
+    "heading": "Staff sign in",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 0,
+    "tolerance": 2
+  },
+  "dashboard@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1176,
+    "heading": "Welcome, Synthetic Reviewer",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "dashboard@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Welcome, Synthetic Reviewer",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "dashboard@phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 390,
+    "heading": "Welcome, Synthetic Reviewer",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "dashboard@short-phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 361,
+    "heading": "Welcome, Synthetic Reviewer",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "patients@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1176,
+    "heading": "Patients",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "patients@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Patients",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "patients@phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 390,
+    "heading": "Patients",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "patients@short-phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 351,
+    "heading": "Patients",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "episodes@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1176,
+    "heading": "Recovery episodes",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "episodes@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Recovery episodes",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "episodes@phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 390,
+    "heading": "Recovery episodes",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "episodes@short-phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 357,
+    "heading": "Recovery episodes",
+    "tables": 0,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "metrics@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1176,
+    "heading": "Workflow metrics",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "metrics@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Workflow metrics",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "metrics@phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 390,
+    "heading": "Workflow metrics",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "metrics@short-phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 347,
+    "heading": "Workflow metrics",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "clinic@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1176,
+    "heading": "Clinic & staff",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "clinic@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Clinic & staff",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "clinic@phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 390,
+    "heading": "Clinic & staff",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "clinic@short-phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 384,
+    "heading": "Clinic & staff",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "audit@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1176,
+    "heading": "Audit trail",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "audit@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Audit trail",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "audit@phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 390,
+    "heading": "Audit trail",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "audit@short-phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 365,
+    "heading": "Audit trail",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "retention@desktop": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 1176,
+    "heading": "Retention",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "retention@tablet": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 768,
+    "heading": "Retention",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "retention@phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 390,
+    "heading": "Retention",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  },
+  "retention@short-phone": {
+    "overflowX": 0,
+    "overflowY": 0,
+    "mainWidth": 364,
+    "heading": "Retention",
+    "tables": 1,
+    "cards": 0,
+    "navLinks": 7,
+    "tolerance": 2
+  }
+}

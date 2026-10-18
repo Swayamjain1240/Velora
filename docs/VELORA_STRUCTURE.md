@@ -127,9 +127,14 @@ Velora/
     src/
       main.jsx
       app/router.jsx              # public routes + protected /app shell
+      components/Icon.jsx         # inline SVG icon set (22 glyphs)
       lib/api.js                  # cookie-session fetch wrapper + CSRF + raw upload/blob download
+      lib/motion.js               # GSAP motion layer: page transition, reveal, reduced motion
+      lib/useMediaQuery.js        # reactive media query used by the 3D hero
       features/
         public/Landing.jsx
+        public/recovery/HeroVisual.jsx       # lazy host: WebGL probe, tiers, fallback, pause
+        public/recovery/RecoveryNetwork.jsx  # three.js Recovery Network scene
         auth/{AuthContext,Login,MfaVerify,MfaEnroll,ForgotPassword,
               ResetPassword,AcceptInvite}.jsx
         app/{AppShell,Dashboard,ClinicSettings,Profile}.jsx
@@ -149,10 +154,15 @@ Velora/
         metrics/MetricsPanel.jsx  # Part 9 switchable operational metric panels
         patient/{PatientSelf,PatientEpisodes,PatientPlan}.jsx
         caregiver/CaregiverHome.jsx
-      styles.css
-      test/{setup,api.test}.js, auth-flows.test.jsx, patients.test.jsx, episodes.test.jsx,
-           documents.test.jsx, plans.test.jsx, extractions.test.jsx, today.test.jsx,
-           queues.test.jsx, care.test.jsx, part9.test.jsx
+      styles.css                # entry point
+      styles/{tokens,base,components,screens}.css
+      test/{setup,api.test}.js, auth-flows.test.jsx, auth-unavailable.test.jsx,
+           hero-visual.test.jsx, patients.test.jsx, episodes.test.jsx, documents.test.jsx,
+           plans.test.jsx, extractions.test.jsx, today.test.jsx, queues.test.jsx,
+           care.test.jsx, part9.test.jsx
+  qa/                           # standalone probes: viewport audit, 3D hero suite,
+                                # visual capture, security/load/concurrency probes
+  docs/assets/ui-stage1/        # visual-regression baseline captures (six sizes + fallbacks)
 ```
 
 ## Conventions

@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -86,7 +87,7 @@ export default function RetentionPanel() {
       </div>
 
       <div className="panel-scroll">
-        <table className="table">
+        <ResponsiveTable>
           <caption className="visually-hidden">Retention categories</caption>
           <thead>
             <tr><th scope="col">Category</th><th scope="col">Window</th><th scope="col">Eligible</th><th scope="col">Held</th><th scope="col">Mode</th><th scope="col">Actions</th></tr>
@@ -110,7 +111,7 @@ export default function RetentionPanel() {
               );
             })}
           </tbody>
-        </table>
+        </ResponsiveTable>
 
         <fieldset className="scopes">
           <legend>Apply a retention run</legend>

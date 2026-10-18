@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -258,7 +259,7 @@ export default function PatientDetail({ patientId, onBack }) {
               <button type="submit" className="btn btn--primary" disabled={!consentForm.purpose}>Record consent</button>
             </form>
 
-            <table className="table">
+            <ResponsiveTable>
               <caption className="visually-hidden">Consent history</caption>
               <thead>
                 <tr><th scope="col">Recorded</th><th scope="col">Action</th><th scope="col">Purpose</th><th scope="col">Categories</th></tr>
@@ -273,7 +274,7 @@ export default function PatientDetail({ patientId, onBack }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
             <nav className="pager" aria-label="Consent pagination">
               <button type="button" className="btn btn--ghost" disabled={consent.page <= 1} onClick={() => loadConsent(consent.page - 1)}>Previous</button>
               <span>Page {consent.page} of {consentPages}</span>
@@ -305,7 +306,7 @@ export default function PatientDetail({ patientId, onBack }) {
               </fieldset>
               <button type="submit" className="btn btn--primary" disabled={!caregiverForm.email || caregiverForm.scopes.length === 0}>Invite caregiver</button>
             </form>
-            <table className="table">
+            <ResponsiveTable>
               <caption className="visually-hidden">Caregiver grants</caption>
               <thead>
                 <tr><th scope="col">Email</th><th scope="col">Status</th><th scope="col">Scopes</th><th scope="col">Actions</th></tr>
@@ -325,7 +326,7 @@ export default function PatientDetail({ patientId, onBack }) {
                 ))}
                 {caregivers.length === 0 && <tr><td colSpan={4}>No caregiver grants yet.</td></tr>}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
         )}
 
@@ -341,7 +342,7 @@ export default function PatientDetail({ patientId, onBack }) {
               </select>
               <button type="submit" className="btn btn--primary" disabled={!assigneeId}>Assign</button>
             </form>
-            <table className="table">
+            <ResponsiveTable>
               <caption className="visually-hidden">Care team</caption>
               <thead>
                 <tr><th scope="col">Member</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Since</th><th scope="col">Actions</th></tr>
@@ -361,7 +362,7 @@ export default function PatientDetail({ patientId, onBack }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
         )}
       </div>

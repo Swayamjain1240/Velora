@@ -250,7 +250,9 @@ async function completeMfaEnrollment({ session, code, ip, userAgent }) {
       'Multi-factor authentication is already enabled for this account. Verify with your authenticator app.'
     );
   }
-  const ok = await mfaService.verifyTotp(user, code);
+  // Enrollment confirmation does not consume the code's step (D-4): MFA is not
+  // enabled yet, and the same code must still work for the first sign-in.
+  const ok = await mfaService.verifyTotp(user, code, { consume: false });
   if (!ok) {
     await audit.record({
       actorUser: user.id,

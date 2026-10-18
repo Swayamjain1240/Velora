@@ -1,5 +1,8 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
+import Skeleton from '../../components/Skeleton';
+import MiniBars from '../../components/MiniBars';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -57,7 +60,14 @@ export default function MetricsPanel() {
       </div>
 
       <div className="panel-scroll">
-        {!metric && <p className="muted">Loading…</p>}
+        {!metric && (
+          <div>
+            <span className="visually-hidden" role="status">
+              Loading metrics…
+            </span>
+            <Skeleton lines={5} />
+          </div>
+        )}
         {metric && (
           <div>
             <h2>{metric.label}</h2>
@@ -65,7 +75,15 @@ export default function MetricsPanel() {
             <p className="muted">Not a measure of: {metric.notAMeasureOf}</p>
 
             {panel === 'queue_age' && (
-              <table className="table">
+              <>
+              <MiniBars
+                items={Object.entries(metric.value.queues).map(([key, value]) => ({
+                  label: key.replace(/_/g, ' '),
+                  value: value.openItems,
+                }))}
+                unit="open"
+              />
+              <ResponsiveTable>
                 <caption className="visually-hidden">Queue age by queue</caption>
                 <thead><tr><th scope="col">Queue</th><th scope="col">Open</th><th scope="col">Oldest (hours)</th></tr></thead>
                 <tbody>
@@ -77,11 +95,20 @@ export default function MetricsPanel() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </ResponsiveTable>
+              </>
             )}
 
             {panel === 'coordination_workload' && (
-              <table className="table">
+              <>
+              <MiniBars
+                items={metric.value.members.map((member) => ({
+                  label: member.label || member.member,
+                  value: member.active,
+                }))}
+                unit="active"
+              />
+              <ResponsiveTable>
                 <caption className="visually-hidden">Coordination workload</caption>
                 <thead><tr><th scope="col">Member</th><th scope="col">Active</th><th scope="col">Released</th><th scope="col">Claimed in window</th></tr></thead>
                 <tbody>
@@ -95,7 +122,8 @@ export default function MetricsPanel() {
                   ))}
                   {metric.value.members.length === 0 && <tr><td colSpan={4}>No queue ownership in this window.</td></tr>}
                 </tbody>
-              </table>
+              </ResponsiveTable>
+              </>
             )}
 
             {(panel === 'approval_time' || panel === 'clarification_response_time') && (

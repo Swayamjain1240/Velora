@@ -99,4 +99,92 @@ Companion to the authoritative `VELORA_MERN_DUCK_LOG.pdf` (v2.0). This file hold
 
 ---
 
+## Entry — 18 October 2026, UI stage 1 closure and the Recovery Network (three.js)
+
+**DUCK REVIEW — 18 October 2026, Asia/Kolkata**
+**Repository / branch / commit / dirty state:** `Swayamjain1240/Velora` · `feat/ui-redesign-dark-purple` (tip `758906b` plus this change) · working tree carries the stage-1 documentation set, the 3D hero and its QA scripts.
+**Current part and VEL IDs:** presentation pass across Parts 1–10; VEL-017 (one viewport) re-verified; Security-25 controls 1, 2, 3, 5, 7, 11, 16, 18, 21–25 unaffected.
+**Verdict: READY WITH DOCUMENTED LIMITATIONS (stage 1 + 3D hero). The redesign is not complete.**
+
+**Evidence inspected:** the three authority documents, README, the whole client tree (42 JSX files, 9,020 lines; 5 stylesheets, 2,481 lines), `client/package.json` and the lockfile, the four stage-1 documentation files already committed, the 13 client test files, the 11 Playwright specs, and the production build output.
+
+**What was delivered since the last entry:**
+1. A session-status fix: a failed status check (network, 429, 5xx) no longer sends a signed-in user to the login form; `Protected` renders a retry state and only 401/403 signs out. Two regression tests.
+2. Phone presentation for the patient and episode lists (cards below 720 px, tables above), with every id, label and test id preserved.
+3. The **Recovery Network**: a lazy three.js hero on `/`, with a seeded care core, three tilted orbits of instanced nodes, ring pathways, sparse cross-orbit links, six spokes, signals travelling along real edges, GSAP-coordinated entrance, pointer parallax, hover proximity, mobile/tablet/desktop tiers, DPR caps, tab and viewport pausing, context-loss fallback and a static gradient when WebGL is unavailable. It does not mount on any authenticated screen.
+4. Hero copy entrance on the same clock as the scene, and a 260 ms exit fade into the application that is backed by a 420 ms navigation timer (a decorative fade can never block sign-in).
+5. Short-viewport auth fix: `@media (max-height: 620px)` top-aligns and compresses the panel. Before the fix the submit button sat below the fold at 844×390 and 320×400.
+6. The full stage-1 documentation set: route/screen inventory, component inventory, animation guidelines, accessibility checklist, responsive matrix, visual regression report with 14 committed captures, stage-1 QA report and known-limitations list.
+
+**Dependency decision (recorded, not inferred):** `three@0.186.1` (MIT) and `@react-three/fiber@8.18.0` (MIT) were installed after checking React 18 compatibility (`peerDependencies react >=18 <19`), maintenance, licences, `npm audit --omit=dev` (0 vulnerabilities) and bundle impact (separate 888.75 kB / 238.83 kB gzip chunk; initial bundle +7.68 kB / +2.25 kB gzip). `@react-three/drei` was deliberately **not** installed: nothing from it is used, and its transitive weight would buy helpers this code implements in ~30 lines. GSAP 3.15 was already present. No overlapping animation or 3D library exists.
+
+**Corrections made:** UI-03 (auth panel overflow on short viewports) and UI-04 (landscape phone received the tablet scene tier). Both found by measurement, fixed, and re-measured.
+
+**Verification (this tree, seeded synthetic stack: Mongo replica set 27019, API 4100, Vite 5173):** client **70/70** tests (13 files) · lint clean · production build clean (CSS 40.27 kB / 8.13 kB gzip, JS 456.43 kB / 134.55 kB gzip, scene 888.75 kB / 238.83 kB gzip) · browser journeys **35/35** (viewports 30, accessibility 1, auth 4) · six-size audit **144 route checks, 0 failures** · 3D hero suite **18 checks, 0 failures** (scene paints 4.07 % of the page, tier and DPR cap at all six sizes, WebGL absent, context loss, lazy chunk absent on `/login`, six remounts with one canvas and a flat post-GC heap, reduced motion 0.00 % pixel drift, parallax 1.0 %, orientation resize, keyboard focus, foreground navigation in 366–435 ms) · production dependency audit **0**.
+
+**Failed, blocked or not-run checks:** Firefox/Safari, screen reader, 200 % zoom, axe/Lighthouse, real mobile/tablet hardware, GPU profiling and a CI pixel-diff gate are NOT RUN (no tooling or devices here). The 3D chunk is 238.83 kB gzip, above the ≤60 kB gate the stage-1 document set for a hero decoration; that is recorded as a limitation, not justified away. The frame-pacing figure (60.4 fps at 390×844 under 4× CPU throttle, SwiftShader) is a NOTE, not a device measurement.
+
+**External API disclosures:** none. No new network origin, no web font, no provider; the scene is generated locally and fetches nothing.
+
+**Documentation updated:** `README.md`, `UI_DESIGN_SYSTEM.md`, `UI_REDESIGN_DUCK_REVIEW.md` (stage table), the seven new UI documents, `UI_3D_RECOVERY_NETWORK.md`, and this log.
+
+**Unresolved decisions/risks:** stages 2–5 and 7 remain; the 3D chunk size is a product decision (accept, or drop R3F for raw three.js); real-device performance and cross-browser parity are unproven; the visual baseline has no CI gate; L1–L15 in `UI_KNOWN_LIMITATIONS.md` carry owners and severities.
+
+**Next authorized action:** owner review of stage 1 and the 3D hero; then stage 2 (shared controls) or a device-lab measurement of the scene, whichever the owner prioritises.
+
+---
+
 *Append new entries below this line.*
+
+## 18 October 2026 — completion pass (defects, security depth, accessibility, bundle)
+
+**Scope:** every open defect-log item and the UI limitations that had a concrete
+check attached, plus the dev-toolchain advisories.
+
+**Backend**
+1. **D-4 TOTP replay** — the accepted counter step is claimed atomically on the
+   user, so one code authenticates one session. Enrollment confirmation does not
+   consume the step, so the first sign-in still accepts the code just typed.
+2. **D-8 Origin/Referer allowlist** — a second CSRF layer on cookie-authenticated
+   mutations rejects a foreign origin with `403` before validation runs.
+3. **D-6 runtime metrics** — `/api/metrics` now returns process, event-loop, Mongo
+   pool and bounded per-route latency gauges keyed by route pattern; no identifier
+   can appear in the payload.
+4. **D-12** — the concurrent-approval test asserts the invariant instead of a race
+   outcome. The "GET /api/plans returned 0 items" observation does not reproduce.
+
+**Client**
+5. **L7 hero chunk** — `three` and `@react-three/fiber` removed; the scene is
+   hand-written WebGL (7 draw calls, no per-frame allocation). Chunk **4.99 kB
+   gzip** (was 238.83), well under the ≤60 kB gate.
+6. **L3 tables** — one shared `ResponsiveTable` labels each cell from the rendered
+   `<thead>` and keeps explicit ARIA roles; all 26 tables across 18 feature
+   screens stack into cards below 720 px.
+7. **L9/L12** — zero auth-page scroll at 844×390 and 320×400; forced-colours and
+   high-contrast treatments added.
+8. **L2 trend** — `Skeleton` and `MiniBars` primitives adopted in the metrics panels.
+9. **D-7 CSP** — strict policy injected into the built shell; the inline
+   module-preload polyfill is disabled so `script-src 'self'` needs no exception.
+
+**Toolchain** — Vite 8.3.4, Vitest 5.0.5, plugin-react 6.1.2, jsdom 30.1.3;
+`npm audit` 0 vulnerabilities (was 6, including two critical). CI runs Node 22.
+
+**Verification (this tree, seeded synthetic stack):** server **424/424** ·
+client **77/77** · lint clean · build clean (initial 464.11 kB / 132.60 kB gzip,
+scene 13.11 kB / 4.99 kB gzip) · browser journeys **76 passed + 1 opt-in skip**,
+plus the provider-disabled journey run separately against
+`EXTRACTION_PROVIDER=none` · axe WCAG 2.1 A/AA **0 violations across 15 screens** ·
+200 %/400 % reflow passing · phone table stacking and desktop table parity passing ·
+forced-colours checks passing · six-size audit **144 route checks, 0 failures** ·
+3D hero suite **18/18** · layout snapshot **36/36 surfaces match** · documentation
+links **107 checked, 0 broken** · `npm audit` **0**.
+
+**Still not run or not done:** Firefox/WebKit, NVDA/VoiceOver, real mobile/tablet
+hardware, GPU profiling, the full stage-3 structural pass (dialogs/toasts/tooltips),
+i18n, production MongoDB auth/TLS drill and SHA-pinned CI actions. Each is recorded
+with an owner in `UI_KNOWN_LIMITATIONS.md` and `FINAL_DEFECT_LOG.md`.
+
+**Production preview check:** built shell served by `vite preview` — the CSP meta
+is present, the page contains **no inline script**, the scene paints, and zero CSP
+violations were logged. (The preview server has no API proxy, so its API calls
+return 502 in that isolated check; that is expected, not a defect.)

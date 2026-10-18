@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
@@ -43,7 +44,7 @@ export default function Profile() {
 
       <h2>Active sessions</h2>
       <div className="panel-scroll">
-        <table className="table">
+        <ResponsiveTable>
           <caption className="visually-hidden">Your active sessions</caption>
           <thead>
             <tr><th scope="col">Started</th><th scope="col">Last seen</th><th scope="col">Device</th><th scope="col">Current</th></tr>
@@ -58,7 +59,7 @@ export default function Profile() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </ResponsiveTable>
       </div>
       <button type="button" className="btn btn--danger" onClick={revokeAll}>
         Sign out everywhere

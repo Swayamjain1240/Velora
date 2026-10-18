@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import DocumentsPanel from '../documents/DocumentsPanel';
@@ -208,7 +209,7 @@ export default function EpisodeDetail({ episodeId, onBack }) {
 
         {tab === 'corrections' && (
           <div>
-            <table className="table">
+            <ResponsiveTable>
               <caption className="visually-hidden">Correction history</caption>
               <thead>
                 <tr><th scope="col">When</th><th scope="col">Field</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Revision</th><th scope="col">By</th></tr>
@@ -226,7 +227,7 @@ export default function EpisodeDetail({ episodeId, onBack }) {
                 ))}
                 {corrections.items.length === 0 && <tr><td colSpan={6}>No corrections recorded.</td></tr>}
               </tbody>
-            </table>
+            </ResponsiveTable>
             <nav className="pager" aria-label="Correction pagination">
               <button type="button" className="btn btn--ghost" disabled={corrections.page <= 1} onClick={() => loadCorrections(corrections.page - 1)}>Previous</button>
               <span>Page {corrections.page} of {correctionPages}</span>
@@ -252,7 +253,7 @@ export default function EpisodeDetail({ episodeId, onBack }) {
               </select>
               <button type="submit" className="btn btn--primary" disabled={!assignee.userId}>Assign</button>
             </form>
-            <table className="table">
+            <ResponsiveTable>
               <caption className="visually-hidden">Care team</caption>
               <thead>
                 <tr><th scope="col">Member</th><th scope="col">Responsibility</th><th scope="col">Status</th><th scope="col">Since</th><th scope="col">Actions</th></tr>
@@ -272,7 +273,7 @@ export default function EpisodeDetail({ episodeId, onBack }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
         )}
 

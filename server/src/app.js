@@ -11,8 +11,9 @@ const {
 } = require('./middleware/security');
 const { getEnv } = require('./config/env');
 const healthRoutes = require('./routes/health');
-const { csrfProtection } = require('./middleware/csrf');
+const { csrfProtection, originProtection } = require('./middleware/csrf');
 const { loadSession } = require('./middleware/auth');
+const { requestMetrics } = require('./services/processMetrics');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth');
 const staffRoutes = require('./routes/staff');
@@ -52,6 +53,9 @@ function buildApp() {
   app.disable('x-powered-by');
 
   app.use(requestContext);
+  // D-6: bounded per-route latency and process gauges for /api/metrics. It is a
+  // passive observer: no request data, query string or user identity is kept.
+  app.use(requestMetrics);
   app.use(securityHeaders);
   app.use(corsPolicy());
   // Bounded body from the validated environment, so the JSON limit is a
@@ -82,9 +86,10 @@ function buildApp() {
     );
   }
 
-  // Resolve the session for every request, then enforce CSRF on any
-  // cookie-authenticated mutation before it can reach a handler.
-  app.use('/api', loadSession, csrfProtection);
+  // Resolve the session for every request, then enforce two independent CSRF
+  // layers on any cookie-authenticated mutation before it can reach a handler:
+  // an Origin/Referer allowlist (D-8) and the session-bound double-submit token.
+  app.use('/api', loadSession, originProtection, csrfProtection);
 
   app.use('/api/auth', authRoutes);
   app.use('/api/staff', staffRoutes);

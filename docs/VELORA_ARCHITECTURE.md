@@ -24,12 +24,14 @@ must never be relied on for security.
 ```
 request
   -> requestContext        (request id, client ip, UA)                       [security.js]
+  -> requestMetrics        (bounded per-route latency, process gauges)       [processMetrics.js]
   -> securityHeaders       (Helmet + explicit CSP)                           [security.js]
   -> corsPolicy            (exact credentialed allowlist)                    [security.js]
   -> express.json 32kb     (body size cap)
   -> cookieParser
   -> global /api limiter   (300 req/min safety net)                          [app.js]
   -> loadSession           (attach req.session/req.user/req.memberships)     [auth.js]
+  -> originProtection      (mutating + cookie -> Origin/Referer allowlist)   [csrf.js]
   -> csrfProtection        (mutating + cookie -> double submit + session bind) [csrf.js]
   -> route middleware      (requireAuth, requireMfaPendingSession,
                             loadClinicContext, requirePermission,
@@ -245,6 +247,15 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
 ## 7. Client architecture
 
 - Vite + React + `react-router-dom`. Public routes and one protected `/app` shell.
+- Presentation layer: a dark-purple token system (`styles/tokens.css`, `base.css`, `components.css`,
+  `screens.css`), a fixed shell, a GSAP motion module (`lib/motion.js`) and an inline icon set. The
+  design-system, route/screen, component, animation and accessibility documents are indexed in
+  `README.md` under **Interface**.
+- The landing hero is the only WebGL surface: `features/public/recovery/HeroVisual` lazy-imports
+  `RecoveryNetwork` (hand-written WebGL, 4.99 kB gzip) and falls back to a static gradient. The chunk
+  is never imported by `/login` or `/app/*`, contains no data or text, and pauses when hidden or
+  off-screen. No clinical screen creates a WebGL context. The built shell carries its own CSP
+  (see §8); the SPA origin is not governed by the API's policy.
 - `AuthContext` mirrors the server's `next` contract (`active`, `mfa_verify`, `mfa_enroll`) so the
   router sends users to the correct MFA screen; the router guard is UX only.
 - `lib/api.js` is a thin `fetch` wrapper using **cookie sessions only** - no tokens in
@@ -310,6 +321,17 @@ buckets. A coarse in-memory `express-rate-limit` sits under `/api` as a safety n
   unauthenticated `/api` surfaces besides the public invitation/landing routes.
 - Audit events are append-only and actor-attributed (`auditService.record`); a failed audit write is an
   alert-worthy `audit.write_failed` event rather than a silent `console.error`.
+- **Runtime gauges (D-6).** `/api/metrics` also returns a `runtime` block from
+  `services/processMetrics.js`: process uptime/RSS/heap/CPU, event-loop delay
+  (mean/p95/p99/max), Mongo readyState and pool counters, and per-route latency
+  in a fixed 60-entry map keyed by the route PATTERN (never a concrete URL or
+  identifier). It is permission-gated with the workflow metrics and is bounded:
+  a tenth route cannot grow it without evicting the oldest entry.
+- **Client policy (D-7).** The SPA origin is not governed by the API's CSP. The
+  built shell carries its own `<meta http-equiv="Content-Security-Policy">` with
+  `script-src 'self'`, injected at build time; the module-preload polyfill is
+  disabled so no inline script is required. Dev/preview servers send an
+  equivalent header that also allows the HMR websocket.
 
 ## 9. Verification strategy
 

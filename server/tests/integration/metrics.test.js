@@ -144,3 +144,43 @@ test('the metrics window is bounded and metrics are permission-gated', async () 
   const admin = await ctx.adminCtx.a.get('/api/metrics').set('X-CSRF-Token', ctx.adminCtx.csrf);
   assert.equal(admin.status, 200, JSON.stringify(admin.body));
 });
+
+// D-6: process health is exposed beside the workflow metrics so an operator can
+// see saturation coming instead of sampling RSS from the OS.
+test('runtime gauges are bounded, permission-scoped and never echo identifiers', async () => {
+  const ctx = await setup();
+  const patientId = ctx.patient.id;
+
+  // Touch a parameterised route so the latency table has a pattern to record.
+  const read = await ctx.coordCtx.a.get(`/api/patients/${patientId}`);
+  assert.equal(read.status, 200, JSON.stringify(read.body));
+
+  const res = await ctx.coordCtx.a.get('/api/metrics');
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const runtime = res.body.runtime;
+  assert.ok(runtime, 'runtime must be present');
+
+  assert.equal(typeof runtime.process.uptimeSeconds, 'number');
+  assert.ok(runtime.process.rssBytes > 0);
+  assert.ok(runtime.process.heapUsedBytes > 0);
+  assert.match(runtime.process.nodeVersion, /^v\d+/);
+
+  assert.ok(runtime.eventLoop.meanMs >= 0);
+  assert.ok(runtime.eventLoop.p95Ms >= runtime.eventLoop.meanMs - 1);
+  assert.deepEqual(runtime.mongo.state, 'connected');
+  assert.ok(Array.isArray(runtime.latency.routes));
+
+  const patientRoute = runtime.latency.routes.find((r) => r.label === 'GET /api/patients/:patientId');
+  assert.ok(patientRoute, `expected a pattern label, got ${runtime.latency.routes.map((r) => r.label).join(', ')}`);
+  assert.ok(patientRoute.count >= 1);
+  // The concrete identifier must never appear in an operational surface.
+  assert.ok(!JSON.stringify(runtime).includes(patientId));
+
+  // The workflow contract is unchanged by the addition.
+  assert.ok(Array.isArray(res.body.metrics));
+  assert.match(res.body.note, /not clinical outcomes/i);
+
+  // Runtime gauges are as gated as the metrics they sit beside.
+  const patient = await ctx.patientCtx.a.get('/api/metrics');
+  assert.equal(patient.status, 403);
+});

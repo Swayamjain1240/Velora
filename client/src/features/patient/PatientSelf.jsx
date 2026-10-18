@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -103,7 +104,7 @@ export default function PatientSelf() {
       </form>
 
       <div className="panel-scroll">
-        <table className="table">
+        <ResponsiveTable>
           <caption className="visually-hidden">Caregivers you have shared with</caption>
           <thead>
             <tr><th scope="col">Email</th><th scope="col">Status</th><th scope="col">Scopes</th><th scope="col">Actions</th></tr>
@@ -123,7 +124,7 @@ export default function PatientSelf() {
             ))}
             {caregivers.length === 0 && <tr><td colSpan={4}>You have not shared your record with anyone.</td></tr>}
           </tbody>
-        </table>
+        </ResponsiveTable>
       </div>
     </section>
   );

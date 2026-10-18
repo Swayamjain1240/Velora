@@ -26,6 +26,10 @@ const userSchema = new mongoose.Schema(
       secretEnc: { type: String, select: false },
       enabled: { type: Boolean, default: false },
       confirmedAt: { type: Date },
+      // Last TOTP counter step accepted at sign-in (D-4). The step is claimed
+      // with an atomic conditional update, so one code authenticates at most
+      // one session.
+      lastTotpStep: { type: Number },
     },
     lastLoginAt: { type: Date },
   },

@@ -1,0 +1,392 @@
+[
+  {
+    "size": "1440x900",
+    "canvas": true,
+    "hero": {
+      "x": 200,
+      "y": -30,
+      "width": 1040,
+      "height": 486,
+      "top": -30,
+      "right": 1240,
+      "bottom": 456,
+      "left": 200
+    },
+    "content": {
+      "x": 360,
+      "y": 88,
+      "width": 720,
+      "height": 217.984375,
+      "top": 88,
+      "right": 1080,
+      "bottom": 305.984375,
+      "left": 360
+    },
+    "link": {
+      "x": 668.171875,
+      "y": 265.984375,
+      "width": 103.65625,
+      "height": 40,
+      "top": 265.984375,
+      "right": 771.828125,
+      "bottom": 305.984375,
+      "left": 668.171875
+    },
+    "docScrollHeight": 900,
+    "docScrollWidth": 1440,
+    "innerHeight": 900,
+    "innerWidth": 1440,
+    "heroScrollHeight": 416,
+    "login": {
+      "panel": {
+        "x": 500,
+        "y": 188.46875,
+        "width": 440,
+        "height": 523.0625,
+        "top": 188.46875,
+        "right": 940,
+        "bottom": 711.53125,
+        "left": 500
+      },
+      "submitVisible": true,
+      "docScrollHeight": 900,
+      "innerHeight": 900,
+      "docScrollWidth": 1440,
+      "innerWidth": 1440
+    },
+    "errors": []
+  },
+  {
+    "size": "768x1024",
+    "canvas": true,
+    "hero": {
+      "x": -40.796875,
+      "y": -30,
+      "width": 849.59375,
+      "height": 540,
+      "top": -30,
+      "right": 808.796875,
+      "bottom": 510,
+      "left": -40.796875
+    },
+    "content": {
+      "x": 24,
+      "y": 88,
+      "width": 720,
+      "height": 204.171875,
+      "top": 88,
+      "right": 744,
+      "bottom": 292.171875,
+      "left": 24
+    },
+    "link": {
+      "x": 332.171875,
+      "y": 252.171875,
+      "width": 103.65625,
+      "height": 40,
+      "top": 252.171875,
+      "right": 435.828125,
+      "bottom": 292.171875,
+      "left": 332.171875
+    },
+    "docScrollHeight": 1024,
+    "docScrollWidth": 768,
+    "innerHeight": 1024,
+    "innerWidth": 768,
+    "heroScrollHeight": 470,
+    "login": {
+      "panel": {
+        "x": 164,
+        "y": 256.703125,
+        "width": 440,
+        "height": 510.578125,
+        "top": 256.703125,
+        "right": 604,
+        "bottom": 767.28125,
+        "left": 164
+      },
+      "submitVisible": true,
+      "docScrollHeight": 1024,
+      "innerHeight": 1024,
+      "docScrollWidth": 768,
+      "innerWidth": 768
+    },
+    "errors": []
+  },
+  {
+    "size": "390x844",
+    "canvas": true,
+    "hero": {
+      "x": -30.5390625,
+      "y": -6,
+      "width": 451.078125,
+      "height": 330,
+      "top": -6,
+      "right": 420.5390625,
+      "bottom": 324,
+      "left": -30.5390625
+    },
+    "content": {
+      "x": 16,
+      "y": 56,
+      "width": 358,
+      "height": 224.03125,
+      "top": 56,
+      "right": 374,
+      "bottom": 280.03125,
+      "left": 16
+    },
+    "link": {
+      "x": 143.171875,
+      "y": 236.03125,
+      "width": 103.65625,
+      "height": 44,
+      "top": 236.03125,
+      "right": 246.828125,
+      "bottom": 280.03125,
+      "left": 143.171875
+    },
+    "docScrollHeight": 948,
+    "docScrollWidth": 390,
+    "innerHeight": 844,
+    "innerWidth": 390,
+    "heroScrollHeight": 300,
+    "login": {
+      "panel": {
+        "x": 12,
+        "y": 180.703125,
+        "width": 366,
+        "height": 482.578125,
+        "top": 180.703125,
+        "right": 378,
+        "bottom": 663.28125,
+        "left": 12
+      },
+      "submitVisible": true,
+      "docScrollHeight": 844,
+      "innerHeight": 844,
+      "docScrollWidth": 390,
+      "innerWidth": 390
+    },
+    "errors": []
+  },
+  {
+    "size": "320x568",
+    "canvas": true,
+    "hero": {
+      "x": -21.4375,
+      "y": -6,
+      "width": 362.875,
+      "height": 261.265625,
+      "top": -6,
+      "right": 341.4375,
+      "bottom": 255.265625,
+      "left": -21.4375
+    },
+    "content": {
+      "x": 16,
+      "y": 48,
+      "width": 288,
+      "height": 224.03125,
+      "top": 48,
+      "right": 304,
+      "bottom": 272.03125,
+      "left": 16
+    },
+    "link": {
+      "x": 108.171875,
+      "y": 228.03125,
+      "width": 103.65625,
+      "height": 44,
+      "top": 228.03125,
+      "right": 211.828125,
+      "bottom": 272.03125,
+      "left": 108.171875
+    },
+    "docScrollHeight": 1049,
+    "docScrollWidth": 320,
+    "innerHeight": 568,
+    "innerWidth": 320,
+    "heroScrollHeight": 264,
+    "login": {
+      "panel": {
+        "x": 12,
+        "y": 12,
+        "width": 296,
+        "height": 407.375,
+        "top": 12,
+        "right": 308,
+        "bottom": 419.375,
+        "left": 12
+      },
+      "submitVisible": true,
+      "docScrollHeight": 568,
+      "innerHeight": 568,
+      "docScrollWidth": 320,
+      "innerWidth": 320
+    },
+    "errors": []
+  },
+  {
+    "size": "844x390",
+    "canvas": true,
+    "hero": {
+      "x": -47.6328125,
+      "y": -30,
+      "width": 939.265625,
+      "height": 320,
+      "top": -30,
+      "right": 891.6328125,
+      "bottom": 290,
+      "left": -47.6328125
+    },
+    "content": {
+      "x": 62,
+      "y": 64,
+      "width": 720,
+      "height": 207.34375,
+      "top": 64,
+      "right": 782,
+      "bottom": 271.34375,
+      "left": 62
+    },
+    "link": {
+      "x": 370.171875,
+      "y": 231.34375,
+      "width": 103.65625,
+      "height": 40,
+      "top": 231.34375,
+      "right": 473.828125,
+      "bottom": 271.34375,
+      "left": 370.171875
+    },
+    "docScrollHeight": 699,
+    "docScrollWidth": 844,
+    "innerHeight": 390,
+    "innerWidth": 844,
+    "heroScrollHeight": 250,
+    "login": {
+      "panel": {
+        "x": 202,
+        "y": 12,
+        "width": 440,
+        "height": 403.375,
+        "top": 12,
+        "right": 642,
+        "bottom": 415.375,
+        "left": 202
+      },
+      "submitVisible": true,
+      "docScrollHeight": 427,
+      "innerHeight": 390,
+      "docScrollWidth": 844,
+      "innerWidth": 844
+    },
+    "errors": []
+  },
+  {
+    "size": "320x400",
+    "canvas": true,
+    "hero": {
+      "x": -21.4375,
+      "y": -6,
+      "width": 362.875,
+      "height": 240,
+      "top": -6,
+      "right": 341.4375,
+      "bottom": 234,
+      "left": -21.4375
+    },
+    "content": {
+      "x": 16,
+      "y": 48,
+      "width": 288,
+      "height": 224.03125,
+      "top": 48,
+      "right": 304,
+      "bottom": 272.03125,
+      "left": 16
+    },
+    "link": {
+      "x": 108.171875,
+      "y": 228.03125,
+      "width": 103.65625,
+      "height": 44,
+      "top": 228.03125,
+      "right": 211.828125,
+      "bottom": 272.03125,
+      "left": 108.171875
+    },
+    "docScrollHeight": 1049,
+    "docScrollWidth": 320,
+    "innerHeight": 400,
+    "innerWidth": 320,
+    "heroScrollHeight": 264,
+    "login": {
+      "panel": {
+        "x": 12,
+        "y": 12,
+        "width": 296,
+        "height": 407.375,
+        "top": 12,
+        "right": 308,
+        "bottom": 419.375,
+        "left": 12
+      },
+      "submitVisible": true,
+      "docScrollHeight": 431,
+      "innerHeight": 400,
+      "docScrollWidth": 320,
+      "innerWidth": 320
+    },
+    "errors": []
+  },
+  {
+    "size": "1440x900 no-webgl",
+    "fallback": {
+      "canvas": false,
+      "hero": {
+        "x": 200,
+        "y": -30,
+        "width": 1040,
+        "height": 486,
+        "top": -30,
+        "right": 1240,
+        "bottom": 456,
+        "left": 200
+      },
+      "content": {
+        "x": 360,
+        "y": 88,
+        "width": 720,
+        "height": 217.984375,
+        "top": 88,
+        "right": 1080,
+        "bottom": 305.984375,
+        "left": 360
+      },
+      "link": {
+        "x": 668.171875,
+        "y": 265.984375,
+        "width": 103.65625,
+        "height": 40,
+        "top": 265.984375,
+        "right": 771.828125,
+        "bottom": 305.984375,
+        "left": 668.171875
+      },
+      "docScrollHeight": 900,
+      "docScrollWidth": 1440,
+      "innerHeight": 900,
+      "innerWidth": 1440,
+      "heroScrollHeight": 416
+    }
+  },
+  {
+    "size": "1440x900 reduced-motion",
+    "reduced": {
+      "canvas": true,
+      "inlineStyle": null
+    }
+  }
+]

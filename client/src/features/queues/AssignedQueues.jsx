@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../lib/api';
 import ThreadView from './ThreadView';
@@ -258,7 +259,7 @@ export default function AssignedQueues() {
           <p className="muted">Nothing in this queue right now.</p>
         )}
         {queue && queue.items.length > 0 && (
-          <table className="table">
+          <ResponsiveTable>
             <thead>
               <tr>
                 <th scope="col">Item</th>
@@ -303,7 +304,7 @@ export default function AssignedQueues() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ResponsiveTable>
         )}
       </div>
 

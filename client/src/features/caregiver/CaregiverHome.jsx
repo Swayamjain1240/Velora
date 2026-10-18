@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
@@ -77,7 +78,7 @@ export default function CaregiverHome() {
       <h1 id="cg-title">People who shared their care with me</h1>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="panel-scroll">
-        <table className="table">
+        <ResponsiveTable>
           <caption className="visually-hidden">Patients shared with you</caption>
           <thead>
             <tr><th scope="col">Reference</th><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Actions</th></tr>
@@ -95,7 +96,7 @@ export default function CaregiverHome() {
             ))}
             {items.length === 0 && <tr><td colSpan={4}>Nobody has shared their record with you.</td></tr>}
           </tbody>
-        </table>
+        </ResponsiveTable>
       </div>
       <nav className="pager" aria-label="Pagination">
         <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>

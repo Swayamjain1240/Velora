@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 import { useMediaQuery } from '../../lib/useMediaQuery';
@@ -118,7 +119,7 @@ export default function PatientList({ onOpen }) {
             </ul>
           ) : (
           <div className="panel-scroll">
-            <table className="table">
+            <ResponsiveTable>
               <caption className="visually-hidden">Patients assigned to you</caption>
               <thead>
                 <tr>
@@ -147,7 +148,7 @@ export default function PatientList({ onOpen }) {
                   <tr><td colSpan={5}>No patients are assigned to you yet.</td></tr>
                 )}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
           )}
           <nav className="pager" aria-label="Pagination">

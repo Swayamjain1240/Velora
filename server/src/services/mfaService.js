@@ -9,9 +9,15 @@ const otpauth = require('otpauth');
 const { hmac, sealSecret, openSecret } = require('./crypto');
 const { MFA_RECOVERY_CODE_COUNT } = require('../config/constants');
 const MfaRecoveryCode = require('../models/MfaRecoveryCode');
+const User = require('../models/User');
 const { getEnv } = require('../config/env');
 
 const ISSUER = 'Velora';
+const TOTP_PERIOD_SECONDS = 30;
+
+function currentTotpStep(now = Date.now()) {
+  return Math.floor(now / 1000 / TOTP_PERIOD_SECONDS);
+}
 
 function buildTotp({ secretBase32, account }) {
   return new otpauth.TOTP({
@@ -39,7 +45,15 @@ function createEnrollment(user, { secretBase32 } = {}) {
   };
 }
 
-async function verifyTotp(user, code) {
+// D-4: a TOTP code is a time-window token, so without a claim the same six
+// digits can authenticate two separate pending sessions. Verification therefore
+// claims the accepted counter STEP atomically on the user: only a step strictly
+// newer than the last accepted one succeeds, so a replay (including a replay of
+// the neighbouring window `window: 1` tolerates) is refused. Enrollment
+// confirmation passes `consume: false`: MFA is not yet enabled on that account,
+// so a code replayed there authenticates nobody, and a true first login right
+// after enrollment must still accept the code the user just typed.
+async function verifyTotp(user, code, { consume = true } = {}) {
   const sealed = user.mfa && user.mfa.secretEnc;
   if (!sealed) return false;
   let secretBase32;
@@ -49,7 +63,23 @@ async function verifyTotp(user, code) {
     return false;
   }
   const totp = buildTotp({ secretBase32, account: user.email });
-  return totp.validate({ token: String(code).trim(), window: 1 }) !== null;
+  const delta = totp.validate({ token: String(code).trim(), window: 1 });
+  if (delta === null) return false;
+  if (!consume) return true;
+
+  const step = currentTotpStep() + delta;
+  const claimed = await User.findOneAndUpdate(
+    {
+      _id: user.id,
+      $or: [
+        { 'mfa.lastTotpStep': { $exists: false } },
+        { 'mfa.lastTotpStep': { $lt: step } },
+      ],
+    },
+    { $set: { 'mfa.lastTotpStep': step } },
+    { new: true, projection: { _id: 1 } }
+  );
+  return Boolean(claimed);
 }
 
 async function generateRecoveryCodes(userId) {

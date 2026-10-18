@@ -138,8 +138,8 @@ Every item on the request's preservation list, restated as testable invariants:
 | 3 | Screen structure pass: patients, episodes, plans, documents, queues, today, admin (page headers, master-detail, wizards, pagination) | pending |
 | 4 | Charts and metric cards from existing metrics payloads | pending |
 | 5 | Mobile-specific table→card presentation and per-screen one-panel workflows | pending |
-| 6 | Optional Three.js accent on the landing hero, lazy-loaded and measured | pending decision |
-| 7 | Full QA: cross-browser, screen reader, axe, visual regression, animation cleanup, final audit | pending |
+| 6 | Three.js Recovery Network on the landing hero, lazy-loaded and measured | **delivered** — `UI_3D_RECOVERY_NETWORK.md` |
+| 7 | Full QA: cross-browser, screen reader, axe, visual regression, animation cleanup, final audit | pending (stage-1 subset delivered: 144-route audit, 35 browser journeys, 18 hero checks, visual baseline) |
 
 Each stage ends with: tests → `git diff` review → secret check → commit → push →
 DUCK log entry.

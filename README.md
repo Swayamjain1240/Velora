@@ -2,25 +2,96 @@
 
 **Secure, clinician-controlled post-discharge recovery coordination.**
 
-Velora is a planned JavaScript MERN application that helps clinics convert private discharge information into clinician-approved recovery plans. Patients and explicitly authorized caregivers will later use those approved plans to understand instructions, record recovery activity and ask the assigned care team for clarification.
+[![CI](https://github.com/Swayamjain1240/Velora/actions/workflows/ci.yml/badge.svg)](https://github.com/Swayamjain1240/Velora/actions/workflows/ci.yml)
+![Node](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)
+![Server tests](https://img.shields.io/badge/server%20tests-424%20passed-blue)
+![Client tests](https://img.shields.io/badge/client%20tests-77%20passed-blue)
+![Axe](https://img.shields.io/badge/WCAG%202.1%20A%2FAA-0%20violations-success)
+![npm audit](https://img.shields.io/badge/npm%20audit-0%20vulnerabilities-success)
 
-Velora does **not** diagnose, prescribe, decide clinical urgency, certify recovery or publish AI output automatically. AI assistance is planned only after the manual clinical review and approval workflow is implemented and verified.
+Velora is a JavaScript MERN application that helps clinics turn private discharge
+information into clinician-approved recovery plans. Patients and explicitly
+authorized caregivers then use those approved plans to understand instructions,
+record recovery activity and ask the assigned care team for clarification.
 
-> **Current status - 16 October 2026:** **Parts 1-10 are implemented and verified locally** - repository, authentication (Argon2id, revocable cookie sessions, mandatory staff MFA, CSRF, reset/invite), clinic permissions, patient onboarding with consent history and scoped caregiver access, recovery episodes with care-team assignment and atomic draft discharge corrections, private encrypted discharge documents, manual source-linked care plans with clinical review/approval, AI-assisted draft extraction with reviewed language, approved medication schedules/tasks/day view with append-only actor-attributed logs, clinic-defined check-ins, the clarification queue, the assigned-team dashboard, in-app reminders, and the Part 9 workflow surfaces: operational episode closure/reopen, a categorised append-only audit trail with scoped paginated search, privacy requests (export/correction/deletion-request) with time-limited encrypted exports, configurable retention with dry-run/holds, and operational workflow metrics. Part 5 completed the first synthetic **M1 vertical slice**: patient -> episode -> ready document -> manual draft -> clinical review -> approval -> patient's current approved view, with approval activating no task or reminder. Part 10 completed the production-hardening and recovery gate: a validated production configuration that refuses an unusable security posture, an operator-decided proxy trust setting, liveness plus readiness probes with a graceful drain, bounded request/pool budgets, structured redacting logs, a synthetic restore drill that restores rows, indexes, encrypted objects and the document key into an isolated database and verifies them by reading them back, rotatable MFA/document encryption keys with a proven re-seal command, document reconciliation whose repair path is tested, retryable `503` behaviour when a dependency is gone, and the final threat model, provider decision register and [readiness report](docs/VELORA_READINESS_REPORT.md). Part 10 landed in eight commits. See [docs/VELORA_SESSION_LOG.md](docs/VELORA_SESSION_LOG.md) for evidence and remaining limits. Still not done, by design: **no deployment, no external provider, no scheduled backup, no real destructive deletion, no real patient data and no clinical validation** - the owner, clinical, privacy and provider decisions are listed in the readiness report. Dev-only dependency advisories in the test toolchain remain open (production audit is clean). The 17 October **non-functional QA pass** (branch `test/non-functional-security-qa`) then re-verified security, privacy, performance, bounded load/stress/spike/soak, concurrency, recovery, supply chain and the one-viewport rule against an isolated synthetic stack, **fixed three defects** - a body-parser failure now answers `413`/`400`/`415` instead of `500`, every API response defaults to `Cache-Control: no-store, private`, and only **one active staff invitation** can exist per clinic+email - and left the remaining items with named owners in [docs/FINAL_READINESS_REPORT.md](docs/FINAL_READINESS_REPORT.md).
+Velora does **not** diagnose, prescribe, decide clinical urgency, certify
+recovery or publish AI output automatically. Manual clinical approval always
+comes before AI assistance: uploading a document or receiving an AI result can
+never activate patient instructions, tasks or reminders.
 
-## Project authority
+> **Status — 18 October 2026:** Parts 1–10 are implemented and verified locally
+> (not deployed). The UI redesign is at stage 1 (tokens, shell, auth, landing,
+> 3D hero, phone layout, accessibility audit). Still open by design: no
+> deployment, no external provider, no scheduled backup, no real destructive
+> deletion, no real patient data and no clinical validation — the owner,
+> clinical, privacy and provider decisions are listed in the
+> [readiness report](docs/VELORA_READINESS_REPORT.md).
 
-Read these three documents before implementation and whenever the owner says **Duck**:
+## Quick start
 
-| Document | Purpose |
-|---|---|
-| [Velora MERN Master](docs/VELORA_MERN_MASTER.pdf) | Product scope, VEL-001 through VEL-021, ten-part roadmap, clinical invariants and all 25 permanent security controls |
-| [Velora MERN Architecture](docs/VELORA_MERN_ARCHITECTURE.pdf) | MERN system design, trust boundaries, data model, access policy, state machines, repository structure and verification strategy |
-| [Velora MERN Duck Log](docs/VELORA_MERN_DUCK_LOG.pdf) | Current project truth, evidence classifications, Duck review procedure, completion gates and session history |
+Requirements: **Node.js ≥ 22.12** and a local **MongoDB replica set** (writes
+run inside transactions, so a plain `mongod` is not enough).
 
-These PDFs are the current project authority. Code, tests and future documentation must remain consistent with them. A roadmap item is not evidence that a feature exists.
+```bash
+npm install                        # installs server + client + e2e workspaces
+cp .env.example .env               # then fill in values
+npm run gen:env                    # generates SESSION_PEPPER and the MFA key
+npm run mongo:test-rs -w server    # local single-node replica set on :27019
+npm run seed -w server             # synthetic clinic + one user per role
+npm run dev                        # ONE command: API on :4000, client on :5173
+```
 
-## Product flow
+`npm run dev` starts the API and the client together, prefixes their output
+(`[api]` / `[web]`), and stops both on Ctrl+C. It fails fast with instructions
+if `.env` is missing. Open **http://localhost:5173**.
+
+Synthetic development accounts share the password `SyntheticDevPass!24` and use
+only `.invalid` addresses.
+
+### Environment variables
+
+`.env.example` documents **every** variable with its purpose and a safe
+placeholder; `.env` is gitignored and must never be committed. Copy the example,
+then generate the secrets:
+
+```bash
+npm run gen:env    # fills SESSION_PEPPER and MFA_ENCRYPTION_KEY with safe random values
+```
+
+Required server variables (fail closed at startup): `MONGODB_URI`,
+`CLIENT_ORIGIN`, `SESSION_PEPPER`, `MFA_ENCRYPTION_KEY`. Part 4 adds
+`DOCUMENT_STORAGE_ROOT` (an absolute path **outside** the repository) and
+`DOCUMENT_ENCRYPTION_KEY` (a separate 32-byte base64 key). Part 9 adds
+`PRIVACY_EXPORT_ENCRYPTION_KEY`. The browser receives only `VITE_API_BASE_URL`.
+
+Key points, all documented in `.env.example`:
+
+- `MONGODB_URI` / `MONGODB_TEST_URI` point at the local replica set
+  (`mongodb://127.0.0.1:27019/...?replicaSet=rs0`) served by `mongo:test-rs`.
+- AI extraction ships **disabled** (`EXTRACTION_PROVIDER=none`, no key needed);
+  only `none` and a local deterministic `fake` provider exist until an owner
+  selects a vendor.
+- Reminders ship **in-app only** (`REMINDER_PROVIDER=in_app`), which needs no key.
+- Production configuration is **refused** at startup when unusable (plain-HTTP
+  `CLIENT_ORIGIN`, debug logging, a weak pepper, one key reused across stores,
+  a non-TLS database connection, an impossible pool bound).
+
+## Features
+
+| Part | Deliverable | State |
+|---:|---|---|
+| 1 | Repository, authentication (Argon2id, cookie sessions, staff MFA, CSRF, reset/invite) and clinic permissions | Implemented / verified |
+| 2 | Patient onboarding, consent history and scoped caregiver access | Implemented / verified |
+| 3 | Recovery episodes and care-team assignment | Implemented / verified |
+| 4 | Private encrypted discharge-document intake (quarantine, validation) | Implemented / verified |
+| 5 | Manual source-linked care plans, clinical review, approval, versioning — completes synthetic M1 | Implemented / verified |
+| 6 | AI-assisted draft extraction with source citations and reviewed Hindi/English language | Implemented / verified |
+| 7 | Medication schedules, daily tasks and actor-attributed logs | Implemented / verified |
+| 8 | Clinic-defined check-ins, clarification queue, dashboard and in-app reminders | Implemented / verified |
+| 9 | Episode closure, append-only audit search, privacy requests (export/correction/deletion), retention with dry-run/holds, metrics | Implemented / verified |
+| 10 | Production hardening, restore drill, key rotation, readiness gate — **not deployed** | Implemented / verified |
+
+Code 2 diagnostic tests/results and Code 3 insurance remain outside the active scope.
 
 ```mermaid
 flowchart TD
@@ -36,311 +107,214 @@ flowchart TD
     J --> K[Closure and history]
 ```
 
-Manual clinical approval comes before AI assistance. Uploading a document or receiving an AI result can never activate patient instructions, tasks or reminders.
+## Tech stack
 
-## Technology decision
+| Layer | Choice |
+|---|---|
+| Database | MongoDB + Mongoose, indexes and replica-set transactions |
+| API | Express.js + Node.js — authorization, workflows, provider boundaries |
+| Client | React.js + Vite — accessible role-specific interfaces |
+| Motion | GSAP 3.15, centralised in `client/src/lib/motion.js` |
+| 3D hero | Hand-written WebGL, lazy-loaded (4.99 kB gzip), landing page only |
+| Testing | Node test runner (server), Vitest (client), Playwright (browser) |
 
-The rebuild uses **JavaScript only**:
+Dependencies are pinned in `package-lock.json`; `npm audit` reports **0
+vulnerabilities** (after the 18 October Vite 8 / Vitest 5 upgrade). No external
+storage, AI/OCR, antivirus, notification, queue, hosting or managed database
+provider is selected; any vendor must be disclosed before use (control #22).
+Candidates and required disclosures are in
+[docs/VELORA_PROVIDER_DECISIONS.md](docs/VELORA_PROVIDER_DECISIONS.md).
 
-- **MongoDB + Mongoose** for persistence, indexes and replica-set transactions
-- **Express.js + Node.js** for the API, authorization, workflows and provider boundaries
-- **React.js + Vite** for accessible role-specific interfaces
-- **Playwright** for browser journeys and viewport verification
-
-The repository shape:
+## Project structure
 
 ```text
 Velora/
-  client/
-  server/
-  e2e/
-  qa/            # non-functional QA harness: security, perf/load, concurrency, dependency review
-  docs/
-  .github/workflows/
-  .env.example
-  .gitignore
-  README.md
+  client/            # React + Vite SPA (dark-purple design system)
+  server/            # Express API, models, services, policies, workers
+  e2e/               # Playwright journeys + viewport/a11y audits
+  qa/                # non-functional harness: security, perf, layout gate
+  docs/              # authority PDFs, UI docs, runbooks, reports
+  scripts/           # dev runner, env generator
+  .github/workflows/ # CI
+  .env.example       # every variable, names and placeholders only
 ```
-
-Dependencies are pinned in `package-lock.json` and reviewed with `npm audit` (`--omit=dev` reports **0 vulnerabilities** at Part 10 close; six dev-only advisories remain in the test toolchain and are reported rather than hidden). No external storage, AI/OCR, antivirus, notification, queue, hosting or managed database provider has been selected; Part 4 stores documents through a provider-neutral interface with an encrypted local provider, and any vendor remains deferred and must be disclosed before use (control #22). The evaluated candidates, the disclosure each one requires and what each selection blocks are recorded in [docs/VELORA_PROVIDER_DECISIONS.md](docs/VELORA_PROVIDER_DECISIONS.md).
-
-## Ten-part delivery plan
-
-| Part | Deliverable | State |
-|---:|---|---|
-| 1 | Repository, authentication and clinic permissions | Implemented / verified locally |
-| 2 | Patient onboarding, consent and caregiver access | Implemented / verified locally |
-| 3 | Recovery episodes and care-team assignment | Implemented / verified locally |
-| 4 | Private discharge-document intake | Implemented / verified locally |
-| 5 | Manual care plans, review, approval and versioning | Implemented / verified locally - completes synthetic M1 |
-| 6 | AI extraction, source citations and reviewed language | Implemented / verified locally |
-| 7 | Medication schedules, daily tasks and actor-attributed logs | Implemented / verified locally |
-| 8 | Check-ins, clarification queue, dashboard and reminders | Implemented / verified locally |
-| 9 | Closure, audit, privacy requests, retention and metrics | Implemented / verified locally |
-| 10 | Production hardening, restore and clinical-readiness gate | Implemented / verified locally - **not deployed**; provider, backup and clinical decisions remain owner gates |
-
-Code 2 diagnostic tests/results and Code 3 insurance remain outside the active scope.
 
 ## Roles and access boundaries
 
 | Role | Boundary |
 |---|---|
 | Patient | Own records and the current approved plan; no clinical approval, no drafts |
-| Caregiver | Only explicitly active granular scopes; no automatic document or plan access, no onward invitation |
-| Care coordinator | Assigned operational coordination and manual draft authoring; no clinical publication |
-| Clinical reviewer | Assigned review, clarification and approval after clinic eligibility verification |
-| Clinic admin | Staff and settings administration; admin status alone grants no clinical-record browsing or approval |
+| Caregiver | Only explicitly active granular scopes; no automatic document/plan access |
+| Care coordinator | Assigned operational coordination and manual draft authoring |
+| Clinical reviewer | Assigned review, clarification and approval after clinic verification |
+| Clinic admin | Staff and settings; admin status alone grants no clinical-record browsing |
 
-Every protected operation must be enforced on the Express server using the authenticated identity, clinic, role, ownership or active assignment/grant, requested action and workflow state. React route protection is a user-interface layer, not the authorization boundary.
+Every protected operation is enforced on the Express server using the
+authenticated identity, clinic, role, ownership or active assignment/grant,
+requested action and workflow state. React route protection is a UI layer, not
+the authorization boundary.
 
-## Permanent security rules
+## Commands
 
-- Real secrets, keys and credentials never enter Git, React bundles, screenshots, logs or error responses.
-- `MONGODB_URI` and every credential are server-only environment variables.
-- Commit `.env.example` with names and placeholders only. Never commit `.env` or `.env.*` files containing values.
-- Passwords use Argon2id or bcrypt and are never stored in plaintext or reversible encryption.
-- Use revocable server-side sessions in secure `httpOnly` cookies, MFA for staff, CSRF protection and an exact CORS allowlist.
-- Validate and sanitize bodies, params, queries, headers, forms, filenames and uploads. Prevent NoSQL/operator injection and XSS.
-- Apply security headers, safe structured errors, rate/resource limits, dependency audits and Git tree/history secret scans.
-- Before any external API, disclose provider, purpose, API-key name, environment variable and exact backend/frontend location.
-- Security is verified throughout every part, followed by an explicit end-of-part audit.
-- Every API response defaults to `Cache-Control: no-store, private`; a controller may set a stronger directive.
-- A body-parser failure is a CLIENT error: oversized → `413`, malformed → `400`, unsupported charset/encoding → `415`, never a `500`.
-- At most ONE active staff invitation exists per clinic+email (partial unique index); accepting or revoking frees the address.
+```bash
+npm run dev                              # API :4000 + client :5173, one command
+npm run mongo:test-rs -w server          # start the replica-set dev database once
+npm run seed -w server                   # synthetic clinic + one user per role
+npm test                                 # server (424) + client (77) tests
+npm test -w server                       # 424 unit + integration tests
+npm test -w client                       # 77 client unit tests (Vitest)
+npm run lint -w client                   # ESLint
+npm run build -w client                  # production build
+npx playwright test                      # 76 browser journeys + axe/zoom/forced-colours
+node qa/layout-snapshot.js               # blocking layout regression gate (36 snapshots)
+node qa/viewport-audit.js                # 144-route six-size viewport audit
+npm run restore:drill -w server          # logical restore drill (rows+indexes+objects+decryption)
+npm run documents:reconcile -w server    # document dry run (add -- --apply --operator <email>)
+npm run keys:reseal -w server            # rotatable MFA/document keys, dry-run first
+npm run evaluate:extraction -w server    # synthetic extraction evaluation (not clinical)
+npm run gen:env                          # generate local secret values
+npm audit --omit=dev                     # production dependency audit
+```
 
-The complete 25-point contract is defined in the Master PDF and repeated in every implementation prompt.
+### Verified evidence
 
-## One-viewport application rule
+- Server **424/424** tests pass against replica-set MongoDB.
+- Client **77/77** tests, ESLint clean, production build clean
+  (initial 464.11 kB / 132.60 kB gzip; 3D scene chunk 4.99 kB gzip).
+- Browser **76 journeys passed** (+1 opt-in skip), plus the provider-disabled
+  journey run separately under `EXTRACTION_PROVIDER=none`.
+- axe (WCAG 2.1 A/AA): **0 violations across 15 screens**; 200 %/400 % reflow,
+  phone table stacking and forced-colours checks pass.
+- `qa/viewport-audit.js` 144 checks, 0 failures; `qa/hero-browser-test.js`
+  18/18; `qa/layout-snapshot.js` 36/36 against the committed baseline.
+- `npm audit`: 0 (dev and production). Documentation links: 107, 0 broken.
 
-Every authenticated application screen must fit within one viewport without page-level vertical scrolling.
+### Running the browser journeys
 
-- Long forms use multi-step wizards.
-- Long lists and tables use server pagination.
-- Many sections use tabs or separate routes.
-- Charts use switchable panels.
-- Mobile shows one primary panel at a time.
-- `overflow: hidden` must never cut required content.
+The Playwright suite needs the stack running and reseeds the synthetic clinic
+itself. Start the API the way CI starts it (the provider-disabled spec guards
+itself with the same variable, so export it to Playwright too):
 
-Required verification sizes are `1440x900`, `768x1024`, `390x844`, `320x568`, `844x390` and `320x400`. A marketing landing page may intentionally scroll.
+```bash
+EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js   # terminal 1
+EXTRACTION_PROVIDER=fake PORT=4100 npx playwright test                      # terminal 2
+```
+
+`NODE_ENV=test` switches off only the in-process blanket rate limiter; the
+durable Mongo-backed per-route limits stay active. One journey is opt-in: start
+the API with `DOCUMENT_PARSER_TIMEOUT_MS=50` and run
+`E2E_QUARANTINE=1 npx playwright test e2e/documents-quarantine.spec.js` to watch
+a valid file be quarantined end to end; it reports as skipped in a normal run.
 
 ## Interface
 
 The application uses a dark, purple-accented design system documented in
-[`docs/UI_DESIGN_SYSTEM.md`](docs/UI_DESIGN_SYSTEM.md); the pre-implementation audit is in
-[`docs/UI_REDESIGN_DUCK_REVIEW.md`](docs/UI_REDESIGN_DUCK_REVIEW.md).
+[docs/UI_DESIGN_SYSTEM.md](docs/UI_DESIGN_SYSTEM.md); the pre-implementation
+audit is in [docs/UI_REDESIGN_DUCK_REVIEW.md](docs/UI_REDESIGN_DUCK_REVIEW.md).
 
-- Tokens live in `client/src/styles/tokens.css`; no component hard-codes a colour that exists there.
-- The authenticated shell is fixed to the viewport with a collapsible sidebar on desktop and a compact
-  navigation rail below 900 px. Sign out stays visible at every size.
-- Motion is centralised in `client/src/lib/motion.js` (GSAP 3.15, `gsap.context()` cleanup). Content is
-  never animated from zero opacity, `prefers-reduced-motion` disables animation entirely, and no
-  transition exceeds 450 ms.
-- The redesign is presentation-only and is being delivered in stages; screens not yet restructured
-  still inherit the tokens, surfaces and controls. Known gaps are listed in
-  [`docs/UI_DESIGN_SYSTEM.md`](docs/UI_DESIGN_SYSTEM.md#13-known-limitations-this-stage).
+- Tokens live in `client/src/styles/tokens.css`; no component hard-codes a
+  colour that exists there.
+- The authenticated shell is fixed to the viewport with a collapsible sidebar on
+  desktop and a compact rail below 900 px; sign out stays visible at every size.
+- Motion is centralised in `client/src/lib/motion.js` (`gsap.context()`
+  cleanup); content is never animated from zero opacity, `prefers-reduced-motion`
+  disables animation entirely, and no transition exceeds 450 ms.
+- The landing hero carries the **Recovery Network**, a decorative WebGL scene
+  that is lazy-loaded, never runs on an authenticated screen, contains no
+  patient data, and falls back to a static gradient without WebGL. See
+  [docs/UI_3D_RECOVERY_NETWORK.md](docs/UI_3D_RECOVERY_NETWORK.md).
 
-## Duck review
+| Document | Purpose |
+|---|---|
+| [docs/UI_DESIGN_SYSTEM.md](docs/UI_DESIGN_SYSTEM.md) | tokens, surfaces, shell, motion, dependency and bundle decisions |
+| [docs/UI_ROUTE_SCREEN_INVENTORY.md](docs/UI_ROUTE_SCREEN_INVENTORY.md) | every route, screen and guard |
+| [docs/UI_COMPONENT_INVENTORY.md](docs/UI_COMPONENT_INVENTORY.md) | shared, shell and feature components |
+| [docs/UI_ANIMATION_GUIDELINES.md](docs/UI_ANIMATION_GUIDELINES.md) | motion rules, GSAP/three ownership, forbidden effects |
+| [docs/UI_ACCESSIBILITY_CHECKLIST.md](docs/UI_ACCESSIBILITY_CHECKLIST.md) | what passed, what was not run |
+| [docs/UI_RESPONSIVE_MATRIX.md](docs/UI_RESPONSIVE_MATRIX.md) | six required sizes, measured |
+| [docs/UI_3D_RECOVERY_NETWORK.md](docs/UI_3D_RECOVERY_NETWORK.md) | 3D concept, tiers, cleanup, failure modes, tests |
+| [docs/UI_VISUAL_REGRESSION.md](docs/UI_VISUAL_REGRESSION.md) | baseline screenshots and diff method |
+| [docs/UI_STAGE1_QA_REPORT.md](docs/UI_STAGE1_QA_REPORT.md) | verdict, evidence, defects, not-run list |
+| [docs/UI_KNOWN_LIMITATIONS.md](docs/UI_KNOWN_LIMITATIONS.md) | every open UI gap with severity and owner |
 
-At the start and end of every part:
+Still open (recorded with severity and owner in
+[docs/UI_KNOWN_LIMITATIONS.md](docs/UI_KNOWN_LIMITATIONS.md)): the full stage-3
+structural pass, dialog/toast/tooltip primitives, Firefox/WebKit, real-device
+3D measurement, a screen-reader walkthrough and i18n.
 
-1. Read the three authority PDFs and repository instructions.
-2. Inspect the real branch, commit, dirty tree, source, configuration, dependencies, tests and CI.
-3. Map behavior to VEL requirements, the active part and all 25 security controls.
-4. Classify evidence as `VERIFIED`, `IMPLEMENTED / UNVERIFIED`, `PARTIAL`, `PLANNED`, `DRIFT` or `BLOCKED`.
-5. Fix authorized in-scope drift, run the relevant checks and update the Duck Log.
-6. Report exact evidence, failed or unavailable checks, remaining risks and the next authorized action.
+## One-viewport application rule
 
-Passing tests do not establish zero bugs, clinical validation, regulatory compliance or production readiness.
+Every authenticated application screen must fit within one viewport without
+page-level vertical scrolling: long forms use multi-step wizards, long lists use
+server pagination, many sections use tabs or separate routes, and mobile shows
+one primary panel. `overflow: hidden` must never cut required content. Required
+verification sizes are `1440x900`, `768x1024`, `390x844`, `320x568`, `844x390`
+and `320x400`. A marketing landing page may intentionally scroll.
 
-## Development and Git discipline
+## Security
 
-### Setup (verified)
+Permanent rules, enforced throughout every part:
 
-Requirements: Node.js >= 20.11 and a local MongoDB **replica set**. From Part 2 on, patient/consent/
-caregiver (and episode) writes run inside transactions, so the application database must be a replica
-set (or mongos).
+- Real secrets, keys and credentials never enter Git, React bundles, screenshots,
+  logs or error responses; `MONGODB_URI` and every credential are server-only.
+- `.env.example` is committed with names and placeholders only; `.env` never is.
+- Passwords use Argon2id and are never stored in plaintext or reversibly.
+- Revocable server-side sessions in secure `httpOnly` cookies, mandatory staff
+  MFA, CSRF protection and an exact CORS allowlist.
+- Bodies, params, queries, headers, forms, filenames and uploads are validated
+  and sanitized; NoSQL/operator injection and XSS are prevented.
+- Security headers, safe structured errors, rate/resource limits, dependency
+  audits and Git secret scans.
+- Every API response defaults to `Cache-Control: no-store, private`; a
+  body-parser failure answers `413`/`400`/`415`, never `500`.
+- At most ONE active staff invitation exists per clinic+email.
 
-```bash
-npm install                                     # installs server + client + e2e workspaces
-npm run mongo:test-rs -w server                 # start the local single-node replica set (:27019)
-cp .env.example .env                            # then fill in values (see below)
-npm run gen:env                                 # generates safe local values for the two secrets
-npm run seed -w server                          # synthetic clinic + one user per role (refreshes roles)
-npm run dev                                     # API on :4000, client on :5173
-```
+The complete 25-point contract is defined in the Master PDF and repeated in
+every implementation prompt. The threat model is in
+[docs/VELORA_THREAT_MODEL.md](docs/VELORA_THREAT_MODEL.md).
 
-Part 4 adds private encrypted document storage. `DOCUMENT_STORAGE_ROOT` must be an **absolute path
-outside the repository** and `DOCUMENT_ENCRYPTION_KEY` a separate 32-byte base64 key; a relative or
-in-repo root fails startup, and the root without its key is refused (it would store plaintext).
-Provider-neutral interface, encryption format, HTTP contract and the recovery runbook are documented
-in [docs/VELORA_DOCUMENT_STORAGE.md](docs/VELORA_DOCUMENT_STORAGE.md).
+## Project authority
 
-Part 5 adds manual care plans with clinical review and approval. The state machine, clinical-field
-rules (a missing, unclear or conflicting dose, frequency or duration is never guessed and blocks
-approval), authority matrix, HTTP contract and the single approval transaction are documented in
-[docs/VELORA_CARE_PLAN.md](docs/VELORA_CARE_PLAN.md).
+Read these three documents before implementation and whenever the owner says
+**Duck**:
 
-Part 6 adds optional, source-linked AI-assisted draft extraction and reviewed Hindi/English
-presentation. **AI is an untrusted drafting tool with zero approval/publishing/prescribing
-authority**, and the manual Part 5 workflow runs unchanged when AI is unavailable - which is the
-**shipped default** (`EXTRACTION_PROVIDER=none`, no key required). The provider decision, the
-mandatory external-API disclosure table, the strict schema, the job/missing/conflict rules, the
-threat model and the evaluation limits are documented in
-[docs/VELORA_EXTRACTION.md](docs/VELORA_EXTRACTION.md).
+| Document | Purpose |
+|---|---|
+| [Velora MERN Master](docs/VELORA_MERN_MASTER.pdf) | Product scope, VEL-001–VEL-021, roadmap, clinical invariants, 25 security controls |
+| [Velora MERN Architecture](docs/VELORA_MERN_ARCHITECTURE.pdf) | System design, trust boundaries, data model, access policy, state machines |
+| [Velora MERN Duck Log](docs/VELORA_MERN_DUCK_LOG.pdf) | Project truth, evidence classes, Duck review procedure, completion gates |
 
-Part 7 turns the **current approved plan version** into medication schedules, recovery tasks, UTC
-dated occurrences and an append-only, actor-attributed log, plus the one-viewport **Today** screen the
-patient, a scoped caregiver and the assigned team all read. Only approved, clinically confirmed plan
-items can generate a schedule; a conditional/PRN item never gets a repeating time list; an
-instruction whose approved wording states no timing stays `needs_details` and generates nothing. A
-medication schedule becomes patient-visible only through the assigned, verified clinical reviewer's
-explicit activation, and an entry with nothing recorded is never shown as a missed dose. The states,
-safety wording, authority matrix, HTTP contract, DST rules andreconciliation behaviour are documented in
-[docs/VELORA_SCHEDULES.md](docs/VELORA_SCHEDULES.md).
+A roadmap item is not evidence that a feature exists. Passing tests do not
+establish zero bugs, clinical validation, regulatory compliance or production
+readiness.
 
-Part 9 adds episode closure/archive as an **operational** state (never a claim that a person has
-medically recovered), an append-only audit trail with scoped paginated search, privacy requests
-(export/correction/deletion-request) with identity verification, ownership and time-limited
-exports, configurable retention categories with dry-run/apply and holds, and operational workflow
-metrics that never infer clinical success. The closure preflight, authority matrix, request state
-machine, retention rules and metric definitions are documented in
-[docs/VELORA_PRIVACY_RETENTION.md](docs/VELORA_PRIVACY_RETENTION.md).
-
-Part 10 hardens the deployment shape and proves recovery. A `NODE_ENV=production` configuration is
-**refused** rather than warned about when it is unusable (plain-HTTP or non-bare `CLIENT_ORIGIN`, debug
-logging, a short session pepper, one encryption key reused across the MFA/document/export stores, a
-non-TLS database connection, an impossible pool bound). Proxy trust is the operator's explicit
-decision with a stated hop count - it was previously a hardcoded hop, so a deployment that said "no
-proxy" still trusted a forwarding header. `/api/health` (liveness) and `/api/ready` (database `ping` +
-encrypted-storage writability, `503` naming the failing side) sit before the rate limiter and the
-session resolver and disclose no configuration; shutdown drains, then closes the database, then exits -
-forcing a non-zero exit if the bounded grace window is exceeded. Logs are structured JSON with
-depth-limited redaction and no production stack traces. Recovery is exercised, not assumed: the
-synthetic restore drill restores rows, indexes, the encrypted objects and the document key into an
-isolated database and verifies them by reading them back, including decrypting stored documents and
-comparing their recorded hashes. A database outage is answered honestly rather than as a panic: the
-probe and the request path both return a retryable `503` naming the dependency, liveness stays up so
-nothing restarts a healthy process, and no data is served. The two encrypted stores are rotatable -
-`npm run keys:reseal -w server` moves every TOTP seed and every stored object onto a new key through
-a two-key window, dry-run first and operator-attributed, and the reconciliation command's repair path
-is exercised by tests that create each drift class deliberately. The operational limits, rotation
-procedure, failure behaviour and the
-owner decisions still open are in [docs/VELORA_OPERATIONS_RUNBOOK.md](docs/VELORA_OPERATIONS_RUNBOOK.md),
-[docs/VELORA_THREAT_MODEL.md](docs/VELORA_THREAT_MODEL.md) and
-[docs/VELORA_READINESS_REPORT.md](docs/VELORA_READINESS_REPORT.md).
-
-Part 8 adds clinic-defined recovery check-ins, the clarification queue, the assigned-team dashboard,
-in-app reminders and basic prescribed follow-ups. Check-in templates are versioned and only the
-assigned, clinic-verified reviewer can activate one or close a triggered review; a missing response
-stays missing (never a normal or abnormal result) and a clinic rule means workflow attention for a
-person, never a diagnosis. Clarification threads move through open/assigned/answered/closed/explicitly
-reopened with actor-time history: clinical answers need the assigned eligible reviewer, coordinators
-answer only operational questions, and every surface shows the clinic's published response hours
-without implying 24/7 monitoring. The dashboard's five queues (approvals, questions, check-in reviews,
-failed reminders, missing owners) are scoped to active care-team assignments, and an administrator is
-refused. Reminders are delivered **in-app first** through a provider registry that fails closed: dedupe
-by recipient/event/version/channel, a recheck of episode/plan/task/recipient state immediately before
-delivery, bounded retries with a visible failure, and delivery that is explicitly not acknowledgement.
-The domain model, authority matrix, HTTP contract, rate-limit buckets and reliability rules are	documented in [docs/VELORA_CARE_COORDINATION.md](docs/VELORA_CARE_COORDINATION.md).
-
-The example `MONGODB_URI` points at the local replica set (`mongodb://127.0.0.1:27019/velora?replicaSet=rs0`),
-which the `mongo:test-rs` script serves; the same instance hosts the `velora_test` database.
-
-Required server variables (fail-closed at startup): `MONGODB_URI`, `CLIENT_ORIGIN`, `SESSION_PEPPER`, `MFA_ENCRYPTION_KEY`. The browser receives only `VITE_API_BASE_URL`.
-
-### Commands (verified)
-
-```bash
-npm run mongo:test-rs -w server  # start the replica-set test/dev database once
-npm test -w server               # 420 unit + integration tests (replica-set MongoDB test DB;
-                                # includes the QA apiContract + accessMatrix suites and the
-                                # non-functional regressions httpHardening + invitationUniqueness)
-npm test -w client               # 61 client unit tests (Vitest)
-npm run lint -w client           # ESLint
-npm run build -w client          # production build
-npx playwright test              # 66 browser journeys (2 opt-in/skipped; 64 run) at six viewport sizes
-npm run restore:drill -w server         # logical restore drill: rows + indexes + objects + decryption
-npm run documents:reconcile -w server   # document dry run (add -- --apply --operator <email>)
-node server/scripts/dedupe-invitations.js --apply --operator <email>   # revoke duplicate ACTIVE
-                                # invitations before the unique (clinic,email) index can build
-npm run evaluate:extraction -w server   # synthetic extraction evaluation (software behaviour, not clinical)
-npm audit --omit=dev             # production dependency audit
-```
-
-Synthetic development accounts share the password `SyntheticDevPass!24` and use only `.invalid` addresses.
-
-### Running the browser journeys
-
-The Playwright suite needs the stack running and reseeds the synthetic clinic itself before it starts:
-
-```bash
-npm run dev                      # in one terminal
-npx playwright test              # in another (Chromium is installed via npx playwright install chromium)
-```
-
-The suite makes many requests in a minute, so the API is started the way CI starts it for browser
-journeys: `EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js` (and the API
-port must be exported for the seed/session setup). Export BOTH to Playwright as well -
-`EXTRACTION_PROVIDER=fake PORT=4100 npx playwright test` - because the provider-disabled spec guards
-itself with that same variable: with the provider off in Playwright but on in the API, the "fails
-closed" journey runs against an enabled provider and fails. `NODE_ENV=test` switches
-off only the in-process blanket limiter; the durable Mongo-backed per-route limits stay active. The
-journeys upload synthetic PDFs byte-for-byte, compare the downloaded bytes with the original, and
-measure the list routes, the detail screens (patient, episode, documents), the care-plan screens
-(draft, sources, review), the patient's approved-plan view, the Part 7 **Today** screen plus the
-staff schedule workspace, and the Part 8 **Queues** screen, patient **My care** panel and caregiver
-care panel at all six required viewport sizes.
-
-Part 5 seeds a dedicated M1 journey fixture: episode `EP-PLANJRNY` with an assigned coordinator, an
-assigned clinic-verified reviewer and one ready source document, and no plan data. `e2e/plans.spec.js`
-drives the whole slice through the browser - manual draft with hand-typed clinical items, source
-citation, submit, per-item clinical acceptance, confirmed approval and the patient's approved view.
-
-Part 6 seeds a dedicated AI journey fixture: episode `EP-AIJRNY` with an assigned coordinator, an
-assigned clinic-verified reviewer, a linked patient and one ready synthetic discharge note (no plan
-data). With the LOCAL deterministic provider enabled
-(`EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js`), `e2e/extractions.spec.js`
-drives the whole slice through the browser: create a draft, run a job, read the source/AI/missing/conflict
-panels, accept one value and apply it as an ordinary draft item, dismiss another, draft and approve a
-Hindi rendering, and prove the patient sees no AI text and no rendering. The same file also proves the
-**shipped default** fails closed: restart the API and Playwright with no provider
-(`EXTRACTION_PROVIDER=none`) and the job reports `PROVIDER_DISABLED` while drafting by hand keeps
-working.
-
-Part 7 seeds a dedicated schedule journey fixture: episode `EP-SCHEDJRNY` with an assigned
-coordinator, an assigned clinic-verified reviewer, a linked patient (`PT-SCHEDJRNY`) and a caregiver
-holding `view_tasks` + `log_tasks`. `e2e/today.spec.js` records a past-day entry as the patient and
-asserts the self-report wording (never a missed dose), records one as the scoped caregiver, walks the
-staff schedule workspace (prepared schedules, the UTC instant column, the recorded-entry history) and
-measures the day view at all six viewport sizes.
-
-Part 10 adds `e2e/accessibility.spec.js`: it tabs through the authenticated shell, requires a visible
-focus indicator (an outline of at least 2px, not just focus), activates an in-app navigation link with
-the keyboard and asserts the route changed. It deliberately performs **no** sign-out, because the
-enrolled sessions are shared with the viewport and journey specs.
-
-One journey is opt-in because it needs an API with a tiny parser budget: start the API with
-`DOCUMENT_PARSER_TIMEOUT_MS=50` and run `E2E_QUARANTINE=1 npx playwright test
-e2e/documents-quarantine.spec.js` to watch a structurally valid file be quarantined end to end. It is
-reported as skipped in a normal run so the default gate stays meaningful.
-
-During implementation:
-
-1. Work on a focused feature branch.
-2. After each coherent feature or about 300 meaningful lines, run relevant tests and inspect the diff.
-3. Create one meaningful commit and push it when authorized.
-4. Target 50+ meaningful commits across the complete project without padding history.
-5. Run the complete part gate, security audit and Duck review before merge.
-6. Update this README and all applicable documents so they describe real behavior.
+Further documentation: [docs/](docs/) — architecture, system design, runbook,
+threat model, readiness report, session log and the per-part design documents.
 
 ## Data and readiness boundary
 
-Development uses synthetic identities and synthetic documents only; no real patient data or real
-clinical files are used. A document status of `ready` means the upload passed **technical** validation
-and is queued for later human review - it never means clinically approved, and no antivirus
-certification is claimed. An `approved` care-plan version means an assigned, clinic-verified clinical
-reviewer approved that exact version; it is not a claim of clinical correctness or of regulatory
-compliance, and approval activates **no** task, reminder or message. AI-assisted extraction is an untrusted drafting aid: it cannot approve, publish, prescribe, change clinical state, activate a task or send a reminder, and the synthetic evaluation harness measures software behaviour only - it is not clinical accuracy. No external AI/OCR provider is selected or called. Before any real-patient pilot, Velora requires clinical workflow review, privacy/provider decisions (including the completed AI provider disclosure), retention and incident processes, verified staff onboarding, secure deployment, backup plus isolated restore testing, a labelled clinical extraction/language evaluation and explicit owner authorization.
+Development uses synthetic identities and synthetic documents only; no real
+patient data or clinical files are used. A document status of `ready` means the
+upload passed **technical** validation and is queued for human review — it never
+means clinically approved. An `approved` care-plan version means an assigned,
+clinic-verified reviewer approved that exact version; it is not a claim of
+clinical correctness, and approval activates **no** task or reminder. AI-assisted
+extraction is an untrusted drafting aid: it cannot approve, publish, prescribe or
+activate anything, and no external AI/OCR provider is selected or called.
+
+Before any real-patient pilot, Velora requires clinical workflow review,
+privacy/provider decisions, retention and incident processes, verified staff
+onboarding, secure deployment, backup plus isolated restore testing, a labelled
+clinical extraction evaluation and explicit owner authorization.
+
+## Development and Git discipline
+
+1. Work on a focused feature branch.
+2. After each coherent feature or ~300 meaningful lines, run relevant tests and
+   inspect the diff.
+3. Create one meaningful commit and push it when authorized.
+4. Run the complete part gate, security audit and Duck review before merge.
+5. Update this README and all applicable documents so they describe real behavior.
 
 ## Owner
 

@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -74,7 +75,7 @@ export default function AuditPanel() {
       </form>
 
       <div className="panel-scroll">
-        <table className="table">
+        <ResponsiveTable>
           <caption className="visually-hidden">Audit events</caption>
           <thead>
             <tr><th scope="col">When</th><th scope="col">Action</th><th scope="col">Category</th><th scope="col">Actor</th><th scope="col">Outcome</th></tr>
@@ -91,7 +92,7 @@ export default function AuditPanel() {
             ))}
             {data.items.length === 0 && <tr><td colSpan={5}>{loading ? 'Loading…' : 'No events match this search.'}</td></tr>}
           </tbody>
-        </table>
+        </ResponsiveTable>
       </div>
 
       <nav className="pager" aria-label="Audit pagination">

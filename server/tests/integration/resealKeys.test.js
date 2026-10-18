@@ -139,12 +139,16 @@ test('a rotated MFA key strands no authenticator: the same TOTP code still verif
     require('../../src/services/crypto').openSecret(before.mfa.secretEnc),
     before.email
   );
-  assert.equal(await mfaService.verifyTotp(before, code), true);
+  // This test is about the SEED surviving a key rotation, so it verifies the
+  // same code more than once on purpose. `consume: false` keeps D-4's single-use
+  // step claim out of the way; the replay guarantee itself is covered in
+  // auth.test.js.
+  assert.equal(await mfaService.verifyTotp(before, code, { consume: false }), true);
 
   rotateEnv();
   const stranded = await harness.models.User.findById(ctx.userId).select('+mfa.secretEnc');
   assert.equal(
-    await mfaService.verifyTotp(stranded, code),
+    await mfaService.verifyTotp(stranded, code, { consume: false }),
     false,
     'the retired key must not still open the seed'
   );
@@ -162,7 +166,7 @@ test('a rotated MFA key strands no authenticator: the same TOTP code still verif
   const rotated = await harness.models.User.findById(ctx.userId).select('+mfa.secretEnc');
   assert.notEqual(rotated.mfa.secretEnc, before.mfa.secretEnc);
   // The user's EXISTING authenticator entry keeps working: same seed, new key.
-  assert.equal(await mfaService.verifyTotp(rotated, code), true);
+  assert.equal(await mfaService.verifyTotp(rotated, code, { consume: false }), true);
 });
 
 test('one run re-seals both stores and records a single attributed audit event', async () => {

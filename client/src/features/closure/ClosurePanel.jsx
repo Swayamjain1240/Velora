@@ -1,5 +1,6 @@
 'use strict';
 
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -142,7 +143,7 @@ export default function ClosurePanel({ episodeId, episode, onChanged }) {
 
           {step === 0 && (
             <div>
-              <table className="table">
+              <ResponsiveTable>
                 <caption className="visually-hidden">Closure preflight</caption>
                 <thead>
                   <tr><th scope="col">Outstanding work</th><th scope="col">Count</th><th scope="col">Blocks closure</th></tr>
@@ -156,7 +157,7 @@ export default function ClosurePanel({ episodeId, episode, onChanged }) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </ResponsiveTable>
               <p className="muted">
                 {unresolved.length
                   ? `${unresolved.length} item(s) still need attention.`
@@ -263,7 +264,7 @@ export default function ClosurePanel({ episodeId, episode, onChanged }) {
               Active retention holds: {history.retentionHolds.map((h) => h.category).join(', ')}
             </p>
           )}
-          <table className="table">
+          <ResponsiveTable>
             <caption className="visually-hidden">Closure history</caption>
             <thead>
               <tr><th scope="col">When</th><th scope="col">Action</th><th scope="col">Reason</th><th scope="col">By</th><th scope="col">Checks</th></tr>
@@ -280,7 +281,7 @@ export default function ClosurePanel({ episodeId, episode, onChanged }) {
               ))}
               {history.items.length === 0 && <tr><td colSpan={5}>No closure events yet.</td></tr>}
             </tbody>
-          </table>
+          </ResponsiveTable>
           <nav className="pager" aria-label="Closure history pagination">
             <button type="button" className="btn btn--ghost" disabled={history.page <= 1} onClick={() => loadHistory(history.page - 1)}>Previous</button>
             <span>Page {history.page} of {pages}</span>

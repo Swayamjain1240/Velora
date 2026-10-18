@@ -811,8 +811,19 @@ test('parallel approval cannot produce two current versions', async () => {
       .send({ expectedRevision: rev, confirm: true }),
   ]);
 
+  // D-12: the invariant is "never two current versions", not a particular
+  // interleaving. When the second request lands after the first commit it is
+  // answered as the documented idempotent retry (200); when it lands while the
+  // first is still running it is refused as stale (409). Asserting [200, 409]
+  // made the test depend on scheduling; asserting the outcome does not.
   const statuses = [one.status, two.status].sort();
-  assert.deepEqual(statuses, [200, 409], JSON.stringify([one.body, two.body]));
+  for (const status of statuses) {
+    assert.ok([200, 409].includes(status), JSON.stringify([one.body, two.body]));
+  }
+  assert.equal(statuses[0], 200, 'one approval must succeed');
+  const idempotent = [one.body, two.body].filter((body) => body && body.idempotent);
+  const stale = statuses.filter((status) => status === 409).length;
+  assert.equal(idempotent.length + stale, 1, 'the second outcome is a retry or a stale conflict');
 
   assert.equal(
     await harness.models.CarePlanVersion.countDocuments({
@@ -1153,4 +1164,25 @@ test('approval activates no task, reminder, schedule, occurrence or log', async 
   // explicit prepare + activate by the authorized humans.
   assert.equal(episodes[0].planState, 'approved');
   assert.ok(episodes[0].approvedPlanVersion);
+});
+
+// The non-functional pass observed "GET /api/plans returned 0 items for an
+// episode whose plan the same session had just created". This mirrors the perf
+// driver exactly (POST an empty draft, then list with page=1&limit=1); the plan
+// invariants were already covered, but not this read-after-write shape.
+test('a draft created by the documented first step is listed immediately (perf observation)', async () => {
+  const ctx = await setup();
+  const created = await ctx.coordCtx.a
+    .post(`/api/episodes/${ctx.episode.id}/plans`)
+    .set('X-CSRF-Token', ctx.coordCtx.csrf)
+    .send({});
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+
+  const list = await ctx.coordCtx.a.get(
+    `/api/episodes/${ctx.episode.id}/plans?page=1&limit=1`
+  );
+  assert.equal(list.status, 200, JSON.stringify(list.body));
+  assert.equal(list.body.items.length, 1);
+  assert.equal(list.body.items[0].id, created.body.plan.id);
+  assert.equal(list.body.total, 1);
 });
