@@ -191,12 +191,55 @@ reconciliation command exists to detect.
 | Keys | `DOCUMENT_ENCRYPTION_KEY`, `MFA_ENCRYPTION_KEY`, `PRIVACY_EXPORT_ENCRYPTION_KEY`, `SESSION_PEPPER` | **without the document key the object store is unusable data**; without the MFA key no staff member can complete MFA |
 | Configuration | the deployment's environment (names in [.env.example](../.env.example)) | a restore that cannot start is not a restore |
 
-Backup cadence, provider, encryption-at-rest, off-host/off-region storage, immutability and audit of
-backup access are **OWNER DECISION / BLOCKED**: no external provider is selected, so no schedule
-and no retention window can be claimed. What the code can state honestly is its **recovery point
-requirement**: MongoDB metadata and the object store are not written in one transaction, so a
-backup must capture both at (or near) the same instant, or accept a bounded reconciliation step
-after restore.
+### 6.1 A set is written by a command, and the schedule is yours
+
+`server/scripts/backup.js` writes a complete set to `BACKUP_ROOT` and verifies it BEFORE reporting
+success:
+
+```bash
+npm run backup:create -w server                 # <BACKUP_ROOT>/<UTC set id>, then verification
+npm run backup:verify -w server -- <set id>     # decrypts and re-checks every file
+npm run backup:prune -w server                  # keeps BACKUP_RETAIN_SETS complete sets
+npm run backup:restore -w server -- --set <id> --target <uri> --objects-root <abs path>
+```
+
+The set is encrypted at rest with `BACKUP_ENCRYPTION_KEY` (AES-256-GCM, per-file IV, appended tag).
+The key is **required**: a missing one is a refusal, never a plaintext fallback. The manifest carries
+counts, per-collection checksums, index definitions (including partial filters and TTLs), object
+digests and **key fingerprints only** - no key material and no clinical values.
+
+Objects are copied **before** rows. Metadata is only committed after its object is written, so this
+ordering can leave an orphan object (reported by reconciliation) but can never leave a row whose
+bytes are missing. Collections are read sequentially, so the copy is logical rather than a snapshot;
+the manifest states that window rather than implying atomicity.
+
+Every run is recorded in the `backupruns` collection (status, counts, duration, key fingerprint, safe
+error text). The newest `complete` row is the **recovery point** an operator can quote.
+
+Measured on this host, 19 October 2026, against the seeded development database (8,499 documents,
+277 objects, 12.3 MB): **create + verify 1,495 ms**, and a full **restore into an isolated database
+11,399 ms** (rows 10,672 ms, objects 633 ms). Those are synthetic-volume, single-host numbers: they
+bound what this host does, not a production RTO.
+
+Scheduling stays OUTSIDE the application process - an in-process interval would duplicate runs behind
+a load balancer and would stop when the process restarted:
+
+```cron
+# 02:00 daily. The cadence is the owner's choice; see the decision below.
+0 2 * * * cd /srv/velora && set -a && . ./backup.env && set +a && npm run backup:create -w server >> /var/log/velora-backup.log 2>&1
+```
+
+`backup.env` lives in the operator's secret store and holds `BACKUP_ENCRYPTION_KEY`, `BACKUP_ROOT`
+and the connection settings. The Windows equivalent is a Task Scheduler job running the same command.
+
+What the code can state honestly is its **recovery point requirement**: MongoDB metadata and the
+object store are not written in one transaction, so both must travel in the same set (which the
+command guarantees by ordering) or accept the bounded reconciliation step in §7.2.
+
+Still **OWNER DECISION**: the cadence (which sets the RPO - a set protects everything up to the
+moment it started), an off-host/off-region destination, immutable storage, auditing of who reads
+backup files, and custody/rotation of `BACKUP_ENCRYPTION_KEY`. A set can only be restored with the
+key it was written with; the manifest records the fingerprint, never the key.
 
 Backups must never include `.env`, keys in plaintext, or a copy of this repository; keys belong in a
 secret manager the owner selects.
@@ -258,8 +301,9 @@ rebuild an index is reported as a finding instead of crashing.
 What this proves: the rows, indexes, objects and key are sufficient to reconstruct a working copy on
 the same host, and stored documents decrypt from that copy.
 What it does **not** prove (**BLOCKED**): provider-level durability, cross-region or point-in-time
-recovery, a bounded RPO (the copy is taken live; there is no scheduled backup) or a production RTO
-(the timings above are synthetic).
+recovery, or a production RTO (the timings above are synthetic). The drill's own copy is taken live,
+so it does not bound data loss by itself - the scheduled set in §6.1 is what bounds the RPO, and the
+recovery point is the newest `complete` row in `backupruns`.
 
 ### 7.2 Reconciliation after a partial restore
 
@@ -276,6 +320,21 @@ The report is read-only by default and the repair path has its own integration t
 each drift class deliberately (lost object, tampered envelope, validly encrypted object whose
 plaintext no longer matches its recorded hash, orphan with no metadata row) and asserts the dry run
 changes nothing before asserting the repair.
+
+### 7.3 Restoring a backup set
+
+```bash
+node server/scripts/restore-backup.js --set 20261019T100936Z \
+  --target 'mongodb://…/velora_restored?replicaSet=rs0' \
+  --objects-root /srv/velora-restored
+```
+
+Refuses the application database, refuses a set whose key fingerprint does not match the configured
+`BACKUP_ENCRYPTION_KEY`, and refuses a target that already holds rows unless `--force` is given. It
+recreates collections and index options from the manifest, copies the encrypted objects verbatim,
+then counts and re-digests the target before printing PASSED, with the observed timings and the set's
+recovery point. Configuration and keys are restored separately (§7 step 1). Restoring into the live
+objects root additionally requires `--allow-live-objects`.
 
 ---
 
@@ -394,6 +453,9 @@ npm run build -w client
 npm run e2e                         # Playwright journeys (needs API + client running and seeded)
 npm audit --omit=dev                # production dependency audit
 node server/scripts/restore-drill.js
+node server/scripts/backup.js               # create + verify a set (needs BACKUP_ENCRYPTION_KEY)
+node server/scripts/backup.js --verify <id> # re-check a set later
+node server/scripts/restore-backup.js       # restore a set into an isolated database
 node server/scripts/reconcile-documents.js
 node server/scripts/reseal-keys.js          # dry run; "nothing to do" unless a rotation is staged
 ```
@@ -414,8 +476,9 @@ before merge, and require a review on `main`; no direct pushes to `main`.
 1. **Provider selection** for hosting, managed MongoDB, private object storage, notification
    delivery, job processing, AI/OCR and monitoring — each with its control-#22 disclosure
    ([provider decision register](VELORA_PROVIDER_DECISIONS.md)).
-2. **Backup cadence, location, encryption, retention and access audit** (and therefore the actual
-   RPO/RTO commitments).
+2. **Backup cadence, destination, immutability, access audit and key custody** (and therefore the
+   actual RPO/RTO commitments). The mechanism exists and is verified (§6.1, §7.3); the policy and
+   the off-host storage are owner decisions.
 3. **A managed key store and rotation cadence**: the re-seal command exists and is proven locally
    (§8.1), but WHERE the keys live, WHO may rotate them, and HOW OFTEN is still an owner decision —
    and a provider's own rotation behaviour (versioned objects, key-store audit logs) is unverified.

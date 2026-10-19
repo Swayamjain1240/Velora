@@ -90,6 +90,7 @@ const ExportDownloadGrant = require('../../src/models/ExportDownloadGrant');
 const RetentionPolicy = require('../../src/models/RetentionPolicy');
 const RetentionRun = require('../../src/models/RetentionRun');
 const RetentionHold = require('../../src/models/RetentionHold');
+const BackupRun = require('../../src/models/BackupRun');
 
 let counter = 0;
 function uniq(prefix) {
@@ -139,7 +140,7 @@ async function resetDb() {
     ClarificationThread, ClarificationMessage,
     Notification, DeliveryAttempt, QueueAssignment, FollowUpPlan,
     EpisodeClosure, DataRequest, DataExport, ExportDownloadGrant,
-    RetentionPolicy, RetentionRun, RetentionHold,
+    RetentionPolicy, RetentionRun, RetentionHold, BackupRun,
   ];
   // Remove every stored object so a test can never observe a prior test's bytes.
   const objectsDir = path.join(process.env.DOCUMENT_STORAGE_ROOT, 'objects');
@@ -348,6 +349,6 @@ module.exports = {
     ClarificationThread, ClarificationMessage,
     Notification, DeliveryAttempt, QueueAssignment, FollowUpPlan,
     EpisodeClosure, DataRequest, DataExport, ExportDownloadGrant,
-    RetentionPolicy, RetentionRun, RetentionHold,
+    RetentionPolicy, RetentionRun, RetentionHold, BackupRun,
   },
 };

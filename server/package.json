@@ -13,6 +13,10 @@
     "documents:reconcile": "node scripts/reconcile-documents.js",
     "keys:reseal": "node scripts/reseal-keys.js",
     "restore:drill": "node scripts/restore-drill.js",
+    "backup:create": "node scripts/backup.js",
+    "backup:verify": "node scripts/backup.js --verify",
+    "backup:prune": "node scripts/backup.js --prune",
+    "backup:restore": "node scripts/restore-backup.js",
     "evaluate:extraction": "node scripts/evaluate-extraction.js"
   },
   "dependencies": {

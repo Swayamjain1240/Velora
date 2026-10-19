@@ -1634,3 +1634,77 @@ Re-affirmed as unverified rather than quietly assumed: **nothing is pushed** (44
 deployment, provider, key store, backup schedule or monitoring exists; the drill's timings are this
 host's, not an RTO; and no claim of zero bugs, compliance, clinical validation, production readiness
 or real-patient readiness appears anywhere in these records.
+
+---
+
+## 19 October 2026 - Phase A gate 1 (CI) and gate 4 (scheduled backups)
+
+### CI ran for the first time on a pull request
+
+**PR #1** (`feat/ui-redesign-dark-purple` -> `main`) is the first pull request in this repository.
+The workflow only triggers on `push: main` and `pull_request`, which is why thirteen runs on `main`
+failed and no run had ever exercised a branch revision.
+
+First PR run, 19 October 2026:
+
+| Job | Result |
+|---|---|
+| Server tests | **success** |
+| Client tests, lint and build | **success** |
+| Browser journeys | **failure** - 76 Playwright journeys passed; the post-test layout gate failed |
+| Dependency audit and secret scan | **failure** - `gitleaks-action` refused to run |
+
+The hero-tier failure recorded in the duck log is confirmed fixed on a clean machine: both suites are
+green in CI, not only locally.
+
+### The two CI failures were causes, not flakes
+
+1. **`gitleaks-action` v2 requires `GITHUB_TOKEN` for `pull_request` events.** It failed before
+   scanning anything ("GITHUB_TOKEN is now required to scan pull requests"), so the job had never
+   reported a real secret-scan result on a PR. The workflow now passes the automatic read-only token.
+2. **The layout gate was not portable.** `qa/layout-snapshot.js` compares 36 route/size snapshots
+   against a baseline captured on Windows. Only `mainWidth` differed on CI, by ~21 px, and only on
+   phone widths: those screens reach their **min-content** width, which depends on the font fallback
+   (Segoe UI on Windows, Liberation Sans on the runner). Overflow, headings, table/card counts and nav
+   counts matched exactly. `mainWidth` now carries a 32 px allowance at phone widths **only**; every
+   other number stays at +/-2. Widening a gate is only honest if it keeps catching what it existed
+   for, so the exact checks were left alone.
+
+The gate also produced a finding: `/app/clinic` measures `main` at **412 px inside a 390 px
+viewport** on the runner (384 px in 320 px on Windows) while page overflow reports 0, because the
+document is `overflow-x: hidden`. That is recorded as **L16** in the UI limitations: the stage-3
+structural pass must remove the cause rather than widen the gate.
+
+### Backups: a set, a schedule-capable command, a restore path
+
+The restore drill proved a copy *can* be restored, but it copied the live database at run time, so it
+could not bound data loss and no schedule existed. Phase A gate 4 adds the missing artifact:
+
+- `server/src/services/backupService.js` writes a complete set - encrypted rows (`EJSON`, one
+  document per line), the encrypted object store copied verbatim, and a manifest with counts,
+  per-collection checksums, index definitions (partial filters and TTLs included), object digests and
+  **key fingerprints only**. Sets are encrypted at rest with `BACKUP_ENCRYPTION_KEY`
+  (AES-256-GCM, per-file IV, appended tag); a missing key is a refusal, never a plaintext fallback.
+- Objects are copied **before** rows, so the ordering can leave an orphan object (which
+  reconciliation reports) but never a row whose bytes are missing.
+- `scripts/backup.js` creates, verifies and prunes; `scripts/restore-backup.js` restores into an
+  isolated database and objects root, refusing the application database, a wrong key fingerprint, and
+  a non-empty target without `--force`.
+- Every run is recorded in `backupruns`; the newest `complete` row is the recovery point.
+- Scheduling is cron/Task Scheduler, deliberately outside the process (an interval would duplicate
+  runs behind a load balancer and stop on restart). The cadence stays an owner decision.
+
+Evidence on the seeded development database (8,499 documents, 277 objects, 12.3 MB), 19 October 2026:
+
+```text
+create + verify   1,495 ms
+restore           11,399 ms   (rows 10,672 ms, objects 633 ms)
+rows/objects      matched the manifest; 0 mismatches
+```
+
+Tests: 9 unit checks (envelope round-trip, wrong key and flipped byte both fail, set-id traversal,
+retention, index options) and 4 integration checks (set encrypted and matching the database, wrong
+key refused before writing, app-database and non-empty targets refused, restored bytes decrypt).
+
+Still owner decisions: backup cadence, off-host/off-region storage, immutability, access audit and
+key custody. Still blocked: a real deployment, provider selection and clinical/privacy sign-off.

@@ -192,6 +192,26 @@ const envSchema = z
     RETENTION_APPLY_MAX_ITEMS: z.coerce.number().int().min(1).max(100000).default(5000),
     // Audit search window bound, so a query cannot scan the whole history at once.
     AUDIT_SEARCH_MAX_RANGE_DAYS: z.coerce.number().int().min(1).max(3650).default(366),
+    // Phase A gate 4: backup SETS are encrypted at rest with a key that is
+    // SEPARATE from the document, MFA and export keys (control #1). It stays
+    // optional so the product still starts without a backup schedule, but the
+    // backup commands FAIL CLOSED when it is absent rather than writing clinical
+    // rows in plaintext (control #2).
+    BACKUP_ENCRYPTION_KEY: z
+      .string()
+      .refine((value) => {
+        try {
+          return Buffer.from(value, 'base64').length === 32;
+        } catch {
+          return false;
+        }
+      }, 'BACKUP_ENCRYPTION_KEY must be base64 encoding exactly 32 bytes')
+      .optional(),
+    // Where sets are written. Absolute and outside the repository, exactly like
+    // DOCUMENT_STORAGE_ROOT, so a backup can never be committed or served.
+    BACKUP_ROOT: z.string().min(1).optional(),
+    // How many COMPLETE sets to keep. Never deletes the newest set.
+    BACKUP_RETAIN_SETS: z.coerce.number().int().min(1).max(365).default(14),
   })
   .superRefine((value, ctx) => {
     const issue = (path, message) =>
@@ -214,6 +234,19 @@ const envSchema = z
 
     if (value.MONGO_MIN_POOL_SIZE > value.MONGO_MAX_POOL_SIZE) {
       issue('MONGO_MIN_POOL_SIZE', 'MONGO_MIN_POOL_SIZE must not exceed MONGO_MAX_POOL_SIZE');
+    }
+
+    // The backup key protects a superset of the other stores, so reusing one of
+    // them would mean a single leaked key opens the live store AND every copy of
+    // it. Checked in every environment, not only production.
+    for (const other of [
+      'DOCUMENT_ENCRYPTION_KEY',
+      'MFA_ENCRYPTION_KEY',
+      'PRIVACY_EXPORT_ENCRYPTION_KEY',
+    ]) {
+      if (value.BACKUP_ENCRYPTION_KEY && value.BACKUP_ENCRYPTION_KEY === value[other]) {
+        issue('BACKUP_ENCRYPTION_KEY', `BACKUP_ENCRYPTION_KEY must differ from ${other}`);
+      }
     }
 
     // A rotation pair that names the SAME value would re-encrypt every object
@@ -286,24 +319,28 @@ const envSchema = z
     // Storage-root/key pairing: a root without its own key would store
     // plaintext, and the root must never sit inside the repo or a web root.
     const repoRoot = path.resolve(__dirname, '../../..');
-    if (value.DOCUMENT_STORAGE_ROOT) {
-      if (!path.isAbsolute(value.DOCUMENT_STORAGE_ROOT)) {
+    // Both an object store and a backup destination must sit outside the
+    // repository: a backup of clinical rows must never be committable or served.
+    for (const name of ['DOCUMENT_STORAGE_ROOT', 'BACKUP_ROOT']) {
+      const configured = value[name];
+      if (!configured) continue;
+      if (!path.isAbsolute(configured)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['DOCUMENT_STORAGE_ROOT'],
-          message: 'DOCUMENT_STORAGE_ROOT must be an absolute path',
+          path: [name],
+          message: `${name} must be an absolute path`,
         });
-      } else {
-        const root = path.resolve(value.DOCUMENT_STORAGE_ROOT);
-        const rel = path.relative(repoRoot, root);
-        const insideRepo = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-        if (insideRepo) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['DOCUMENT_STORAGE_ROOT'],
-            message: 'DOCUMENT_STORAGE_ROOT must be outside the repository',
-          });
-        }
+        continue;
+      }
+      const root = path.resolve(configured);
+      const rel = path.relative(repoRoot, root);
+      const insideRepo = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+      if (insideRepo) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [name],
+          message: `${name} must be outside the repository`,
+        });
       }
     }
   });
