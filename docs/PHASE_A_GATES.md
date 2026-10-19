@@ -80,12 +80,18 @@ npm run backup:prune -w server                   # keeps BACKUP_RETAIN_SETS comp
 ```
 
 A set is encrypted rows, the object store copied verbatim, and a manifest of counts, checksums,
-index options and key fingerprints. Objects are copied before rows, so no restored row can reference
-a missing object. Every run is recorded in `backupruns`; the newest `complete` row is the recovery
-point.
+index options and key fingerprints. Objects are copied before rows and **swept again** after them,
+so a row written during the read window still brings its object. Every run is recorded in
+`backupruns`; the newest `complete` row is the recovery point. Verification checks the manifest's
+own digest and its exact collection-file set; a set that fails is marked `failed` and cannot be
+restored or counted by retention.
 
-Measured on the seeded database (8,499 documents, 277 objects, 12.3 MB):
-**create + verify 1,495 ms**, **restore 11,399 ms** (rows 10,672 ms, objects 633 ms), 0 mismatches.
+Measured on the seeded database (8,501 documents, 277 objects, 12.3 MB):
+**create + verify 1,829 ms**, **restore 11,995 ms** (rows 11,142 ms, objects 736 ms), 0 mismatches.
+An earlier run on 8,499 documents measured 1,495 ms / 11,399 ms, so the figures track volume rather
+than being fixed. The sweep reports **47 referenced objects already missing at the source** in this
+development dataset - pre-existing drift that reconciliation reports, not something a backup can
+invent.
 
 Still owner decisions: **cadence** (this sets the RPO), off-host/off-region destination,
 immutability, backup-access audit, and custody of `BACKUP_ENCRYPTION_KEY`.

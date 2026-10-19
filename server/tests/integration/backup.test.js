@@ -73,6 +73,10 @@ async function seed() {
     patientCode: 'SYN-BACKUP-1',
     clinic: new mongoose.Types.ObjectId(),
   });
+  // A collection that exists but holds no rows and no secondary index: a restore
+  // that only creates collections by inserting rows would lose it silently.
+  await db.collection('empty_marker').createIndex({ marker: 1 });
+  await db.collection('empty_marker').deleteMany({});
   const objectKey = storage.newStorageKey();
   await storage.put(objectKey, Buffer.from('synthetic clinical document bytes'));
   return objectKey;
@@ -112,7 +116,12 @@ test('a created set is encrypted, matches the database, and verifies', async () 
 
   const verification = await backup.verifySet(directory, BACKUP_KEY);
   assert.equal(verification.ok, true, JSON.stringify(verification.checks));
-  assert.equal(verification.checks.length, 3);
+  // key, manifest digest, complete, file set, collections, objects
+  assert.equal(verification.checks.length, 6);
+  assert.deepEqual(
+    verification.checks.map((c) => c.ok),
+    [true, true, true, true, true, true]
+  );
 
   await backup.recordRun({
     setId: manifest.setId,
@@ -208,6 +217,7 @@ test('a restored set reproduces the rows and the encrypted object bytes', async 
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.documents, manifest.mongo.documents);
   assert.equal(result.rowMismatches, 0);
+  assert.equal(result.collectionMismatches, 0);
   assert.equal(result.objectsOk, true);
   assert.equal(result.recoveryPoint, manifest.startedAt);
 
@@ -229,6 +239,97 @@ test('a restored set reproduces the rows and the encrypted object bytes', async 
   await client.connect();
   const restoredPatient = await client.db().collection('patients').findOne({ patientCode: 'SYN-BACKUP-1' });
   assert.equal(restoredPatient.fullName, 'Synthetic Backup Patient');
+  // A row-less collection is part of the set and must come back as a collection.
+  const emptyMarker = await client
+    .db()
+    .listCollections({ name: 'empty_marker' })
+    .toArray();
+  assert.equal(emptyMarker.length, 1, 'the empty collection was recreated');
   await client.db().dropDatabase();
   await client.close();
+});
+
+test('a tampered manifest is caught by verification', async () => {
+  await seed();
+  const { directory, manifestPath } = await makeSet();
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+  // Drop a collection from the manifest. The file is still on disk, so the set
+  // is internally inconsistent - the probe that found this reported PASSED
+  // before the file-set and digest checks existed.
+  manifest.mongo.collections = manifest.mongo.collections.filter((c) => c.name !== 'empty_marker');
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+  const verification = await backup.verifySet(directory, BACKUP_KEY);
+  assert.equal(verification.ok, false);
+  const failed = verification.checks.filter((c) => !c.ok).map((c) => c.name);
+  assert.ok(failed.includes('manifest matches its own digest'), failed.join(', '));
+  assert.ok(failed.includes('manifest lists exactly the collection files present'), failed.join(', '));
+
+  // And a restore refuses the same set instead of publishing it.
+  await assert.rejects(
+    () =>
+      backup.restoreSet({
+        directory,
+        targetUri: withDbName(process.env.MONGODB_TEST_URI, `velora_backup_tampered_${Date.now()}`),
+        objectsRoot: path.join(root, 'objects-tampered'),
+        key: BACKUP_KEY,
+        env: process.env,
+      }),
+    (err) => err.code === 'RESTORE_SET_TAMPERED'
+  );
+});
+
+test('a failed set is never restored and never pruned as a recovery point', async () => {
+  await seed();
+  const { directory, manifest } = await makeSet();
+  await backup.markSetFailed(directory, 'injected failure');
+
+  const marked = await backup.listSets(root);
+  assert.equal(marked.find((s) => s.id === manifest.setId).complete, false);
+
+  const targetUri = withDbName(process.env.MONGODB_TEST_URI, `velora_backup_failed_${Date.now()}`);
+  await assert.rejects(
+    () =>
+      backup.restoreSet({
+        directory,
+        targetUri,
+        objectsRoot: path.join(root, 'objects-failed'),
+        key: BACKUP_KEY,
+        env: process.env,
+      }),
+    (err) => err.code === 'RESTORE_SET_FAILED'
+  );
+
+  // Retention ignores it: a failed newest set must not evict a good older one.
+  const prune = await backup.pruneSets(root, 1);
+  assert.deepEqual(prune.deleted, []);
+  assert.equal(prune.skipped.some((s) => s.id === manifest.setId), true);
+});
+
+test('the sweep copies an object referenced by a row written after the object pass', async () => {
+  const db = mongoose.connection.db;
+  // This is the window the ordering claim originally missed: the object is
+  // written and its metadata row committed AFTER the set's object copy.
+  const objectKey = storage.newStorageKey();
+  await storage.put(objectKey, Buffer.from('late synthetic document bytes'));
+  await db.collection('episodedocuments').insertOne({
+    storageKey: objectKey,
+    status: 'ready',
+    byteSize: 28,
+  });
+
+  const destination = path.join(root, 'objects-sweep');
+  const result = await backup.sweepReferencedObjects({
+    db,
+    objectsRoot: path.join(process.env.DOCUMENT_STORAGE_ROOT, 'objects'),
+    destinationRoot: destination,
+    entries: [],
+  });
+
+  assert.equal(result.copied, 1);
+  assert.equal(result.missing, 0);
+  const copied = path.join(destination, objectKey.slice(0, 2), `${objectKey}.bin`);
+  assert.equal(fs.existsSync(copied), true);
+  assert.equal(fs.readFileSync(copied).equals(fs.readFileSync(storage.objectPath(objectKey))), true);
 });

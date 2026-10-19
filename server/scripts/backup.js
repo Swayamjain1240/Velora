@@ -44,11 +44,6 @@ function parseArgs(argv) {
   return args;
 }
 
-function refuse(message) {
-  process.stderr.write(`refused: ${message}\n`);
-  process.exit(2);
-}
-
 async function main() {
   loadEnv();
   const env = getEnv();
@@ -107,6 +102,13 @@ async function main() {
     for (const check of verification.checks) {
       process.stdout.write(`  ${check.ok ? 'PASS' : 'FAIL'}  ${check.name} - ${check.detail}\n`);
     }
+    // A set that failed verification is marked failed on disk, so a LATER prune
+    // (or another operator) cannot mistake it for a recovery point.
+    if (!verification.ok) {
+      await backup
+        .markSetFailed(directory, 'set failed its own verification')
+        .catch((err) => process.stderr.write(`warning: could not mark the set failed: ${err.message}\n`));
+    }
 
     await backup.recordRun({
       setId,
@@ -122,6 +124,9 @@ async function main() {
       objectBytes: manifest.objects.bytes,
       setBytes: fs.statSync(manifestPath).size,
       keyFingerprint: manifest.encryption.keyFingerprint,
+      // The digest an operator can compare later; the manifest itself is
+      // plaintext, so this is the copy stored OUTSIDE the set.
+      manifestSha256: manifest.integrity && manifest.integrity.digest,
       error: verification.ok ? null : 'set failed its own verification',
     }).catch((err) => {
       // The set exists either way; a history write failure must not turn a good
@@ -129,9 +134,16 @@ async function main() {
       process.stderr.write(`warning: could not record the run: ${err.message}\n`);
     });
 
-    const prune = await backup.pruneSets(destinationRoot, retain);
+    // Retention must never evict a GOOD older set because the newest one is
+    // bad. Pruning therefore only runs on a verified set.
+    const prune = verification.ok
+      ? await backup.pruneSets(destinationRoot, retain)
+      : { deleted: [], kept: [] };
     if (prune.deleted.length) {
       process.stdout.write(`  pruned       ${prune.deleted.join(', ')}\n`);
+    }
+    if (!verification.ok) {
+      process.stdout.write('  prune       skipped: this set failed verification\n');
     }
 
     process.stdout.write(

@@ -326,21 +326,79 @@ async function copyWithHash(source, destination) {
   return hash.digest('hex');
 }
 
-// Metadata is committed only AFTER its object is written, so copying objects
-// first is what makes "no row without its bytes" true for the set.
+// Copying objects BEFORE rows is necessary but NOT sufficient while the
+// application keeps writing: a row committed during the read window can
+// reference an object written after our copy. The sweep below closes that gap,
+// and this first pass makes the sweep cheap.
 async function copyObjects(objectsRoot, destinationRoot) {
   const files = await walkFiles(objectsRoot, '.bin');
   const entries = [];
-  let bytes = 0;
   for (const file of files) {
     const key = relativeKey(objectsRoot, file);
     // eslint-disable-next-line no-await-in-loop
     const sha256 = await copyWithHash(file, path.join(destinationRoot, key));
-    // eslint-disable-next-line no-await-in-loop
-    bytes += (await fsp.stat(path.join(destinationRoot, key))).size;
     entries.push({ key, sha256 });
   }
+  return { count: entries.length, digest: objectDigest(entries), entries };
+}
+
+// Re-derives the object inventory from what is actually ON DISK, after the
+// sweep, so the manifest describes the set rather than an intermediate state.
+async function digestObjectsDirectory(directory) {
+  const files = await walkFiles(directory, '.bin');
+  const entries = [];
+  let bytes = 0;
+  for (const file of files) {
+    // eslint-disable-next-line no-await-in-loop
+    const digest = await fileDigest(file);
+    bytes += digest.bytes;
+    entries.push({ key: relativeKey(directory, file), sha256: digest.sha256 });
+  }
   return { count: entries.length, bytes, digest: objectDigest(entries) };
+}
+
+// Copies any object referenced by a row that was written AFTER the object pass.
+// A storage key that is already missing at the source is counted, not invented:
+// reconciliation reports that class of drift after a restore.
+async function sweepReferencedObjects({
+  db,
+  objectsRoot,
+  destinationRoot,
+  entries,
+  log = () => {},
+}) {
+  const KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  let rows;
+  try {
+    rows = await db
+      .collection('episodedocuments')
+      .find({}, { projection: { storageKey: 1 } })
+      .toArray();
+  } catch {
+    return { copied: 0, missing: 0 };
+  }
+  const have = new Set(entries.map((entry) => entry.key));
+  let copied = 0;
+  let missing = 0;
+  for (const row of rows) {
+    const key = String(row.storageKey || '');
+    if (!KEY_PATTERN.test(key)) continue;
+    const relative = `${key.slice(0, 2)}/${key}.bin`;
+    if (have.has(relative)) continue;
+    const source = path.join(objectsRoot, key.slice(0, 2), `${key}.bin`);
+    if (!fs.existsSync(source)) {
+      missing += 1;
+      continue;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    const sha256 = await copyWithHash(source, path.join(destinationRoot, relative));
+    entries.push({ key: relative, sha256 });
+    have.add(relative);
+    copied += 1;
+  }
+  if (copied) log(`  objects      ${copied} swept in (written during the row read window)`);
+  if (missing) log(`  objects      ${missing} referenced object(s) were already missing at the source`);
+  return { copied, missing };
 }
 
 function indexOptions(entry) {
@@ -417,9 +475,9 @@ async function createBackup({
   const started = Date.now();
   const startedAt = new Date(started).toISOString();
 
-  // 1. Objects first (see the ordering note at the top of this file).
-  const objects = await copyObjects(objectsRoot, path.join(destination, 'objects'));
-  log(`  objects      ${objects.count} copied, ${objects.bytes} bytes`);
+  // 1. Objects first (see the ordering note in consistency below).
+  const copied = await copyObjects(objectsRoot, path.join(destination, 'objects'));
+  log(`  objects      ${copied.count} copied`);
 
   // 2. Rows, collection by collection.
   const objectStart = Date.now();
@@ -447,6 +505,20 @@ async function createBackup({
   const mongoMs = Date.now() - objectStart;
   log(`  rows         ${documents} across ${collections.length} collections`);
 
+  // 3. Sweep: close the window between the object copy and the row reads.
+  const sweep = await sweepReferencedObjects({
+    db,
+    objectsRoot,
+    destinationRoot: path.join(destination, 'objects'),
+    entries: copied.entries,
+    log,
+  });
+  const objects = {
+    ...(await digestObjectsDirectory(path.join(destination, 'objects'))),
+    swept: sweep.copied,
+    missingReferenced: sweep.missing,
+  };
+
   const finished = Date.now();
   const manifest = {
     format: SET_FORMAT,
@@ -459,11 +531,11 @@ async function createBackup({
     // Stated, not implied: this is a logical read, not a point-in-time snapshot.
     consistency: {
       mode: 'logical',
-      ordering: 'objects-before-rows',
+      ordering: 'objects-then-rows-then-referenced-sweep',
       objectWindowMs: mongoMs,
       readWindowMs: finished - started,
       note:
-        'Collections are read sequentially while the application may be writing. Objects are copied first, so no copied row can reference a missing object; a concurrent write can instead leave an ORPHAN object, which reconciliation reports after restore. A backup of MongoDB alone is not a backup of this system: the keys and configuration are separate assets.',
+        'Objects are copied first, collections are then read sequentially, and a sweep afterwards copies any object referenced by a row written during that window. A set can therefore contain an ORPHAN object (reconciliation reports it) but not a row whose object is missing, unless the object was ALREADY missing at the source - counted in objects.missingReferenced. This is not a point-in-time snapshot. A backup of MongoDB alone is not a backup of this system: the keys and configuration are separate assets.',
     },
     encryption: {
       algorithm: 'aes-256-gcm',
@@ -490,9 +562,12 @@ async function createBackup({
     0
   );
 
-  const tmp = path.join(destination, 'manifest.json.tmp');
-  await fsp.writeFile(tmp, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
-  await fsp.rename(tmp, path.join(destination, 'manifest.json'));
+  // A digest over the manifest's own content catches accidental corruption and
+  // naive edits. It is NOT a signature: an attacker who can rewrite the set can
+  // recompute it, so the destination must be treated as trusted storage.
+  manifest.integrity = { algorithm: 'sha256', digest: manifestDigest(manifest) };
+
+  await writeManifestFile(destination, manifest);
   return { manifest, directory: destination, manifestPath: path.join(destination, 'manifest.json') };
 }
 
@@ -516,6 +591,33 @@ function fingerprintsFor(env) {
     out[name] = fingerprint(material);
   }
   return out;
+}
+
+// Digest of everything the manifest asserts, excluding the digest itself, so a
+// truncated or hand-edited manifest is caught before a restore trusts it.
+function manifestDigest(manifest) {
+  const copy = { ...manifest };
+  delete copy.integrity;
+  return sha256Hex(JSON.stringify(copy));
+}
+
+async function writeManifestFile(directory, manifest) {
+  const tmp = path.join(directory, 'manifest.json.tmp');
+  await fsp.writeFile(tmp, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
+  await fsp.rename(tmp, path.join(directory, 'manifest.json'));
+  return path.join(directory, 'manifest.json');
+}
+
+// A set that failed its own verification must never be treated as a recovery
+// point, and must never count as a retention candidate - otherwise a bad newest
+// set evicts a good older one.
+async function markSetFailed(directory, reason) {
+  const manifest = await readManifest(directory);
+  manifest.status = 'failed';
+  manifest.failure = String(reason || 'verification failed').slice(0, 300);
+  manifest.integrity = { algorithm: 'sha256', digest: manifestDigest(manifest) };
+  await writeManifestFile(directory, manifest);
+  return manifest;
 }
 
 async function readManifest(directory) {
@@ -549,6 +651,35 @@ async function verifySet(directory, key) {
     'encryption key matches the set',
     manifest.encryption && manifest.encryption.keyFingerprint === fingerprint(key),
     `set written with key fingerprint ${manifest.encryption && manifest.encryption.keyFingerprint}`
+  );
+
+  // Self-consistency first: a manifest missing its digest, or edited without
+  // recomputing it, is not a set to restore from.
+  const integrityOk = Boolean(
+    manifest.integrity &&
+      manifest.integrity.algorithm === 'sha256' &&
+      manifest.integrity.digest === manifestDigest(manifest)
+  );
+  check(
+    'manifest matches its own digest',
+    integrityOk,
+    integrityOk ? `sha256 ${String(manifest.integrity.digest).slice(0, 16)}` : 'missing or different'
+  );
+  check(
+    'set is marked complete',
+    manifest.status === 'complete',
+    `status: ${manifest.status || 'missing'}`
+  );
+  // The listed collections must be EXACTLY the files present, so dropping or
+  // adding a file cannot pass as an authentic set.
+  const listedFiles = manifest.mongo.collections.map((entry) => `${entry.name}.jsonl.enc`).sort();
+  const presentFiles = (await walkFiles(path.join(directory, 'mongo'), '.jsonl.enc'))
+    .map((file) => path.basename(file))
+    .sort();
+  check(
+    'manifest lists exactly the collection files present',
+    JSON.stringify(listedFiles) === JSON.stringify(presentFiles),
+    `${listedFiles.length} listed, ${presentFiles.length} present`
   );
 
   let documents = 0;
@@ -614,6 +745,24 @@ async function restoreSet({
   log = () => {},
 }) {
   const manifest = await readManifest(directory);
+  if (manifest.status !== 'complete') {
+    throw backupError(
+      'refused: this set is marked failed; restoring it would publish a copy that did not pass its own verification',
+      'RESTORE_SET_FAILED'
+    );
+  }
+  // The manifest is plaintext, so a restore re-checks its digest rather than
+  // trusting a file that may have been truncated or hand-edited after the write.
+  if (
+    !manifest.integrity ||
+    manifest.integrity.algorithm !== 'sha256' ||
+    manifest.integrity.digest !== manifestDigest(manifest)
+  ) {
+    throw backupError(
+      'refused: the manifest does not match its own digest; verify the set before restoring it',
+      'RESTORE_SET_TAMPERED'
+    );
+  }
   if (manifest.encryption.keyFingerprint !== fingerprint(key)) {
     throw backupError(
       'the configured BACKUP_ENCRYPTION_KEY does not match the key this set was written with; refusing to restore a set that would not decrypt',
@@ -653,7 +802,19 @@ async function restoreSet({
     }
     if (existingRows > 0) await db.dropDatabase();
 
-    // 1. Rows and indexes.
+    // 1. Recreate the collection SET first. A collection that held no rows and
+    // had no secondary index would otherwise vanish, and a count-only check
+    // would still report success.
+    for (const entry of manifest.mongo.collections) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await db.createCollection(entry.name);
+      } catch (err) {
+        if (!err || err.codeName !== 'NamespaceExists') throw err;
+      }
+    }
+
+    // 2. Rows and indexes.
     for (const entry of manifest.mongo.collections) {
       const file = path.join(directory, 'mongo', `${entry.name}.jsonl.enc`);
       let batch = [];
@@ -706,14 +867,21 @@ async function restoreSet({
       restoredRows += count;
       if (count !== entry.documents) rowMismatches += 1;
     }
+    // The collection SET is part of the claim, not only the counts.
+    const restoredCollections = await mongoCollections(db);
+    const expectedCollections = manifest.mongo.collections.map((entry) => entry.name).sort();
+    const collectionMismatches = expectedCollections.filter(
+      (name) => !restoredCollections.includes(name)
+    ).length;
     const objectOk =
       entries.length === manifest.objects.count && objectDigest(entries) === manifest.objects.digest;
 
     return {
-      ok: rowMismatches === 0 && objectOk,
+      ok: rowMismatches === 0 && collectionMismatches === 0 && objectOk,
       targetDatabase: targetName,
       documents: restoredRows,
       rowMismatches,
+      collectionMismatches,
       objects: entries.length,
       objectsOk: objectOk,
       timings: { ...timings, totalMs: Date.now() - started },
@@ -814,6 +982,7 @@ async function recordRun(fields) {
     objectBytes: fields.objectBytes || 0,
     setBytes: fields.setBytes || 0,
     keyFingerprint: fields.keyFingerprint || null,
+    manifestSha256: fields.manifestSha256 || null,
     error: fields.error ? String(fields.error).slice(0, 280) : null,
   });
 }
@@ -838,6 +1007,10 @@ module.exports = {
   listSets,
   createBackup,
   fingerprintsFor,
+  manifestDigest,
+  markSetFailed,
+  digestObjectsDirectory,
+  sweepReferencedObjects,
   readManifest,
   verifySet,
   restoreSet,

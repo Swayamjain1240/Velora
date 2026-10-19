@@ -208,18 +208,34 @@ The key is **required**: a missing one is a refusal, never a plaintext fallback.
 counts, per-collection checksums, index definitions (including partial filters and TTLs), object
 digests and **key fingerprints only** - no key material and no clinical values.
 
-Objects are copied **before** rows. Metadata is only committed after its object is written, so this
-ordering can leave an orphan object (reported by reconciliation) but can never leave a row whose
-bytes are missing. Collections are read sequentially, so the copy is logical rather than a snapshot;
-the manifest states that window rather than implying atomicity.
+Objects are copied **before** rows, and a **sweep** runs after the rows to copy any object referenced
+by a row written during that window. Copying first alone is not sufficient while the application is
+writing: a row committed during the read can reference an object written after the copy, and the
+first version of this command claimed otherwise. The set can therefore contain an orphan object
+(reported by reconciliation) but not a row whose object is missing - unless the object was already
+missing at the source, which `objects.missingReferenced` counts. Collections are read sequentially,
+so the copy is logical rather than a snapshot; the manifest states that window rather than implying
+atomicity.
+
+The manifest is plaintext. It carries a digest of its own content, and verification additionally
+requires that it lists **exactly** the collection files present, so truncation, a hand edit or a
+dropped file fails verification. A set that fails is marked `failed`, is refused by restore and is
+never counted by retention. The digest is **not a signature**: an operator who can write to the
+destination can recompute it, so the destination must be access-controlled and (owner decision)
+immutable.
 
 Every run is recorded in the `backupruns` collection (status, counts, duration, key fingerprint, safe
 error text). The newest `complete` row is the **recovery point** an operator can quote.
 
-Measured on this host, 19 October 2026, against the seeded development database (8,499 documents,
-277 objects, 12.3 MB): **create + verify 1,495 ms**, and a full **restore into an isolated database
-11,399 ms** (rows 10,672 ms, objects 633 ms). Those are synthetic-volume, single-host numbers: they
-bound what this host does, not a production RTO.
+Measured on this host, 19 October 2026, against the seeded development database (8,501 documents,
+277 objects, 12.3 MB): **create + verify 1,829 ms**, and a full **restore into an isolated database
+11,995 ms** (rows 11,142 ms, objects 736 ms). An earlier run on 8,499 documents measured 1,495 ms
+and 11,399 ms. The numbers move with volume, so they bound what this host does, not a production
+RTO.
+
+The sweep reports `objects.missingReferenced`. On the current development dataset that value is
+**47**: metadata rows whose object is already absent at the source. Those are the drift class §7.2
+exists to report - a restore does not invent bytes, and the reconciliation report names them.
 
 Scheduling stays OUTSIDE the application process - an in-process interval would duplicate runs behind
 a load balancer and would stop when the process restarted:
@@ -329,7 +345,8 @@ node server/scripts/restore-backup.js --set 20261019T100936Z \
   --objects-root /srv/velora-restored
 ```
 
-Refuses the application database, refuses a set whose key fingerprint does not match the configured
+Refuses the application database, refuses a set marked `failed`, refuses a manifest that does not
+match its own digest, refuses a set whose key fingerprint does not match the configured
 `BACKUP_ENCRYPTION_KEY`, and refuses a target that already holds rows unless `--force` is given. It
 recreates collections and index options from the manifest, copies the encrypted objects verbatim,
 then counts and re-digests the target before printing PASSED, with the observed timings and the set's

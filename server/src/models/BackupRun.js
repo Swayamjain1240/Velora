@@ -29,6 +29,9 @@ const backupRunSchema = new mongoose.Schema(
     objectBytes: { type: Number, min: 0, default: 0 },
     setBytes: { type: Number, min: 0, default: 0 },
     keyFingerprint: { type: String, maxlength: 64 },
+    // Digest of the set's manifest, stored OUTSIDE the set so a hand-edited
+    // manifest can be compared against what was originally written.
+    manifestSha256: { type: String, maxlength: 64 },
     // A short, safe reason. Never a stack trace, a connection string or a value.
     error: { type: String, maxlength: 300 },
   },

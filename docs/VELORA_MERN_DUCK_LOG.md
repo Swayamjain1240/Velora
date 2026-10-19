@@ -379,3 +379,35 @@ Duck verdict: **ACTION REQUIRED**.
 Open decisions/blockers: CI has never been green; no run can occur on this branch
 without a PR; deployment, providers, backups and clinical/privacy approvals open.
 Next concrete action: open the PR (owner authorization) and merge only on green.
+
+---
+
+## Entry — 19 October 2026, Phase A (CI gate, scheduled backups) adversarial review
+
+**DUCK REVIEW — 19 October 2026, Asia/Kolkata**
+**Repository / branch / commit / dirty state:** `Swayamjain1240/Velora` · `feat/ui-redesign-dark-purple` (reviewed at `9ae54bf`; fixes below are the working tree on top of it) · clean before this pass.
+**Current part and VEL IDs:** Phase A gates; VEL-016 (recovery), VEL-017 (one viewport), Security-25 #7 (data at rest), #9 (no secret in logs), #16 (database posture), #21–22 (provider boundary).
+**Verdict: DRIFT FIXED (four defects in the new backup code); one trust boundary recorded**
+
+**Evidence inspected:** the new `backupService`, both CLI commands, the `BackupRun` model, env schema, the backup tests (13 at review start, 16 after the fixes), the Phase A page, runbook §6–7, the CI workflow diff, and the two CI runs on `b51422d` / `9ae54bf`. Claims were re-tested against a live replica set with a throwaway probe rather than against the tests that assert them.
+
+**What held:** CI is green twice on clean machines (all four jobs, `39237665971` and `39239170957`). Server 437/437, client 99/99, lint, build, layout gate and secret scan all pass there. Encryption-at-rest, key-fingerprint refusal, app-database refusal and object-byte fidelity were confirmed independently of the suite.
+
+**Defects found and fixed:**
+
+1. **The ordering claim was false under concurrent writes.** "Objects before rows" cannot stop a row committed *during* the read window from referencing an object written after the object copy. Fixed with a post-row **sweep** that copies every object referenced by `episodedocuments`, then re-derives the object digest from disk. `objects.swept` and `objects.missingReferenced` make the outcome explicit. Test: `the sweep copies an object referenced by a row written after the object pass`.
+2. **A tampered manifest verified as PASSED.** The probe dropped a collection entry and replaced index definitions; `verifySet` still returned true, because it only checked the files the manifest still listed. Fixed with a manifest self-digest, a strict "manifest lists exactly the collection files present" check, a `complete` status check, and a restore that now refuses `RESTORE_SET_TAMPERED`. Tests: `a tampered manifest is caught by verification`.
+3. **Row-less collections vanished on restore while the command reported success.** Collections were only created by inserting rows or indexes, and the check compared per-collection counts from the manifest, never the collection set. Fixed by creating the collection set first and comparing it; `collectionMismatches` is part of `ok`. Test: the empty collection now comes back (and `collectionMismatches === 0`).
+4. **Retention could evict a good set because the newest one was bad.** The CLI pruned after verification but regardless of its result, and the new set was already marked `complete`. Fixed: a failed set is rewritten as `failed`, retention skips it, and pruning only runs when verification passed. Tests: `a failed set is never restored and never pruned as a recovery point`.
+
+**Observation, not a defect:** the development dataset reports **47 referenced objects already missing at the source** (`objects.missingReferenced`). That is pre-existing metadata drift of the class reconciliation reports; the backup correctly counts it instead of inventing bytes. Recorded in the runbook.
+
+**Trust boundary recorded:** the manifest is plaintext and its digest is not a signature. An operator with write access to the destination can rewrite both, and no index definition is checked against an external authority. The runbook now states that the destination must be access-controlled and immutable (owner decision), and that reconciliation follows any restore.
+
+**Verification after the fixes:** server **440/440** (`npm test -w server`, exit 0) including 16 backup checks (9 unit + 7 integration); a real create → verify → restore on the development database **PASSED** (8,501 documents, 49 collections, 277 objects; create+verify 1,829 ms, restore 11,995 ms, 0 mismatches); the probe that found defects 2 and 3 now reports `RESTORE_SET_TAMPERED` and a recreated row-less collection. Client untouched since its 99/99 run.
+
+**Failed, blocked or not-run checks:** CI on this revision (pushed after this entry; the previous two runs are green); deployment, provider selection and clinical/privacy sign-off remain blocked on owner decisions; NVDA/VoiceOver, real Safari and physical devices unchanged.
+
+**Documentation updated:** runbook §6.1/§7.3 (ordering, manifest trust, measured figures), `PHASE_A_GATES.md`, this log.
+
+**Next authorized action:** push this fix set, confirm CI green on the new revision, then owner review of PR #1.
