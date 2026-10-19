@@ -102,8 +102,10 @@ link is removed.
 
 ## 7. Browser coverage
 
-Chromium only. Firefox and Safari are not installed in this environment, so they
-are **NOT RUN**. The layout uses flex/grid, `clamp()`, `min()`, logical properties
+Chromium, Firefox and WebKit (19 October 2026): each engine runs the full
+journey suite against the documented topology — **Chromium 77/77, Firefox 77/77,
+WebKit 76 passed with 0 failures** — so the layout is no longer Chromium-only
+reasoning. The layout uses flex/grid, `clamp()`, `min()`, logical properties
 and `mask-image` with a `-webkit-` twin; there is no container query, no
 `:has()` dependency and no subgrid.
 

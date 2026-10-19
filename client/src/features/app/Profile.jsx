@@ -1,6 +1,8 @@
 'use strict';
 
 import ResponsiveTable from '../../components/ResponsiveTable';
+import Dialog from '../../components/Dialog';
+import ScrollRegion from '../../components/ScrollRegion';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../lib/api';
@@ -12,6 +14,7 @@ export default function Profile() {
   const [sessions, setSessions] = useState([]);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -25,6 +28,7 @@ export default function Profile() {
   useEffect(() => { load(); }, [load]);
 
   async function revokeAll() {
+    setConfirmingRevoke(false);
     setError(null); setNotice(null);
     try {
       await api('/auth/sessions/revoke-all', { method: 'POST' });
@@ -43,7 +47,7 @@ export default function Profile() {
       {notice && <p className="notice" role="status">{notice}</p>}
 
       <h2>Active sessions</h2>
-      <div className="panel-scroll">
+      <ScrollRegion label="Active sessions">
         <ResponsiveTable>
           <caption className="visually-hidden">Your active sessions</caption>
           <thead>
@@ -60,10 +64,27 @@ export default function Profile() {
             ))}
           </tbody>
         </ResponsiveTable>
-      </div>
-      <button type="button" className="btn btn--danger" onClick={revokeAll}>
+      </ScrollRegion>
+      <button type="button" className="btn btn--danger" onClick={() => setConfirmingRevoke(true)}>
         Sign out everywhere
       </button>
+
+      <Dialog
+        open={confirmingRevoke}
+        onClose={() => setConfirmingRevoke(false)}
+        title="Sign out everywhere?"
+        description="This ends every active session, including this device. You will need to sign in again."
+        footer={(
+          <>
+            <button type="button" className="btn btn--ghost" onClick={() => setConfirmingRevoke(false)}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn--danger" onClick={revokeAll}>
+              Sign out everywhere
+            </button>
+          </>
+        )}
+      />
     </section>
   );
 }

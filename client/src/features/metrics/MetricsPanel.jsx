@@ -3,6 +3,7 @@
 import ResponsiveTable from '../../components/ResponsiveTable';
 import Skeleton from '../../components/Skeleton';
 import MiniBars from '../../components/MiniBars';
+import ScrollRegion from '../../components/ScrollRegion';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -59,7 +60,7 @@ export default function MetricsPanel() {
         ))}
       </div>
 
-      <div className="panel-scroll">
+      <ScrollRegion label="Metrics">
         {!metric && (
           <div>
             <span className="visually-hidden" role="status">
@@ -133,7 +134,7 @@ export default function MetricsPanel() {
             {data.clinicianNote && <p className="muted">{data.clinicianNote}</p>}
           </div>
         )}
-      </div>
+      </ScrollRegion>
     </section>
   );
 }

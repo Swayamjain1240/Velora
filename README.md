@@ -5,7 +5,7 @@
 [![CI](https://github.com/Swayamjain1240/Velora/actions/workflows/ci.yml/badge.svg)](https://github.com/Swayamjain1240/Velora/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)
 ![Server tests](https://img.shields.io/badge/server%20tests-424%20passed-blue)
-![Client tests](https://img.shields.io/badge/client%20tests-77%20passed-blue)
+![Client tests](https://img.shields.io/badge/client%20tests-98%20passed-blue)
 ![Axe](https://img.shields.io/badge/WCAG%202.1%20A%2FAA-0%20violations-success)
 ![npm audit](https://img.shields.io/badge/npm%20audit-0%20vulnerabilities-success)
 
@@ -19,12 +19,15 @@ recovery or publish AI output automatically. Manual clinical approval always
 comes before AI assistance: uploading a document or receiving an AI result can
 never activate patient instructions, tasks or reminders.
 
-> **Status — 18 October 2026:** Parts 1–10 are implemented and verified locally
-> (not deployed). The UI redesign is at stage 1 (tokens, shell, auth, landing,
-> 3D hero, phone layout, accessibility audit). Still open by design: no
-> deployment, no external provider, no scheduled backup, no real destructive
-> deletion, no real patient data and no clinical validation — the owner,
-> clinical, privacy and provider decisions are listed in the
+> **Status — 19 October 2026:** Parts 1–10 are implemented and verified locally
+> (not deployed). The UI redesign is at **stage 2**: stage 1's tokens, shell,
+> auth, landing, 3D hero, phone layout and accessibility audit, plus the
+> stage-2 overlay primitives (`Dialog`, `Toast`, `Tooltip` and a keyboard-
+> reachable `ScrollRegion`). The browser journeys now run on **Chromium, Firefox
+> and WebKit**, not Chromium alone. Still open by design: no deployment, no
+> external provider, no scheduled backup, no real destructive deletion, no real
+> patient data and no clinical validation — the owner, clinical, privacy and
+> provider decisions are listed in the
 > [readiness report](docs/VELORA_READINESS_REPORT.md).
 
 ## Quick start
@@ -160,12 +163,13 @@ the authorization boundary.
 npm run dev                              # API :4000 + client :5173, one command
 npm run mongo:test-rs -w server          # start the replica-set dev database once
 npm run seed -w server                   # synthetic clinic + one user per role
-npm test                                 # server (424) + client (77) tests
+npm test                                 # server (424) + client (98) tests
 npm test -w server                       # 424 unit + integration tests
-npm test -w client                       # 77 client unit tests (Vitest)
-npm run lint -w client                   # ESLint
-npm run build -w client                  # production build
-npx playwright test                      # 76 browser journeys + axe/zoom/forced-colours
+npm test -w client                       # 98 client unit tests (Vitest)
+npm run lint -w client                    # ESLint
+npm run build -w client                   # production build
+npx playwright test                       # 78 journeys (76 pass + 2 by-design skips): axe/zoom/forced-colours
+E2E_PROJECTS=firefox,webkit npx playwright test   # the same suite on Firefox and WebKit
 node qa/layout-snapshot.js               # blocking layout regression gate (36 snapshots)
 node qa/viewport-audit.js                # 144-route six-size viewport audit
 npm run restore:drill -w server          # logical restore drill (rows+indexes+objects+decryption)
@@ -179,15 +183,20 @@ npm audit --omit=dev                     # production dependency audit
 ### Verified evidence
 
 - Server **424/424** tests pass against replica-set MongoDB.
-- Client **77/77** tests, ESLint clean, production build clean
-  (initial 464.11 kB / 132.60 kB gzip; 3D scene chunk 4.99 kB gzip).
-- Browser **76 journeys passed** (+1 opt-in skip), plus the provider-disabled
-  journey run separately under `EXTRACTION_PROVIDER=none`.
-- axe (WCAG 2.1 A/AA): **0 violations across 15 screens**; 200 %/400 % reflow,
-  phone table stacking and forced-colours checks pass.
+- Client **98/98** tests, ESLint clean, production build clean
+  (initial 466.52 kB / 133.30 kB gzip; 3D scene chunk 4.99 kB gzip).
+- Browser journeys **78 per engine, 0 failures** against the documented topology:
+  Chromium **76 passed + 2 by-design skips**, Firefox **76 + 2**, WebKit
+  **75 + 3** (the third skip is the keyboard journey, which Playwright's WebKit
+  build cannot run — proved and recorded as [L6](docs/UI_KNOWN_LIMITATIONS.md)),
+  plus the provider-disabled journey run separately under
+  `EXTRACTION_PROVIDER=none`.
+- axe (WCAG 2.1 A/AA): **0 violations across 15 screens** on all three engines;
+  200 %/400 % reflow, phone table stacking and forced-colours checks pass.
 - `qa/viewport-audit.js` 144 checks, 0 failures; `qa/hero-browser-test.js`
   18/18; `qa/layout-snapshot.js` 36/36 against the committed baseline.
-- `npm audit`: 0 (dev and production). Documentation links: 107, 0 broken.
+- `npm audit`: 0 (dev and production). Documentation links re-checked after this
+  pass: 99 local targets 0 broken, 6 external URLs all 200.
 
 ### Running the browser journeys
 
@@ -201,7 +210,15 @@ EXTRACTION_PROVIDER=fake PORT=4100 npx playwright test                      # te
 ```
 
 `NODE_ENV=test` switches off only the in-process blanket rate limiter; the
-durable Mongo-backed per-route limits stay active. One journey is opt-in: start
+durable Mongo-backed per-route limits stay active. This matters: a full suite
+against a `development` API trips the 300 req/min limiter and the status check
+lands in the designed retry state (measured — see L14). To repeat the suite on
+the other engines, append `E2E_PROJECTS=firefox`, `E2E_PROJECTS=webkit` or both,
+comma-separated — but run them as **separate invocations**: the global setup
+re-seeds the synthetic clinic once per process, so several engines inside one
+invocation leave the later engines against a fixture the first one already
+consumed (the symptom is an already-enrolled MFA account and a plan version that
+already exists). One journey is opt-in: start
 the API with `DOCUMENT_PARSER_TIMEOUT_MS=50` and run
 `E2E_QUARANTINE=1 npx playwright test e2e/documents-quarantine.spec.js` to watch
 a valid file be quarantined end to end; it reports as skipped in a normal run.
@@ -239,8 +256,9 @@ audit is in [docs/UI_REDESIGN_DUCK_REVIEW.md](docs/UI_REDESIGN_DUCK_REVIEW.md).
 
 Still open (recorded with severity and owner in
 [docs/UI_KNOWN_LIMITATIONS.md](docs/UI_KNOWN_LIMITATIONS.md)): the full stage-3
-structural pass, dialog/toast/tooltip primitives, Firefox/WebKit, real-device
-3D measurement, a screen-reader walkthrough and i18n.
+structural pass, real-device 3D measurement, a screen-reader walkthrough
+(NVDA/VoiceOver), a real Safari confirmation of the WebKit keyboard gap, CI
+matrix legs for Firefox/WebKit, and i18n.
 
 ## One-viewport application rule
 

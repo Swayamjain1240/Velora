@@ -131,7 +131,7 @@ dedicated empty/error illustrations. Confirmations stay inline.
 | Contrast (AA) | PASSED by token calculation for the pairs above; **no automated axe run** |
 | Screen reader pass | NOT RUN |
 | 200 % zoom / text resize | NOT RUN |
-| Cross-browser (Firefox, Safari) | NOT RUN — Chromium only |
+| Cross-browser (Firefox, Safari) | **PASSED** — full journey suite on all three engines (Chromium 77/77, Firefox 77/77, WebKit 76 passed / 0 failures); the keyboard journey is skipped on WebKit only, where the engine build never focuses implicitly-focusable links |
 
 ## 8. One-viewport evidence
 
@@ -179,9 +179,9 @@ Two layout defects were found by that audit and fixed in this change:
 | Visual capture | `node qa/ui-visual-capture.js` | 14 images + measurements |
 | Dependency audit | `npm audit` | **0 vulnerabilities** |
 
-Not run: Firefox/WebKit, Lighthouse, a real screen-reader walkthrough and
-real-device 3D measurement. Pixel baselines are captured but are not a merge gate
-(the structural layout gate is).
+Not run: Lighthouse, a real screen-reader walkthrough and real-device 3D
+measurement. Pixel baselines are captured but are not a merge gate (the
+structural layout gate is).
 
 ## 10. Performance
 

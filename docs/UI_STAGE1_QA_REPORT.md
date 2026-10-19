@@ -116,3 +116,16 @@ Stage 1 and the 3D hero are **ready for owner review** with the limitations in
 - the accessibility, browser and device gaps above remain open with named owners.
 
 No merge, deploy or production change is implied by this report.
+
+## 8. After this report — 19 October 2026
+
+The stage-2 and cross-browser pass closed several rows in §6 without editing this
+record: the shared overlay primitives (`Dialog`, `Toast`, `Tooltip`) and
+`ScrollRegion` shipped with 21 unit checks; axe (WCAG 2.1 A/AA) reports **0
+violations across 15 screens** on Chromium, Firefox and WebKit; **200 %/400 %**
+zoom reflow passes on all three; and the full journey suite is green on all three
+engines (Chromium **76 + 2 by-design skips**, Firefox **76 + 2**, WebKit
+**75 + 3**, 0 failures). Still open and unchanged: the screen-reader walkthrough,
+real devices, GPU profiling, i18n, a pixel-diff gate and CI matrix legs for
+Firefox/WebKit. Current state lives in `UI_KNOWN_LIMITATIONS.md`; the pass itself
+is recorded in `VELORA_MERN_DUCK_LOG.md`.

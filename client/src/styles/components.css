@@ -1452,6 +1452,249 @@ select {
   white-space: nowrap;
 }
 
+/* ================= Overlays: dialog, toast, tooltip (L2) ================= */
+/* These use the reserved z-index and overlay tokens; nothing here invents a
+ * colour or a duration that the token layer does not already own. */
+.dialog {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.dialog__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(3px);
+}
+
+.dialog__panel {
+  position: relative;
+  width: min(520px, 100%);
+  max-height: calc(100vh - var(--space-8));
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: linear-gradient(180deg, rgba(33, 26, 48, 0.98), rgba(16, 14, 25, 0.99));
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.dialog__panel:focus {
+  outline: none;
+}
+
+.dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dialog__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  color: var(--text);
+}
+
+.dialog__close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.dialog__close:hover {
+  background: rgba(167, 139, 250, 0.12);
+  color: var(--text);
+}
+
+.dialog__description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+.dialog__body {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.dialog__footer {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-quiet);
+}
+
+@media (max-width: 480px) {
+  .dialog__panel {
+    padding: var(--space-4);
+  }
+
+  .dialog__footer {
+    flex-direction: column-reverse;
+  }
+
+  .dialog__footer .btn {
+    width: 100%;
+  }
+}
+
+/* ---------- Toast ---------- */
+.toast-region {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(360px, calc(100vw - var(--space-8)));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-md);
+  animation: toast-in var(--dur-base) var(--ease-out);
+}
+
+.toast__text {
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.toast__close {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.toast__close:hover {
+  background: rgba(167, 139, 250, 0.14);
+  color: var(--text);
+}
+
+.toast--success {
+  border-color: var(--success-line);
+  background: linear-gradient(180deg, rgba(61, 220, 151, 0.12), var(--surface-2));
+}
+
+.toast--error {
+  border-color: var(--danger-line);
+  background: linear-gradient(180deg, rgba(248, 113, 113, 0.12), var(--surface-2));
+}
+
+.toast--warning {
+  border-color: var(--warning-line);
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.12), var(--surface-2));
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0.4;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .toast-region {
+    left: var(--space-2);
+    right: var(--space-2);
+    bottom: var(--space-2);
+    width: auto;
+  }
+}
+
+/* ---------- Tooltip ---------- */
+.tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-fast) var(--ease-out), visibility var(--dur-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.tooltip[data-visible] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.tooltip--top {
+  bottom: calc(100% + 6px);
+}
+
+.tooltip--bottom {
+  top: calc(100% + 6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    transition: none;
+  }
+}
+
 @media (max-width: 480px) {
   .mini-bars__row {
     grid-template-columns: 1fr auto;

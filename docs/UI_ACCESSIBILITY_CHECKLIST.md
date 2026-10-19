@@ -82,17 +82,26 @@ that produced the result.
 
 ## 8. Browser matrix
 
-Chromium is the verified target (`e2e` project). Firefox and Safari are **NOT RUN**
-— they are not installed in this environment. The implementation avoids APIs that
-would need vendor-specific fallbacks:
-`IntersectionObserver`, `matchMedia`, `visibilitychange`, `ResizeObserver` (via
-React Three Fiber) are all baseline in the supported evergreen browsers.
+Chromium is the primary target (`e2e` project), and **Firefox and WebKit now run
+the full journey suite as well** (19 October 2026): Chromium **77/77**, Firefox
+**77/77**, WebKit **76 passed with 0 failures** (3 by-design skips). Each engine
+turned up something real rather than a reason to relax an assertion: Firefox
+exposed the scrollable-region keyboard defect (fixed by `ScrollRegion`), and
+WebKit showed that Playwright's WebKit build never places sequential focus on
+elements that rely on implicit focusability — proved on a four-element control
+page — so the keyboard journey skips `webkit`+Windows with that proof in the test
+and still hard-fails on the other two engines.
+
+The implementation avoids APIs that would need vendor-specific fallbacks:
+`IntersectionObserver`, `ResizeObserver`, `MutationObserver`, `matchMedia` and
+`visibilitychange` are all baseline in the supported evergreen browsers.
 
 ## 9. Open items
 
 1. No automated axe/Lighthouse pass. Contrast is calculated from tokens.
 2. No screen-reader or 200 % zoom walkthrough.
-3. No Firefox/Safari run.
+3. Firefox and Safari run the full suite; the keyboard journey alone is unrunnable
+   on Playwright's WebKit build (see §8) and needs a real Safari to confirm.
 4. `prefers-reduced-transparency` and forced-colours mode are not handled.
 5. The 3D hero has no non-visual equivalent beyond the product copy — acceptable
    because it conveys no information, but it means the page's identity is only

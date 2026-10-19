@@ -188,3 +188,83 @@ with an owner in `UI_KNOWN_LIMITATIONS.md` and `FINAL_DEFECT_LOG.md`.
 is present, the page contains **no inline script**, the scene paints, and zero CSP
 violations were logged. (The preview server has no API proxy, so its API calls
 return 502 in that isolated check; that is expected, not a defect.)
+
+---
+
+## 19 October 2026 — UI stage 2 (overlay primitives), cross-browser closure, CI pinning
+
+**Scope:** the stage-2 shared overlay primitives, the open hardening item D-9, and
+the cross-browser gap L6 — verified on Chromium, Firefox and WebKit.
+
+**Client**
+1. `Dialog`, `Toast`, `Tooltip` (`client/src/components/`) with overlay styles on
+   the reserved z-index tokens. `Dialog` is an `alertdialog` that traps and
+   restores focus and always exits on Escape; `Toast` is a bounded polite live
+   region that never hides a message on a timer under reduced motion; `Tooltip`
+   only ever *describes* its control. Adopted by Profile's "Sign out everywhere",
+   which previously fired immediately.
+2. `ScrollRegion` — a named, focusable scroll box. Found by the Firefox axe run:
+   Profile's session table can overflow a `.panel-scroll` that no keyboard could
+   scroll (`scrollable-region-focusable`, WCAG 2.1.1). Adopted on Profile, Audit
+   and Metrics — the audited regions whose content is pure text; regions whose
+   rows carry controls already satisfy the rule, so they were not changed.
+3. Client tests **77 → 98** (overlays 17, scroll-region 4).
+
+**CI (D-9)** — every `uses:` in `.github/workflows/ci.yml` is pinned to a full
+commit SHA with a version comment; a moving tag can no longer change a build.
+
+**Cross-browser (L6)** — Firefox and WebKit are installed and each engine runs the
+whole suite as its **own** invocation against the documented topology (API
+`NODE_ENV=test` on `:4100`, `EXTRACTION_PROVIDER=fake`): Chromium **76 passed +
+2 by-design skips**, Firefox **76 + 2**, WebKit **75 + 3**, **0 failures** on all
+three, axe **0 violations** on all three, and 200 %/400 % reflow passing on all
+three.
+
+**Findings — and what each one actually was:**
+1. **Firefox axe `scrollable-region-focusable`** → a real keyboard defect → fixed
+   with `ScrollRegion` (above).
+2. **Firefox extractions "Needs review" missing** → not a defect. The stack ran
+   the shipped `EXTRACTION_PROVIDER=none`, while that journey documents the
+   `fake` provider; re-run against the documented topology it passes in 37 s.
+3. **Three "Velora is temporarily unreachable" failures** in the first full run →
+   the dev-only 300 req/min limiter, not the session layer. Measured: 320
+   concurrent `/api/auth/status` requests returned **87 × 429 in 597 ms**, and the
+   client renders 429 as its designed retry state. The same suite in the CI
+   topology: 0 failures. L14 updated with the measurement; OBS-001 annotated (its
+   login-bounce symptom follows the 401/403 path and stays OPEN).
+4. **WebKit keyboard journey** → proved engine-level, not product-level. On a
+   four-element control page Chromium and Firefox walk `<a> <a> <button> <a>`;
+   WebKit lands only on the `<button>` and on elements with an explicit
+   `tabindex`. Velora's anchor has the same DOM, styles and `tabIndex=0` in all
+   three engines and `.focus()` moves focus to it, so the check is **unrunnable**
+   there: skipped for `webkit`+Windows with the proof written into the test, and
+   still hard-failing on the other engines.
+5. **Three engines in one invocation is invalid** — `globalSetup` seeds once, so
+   later engines meet a fixture the first one consumed (symptoms: an
+   already-enrolled MFA account, an already-created plan version). Engines run as
+   separate invocations; this is now stated in the README and the Playwright
+   config.
+
+**Verification (this tree):** server **424/424** · client **98/98** · ESLint clean
+· production build clean (CSS 46.83 kB / 9.35 kB gzip, JS 466.52 kB / 133.30 kB
+gzip, scene 13.11 kB / 4.99 kB gzip) · journeys **78 per engine, 0 failures** ·
+axe **0/0/0** · `qa/layout-snapshot.js` **36/36** · `qa/viewport-audit.js` **144
+checks, 0 failures** · `qa/hero-browser-test.js` **18/18** · provider fail-closed
+journey **passed** under `EXTRACTION_PROVIDER=none` · `npm audit` **0** · docs
+**98 local links + 6 external URLs, 0 broken**.
+
+**Failed, blocked or not-run checks:** no real Safari (the WebKit keyboard gap
+needs a real browser to settle), no NVDA/VoiceOver walkthrough, no physical
+device, no Lighthouse, no i18n. CI still installs and runs Chromium only — matrix
+legs are an owner decision (runtime and runner minutes ×3, and GitHub Actions
+cannot be executed from this machine). Production MongoDB TLS, the stage-3
+structural pass and the visual pixel gate remain as previously recorded.
+
+**Documentation updated:** `README.md` (status, counts, cross-browser instructions
+and the one-invocation caveat), `UI_KNOWN_LIMITATIONS.md` (L2, L6, L14, D-9),
+`UI_REDESIGN_DUCK_REVIEW.md` (stage table), `UI_ACCESSIBILITY_CHECKLIST.md`,
+`UI_DESIGN_SYSTEM.md`, `UI_RESPONSIVE_MATRIX.md`, `FINAL_DEFECT_LOG.md`
+(OBS-001 annotation), and this log.
+
+**Next authorized action:** owner review of this pass, then the stage-3 structural
+pass or a real-Safari/AT sweep, whichever the owner prioritises.

@@ -134,7 +134,7 @@ Every item on the request's preservation list, restated as testable invariants:
 | Stage | Scope | Status |
 | --- | --- | --- |
 | 1 | Tokens, base layer, component surfaces, shell, sign-in, landing, motion system | **delivered in this change** |
-| 2 | Shared controls: field wrapper, select/search, dialogs, drawers, toasts, skeletons, empty/error states, breadcrumbs | pending |
+| 2 | Shared controls: field wrapper, select/search, dialogs, drawers, toasts, skeletons, empty/error states, breadcrumbs | **delivered in part, 19 October** — `Dialog`, `Toast`, `Tooltip` and `ScrollRegion` shipped with 21 unit checks and overlay styles on the reserved z-index tokens; `Dialog` is adopted by the Profile confirmation. Field-wrapper, select/search, drawer and breadcrumb components were deliberately **not** built: every screen already uses a real `<label htmlFor>` around a native control, no screen needs a drawer, and the one-panel navigation has no trail to breadcrumb. |
 | 3 | Screen structure pass: patients, episodes, plans, documents, queues, today, admin (page headers, master-detail, wizards, pagination) | pending |
 | 4 | Charts and metric cards from existing metrics payloads | pending |
 | 5 | Mobile-specific table→card presentation and per-screen one-panel workflows | pending |

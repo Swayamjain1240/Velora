@@ -37,6 +37,7 @@ Branch `test/complete-functional-qa`, base `036c27a`. Severities per P0–P3 def
 
 - **Observed:** in the first full E2E run (against an externally-started API with no `EXTRACTION_PROVIDER`), 8 viewport tests failed with the app bounced to the login page mid-run.
 - **Triage:** not reproduced in three subsequent executions on the CI topology (90/90 viewport tests green). Most consistent with a contended/misconfigured stack rather than product auth, but the trigger was not conclusively isolated.
+- **Related evidence (19 October, UI wrap-up pass):** a *different* member of the same family was isolated and measured. Against a `development` API the coarse limiter answers **429 after 300 req/min** (87 × 429 out of 320 concurrent requests in 597 ms), and a full browser suite run in that topology failed 4 tests — three snapshots show the designed 429 retry state ("Velora is temporarily unreachable"). All four pass unchanged against `NODE_ENV=test`, where the limiter is skipped (verified by the absence of a `RateLimit` header). This closes the status-check failure mode for the suite, but OBS-001's original symptom — a bounce to the **login** page — follows the 401/403 path (`AuthContext` signs out only on 401/403), so it is *not* claimed closed here.
 - **Action:** re-check if it recurs on CI; no product change made on this evidence.
 
 ---

@@ -1,6 +1,7 @@
 'use strict';
 
 import ResponsiveTable from '../../components/ResponsiveTable';
+import ScrollRegion from '../../components/ScrollRegion';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
 
@@ -74,7 +75,7 @@ export default function AuditPanel() {
         <button type="submit" className="btn btn--primary" disabled={loading}>Search</button>
       </form>
 
-      <div className="panel-scroll">
+      <ScrollRegion label="Audit events">
         <ResponsiveTable>
           <caption className="visually-hidden">Audit events</caption>
           <thead>
@@ -93,7 +94,7 @@ export default function AuditPanel() {
             {data.items.length === 0 && <tr><td colSpan={5}>{loading ? 'Loading…' : 'No events match this search.'}</td></tr>}
           </tbody>
         </ResponsiveTable>
-      </div>
+      </ScrollRegion>
 
       <nav className="pager" aria-label="Audit pagination">
         <button type="button" className="btn btn--ghost" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>

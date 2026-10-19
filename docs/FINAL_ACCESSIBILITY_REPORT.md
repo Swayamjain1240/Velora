@@ -12,9 +12,24 @@
 | Every authenticated screen fits one viewport without clipping (SECURITY-25 #25) | **PASSED** — 6 viewport sizes × 5 authenticated sessions + detail screens |
 | Automated accessibility assertions in the journeys (axe-core) | **PASSED** (part of the accessibility spec) |
 | Screen-reader walkthrough, colour-contrast beyond axe defaults, 200 % zoom, manual keyboard-only pass over every workflow | **NOT RUN** — requires a human reviewer and a real AT stack |
-| Cross-browser / device compatibility | **PARTIAL** — Chromium only; Firefox, WebKit/Safari, iOS/Android devices not installed in this environment |
+| Cross-browser / device compatibility | **PARTIAL at the time** — Chromium only; **superseded 19 October 2026** by the addendum below (all three engines, 0 failures; real devices still unverified) |
 
 **Result: 37 tests passed in 1.1 minutes, 0 failed.**
+
+> **Addendum — 19 October 2026 (UI stage-2 / cross-browser pass).** Limits #1 and
+> #3 above were true of that pass and are now closed for the project. Firefox and
+> WebKit are installed, and each engine runs the whole journey suite in its own
+> invocation against the same topology: **Chromium 76 passed + 2 by-design skips,
+> Firefox 76 + 2, WebKit 75 + 3, 0 failures** — with axe reporting **0 violations**
+> on all three and `e2e/zoom.spec.js` passing **200 % and 400 %** reflow on all
+> three. The Firefox run also found a genuine defect this report could not see
+> with one engine: the Profile session table could overflow a `.panel-scroll`
+> that no keyboard could reach, now fixed by `ScrollRegion`. One check stays
+> unrunnable on WebKit — Playwright's WebKit build never places sequential focus
+> on implicitly-focusable elements (proved on a four-element control page) — so
+> the keyboard journey skips `webkit`+Windows only and still hard-fails on
+> Chromium and Firefox (L6). The screen-reader walkthrough (#2) and real-device
+> coverage (#4) remain open.
 
 ## What was measured
 
