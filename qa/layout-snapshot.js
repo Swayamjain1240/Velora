@@ -26,6 +26,13 @@ const BASELINE = path.join(process.cwd(), 'qa', 'baselines', 'layout.json');
 // screens are held to a couple of pixels.
 const TOLERANCE = 2;
 const TOLERANCE_BY_ROUTE = { landing: 120 };
+// `mainWidth` is the one font-sensitive number here. Desktop and tablet layouts
+// are fluid, so they stay at ±2. At phone widths the clinical screens reach
+// their MIN-CONTENT width, which depends on the font fallback: Windows renders
+// Segoe UI and Linux (CI) renders Liberation Sans, a ~20 px difference that is
+// not a layout change. A real regression still has to get past the exact
+// overflow, heading, table and nav checks below.
+const WIDTH_TOLERANCE_BY_SIZE = { phone: 32, 'short-phone': 32 };
 
 const SIZES = [
   { name: 'desktop', width: 1440, height: 900 },
@@ -45,6 +52,12 @@ const ROUTES = [
   { name: 'audit', url: '/app/audit', auth: 'viewport-admin.json' },
   { name: 'retention', url: '/app/retention', auth: 'viewport-admin.json' },
 ];
+
+// Snapshot keys are `<route>@<size>`; the size decides the width allowance.
+function sizeNameOf(key) {
+  const at = String(key).lastIndexOf('@');
+  return at === -1 ? '' : String(key).slice(at + 1);
+}
 
 function readAuth(file) {
   if (!file) return undefined;
@@ -131,12 +144,16 @@ async function measure(page) {
       continue;
     }
     const tolerance = actual.tolerance ?? TOLERANCE;
+    const widthTolerance = WIDTH_TOLERANCE_BY_SIZE[sizeNameOf(key)] ?? tolerance;
     for (const [field, actualValue] of Object.entries(actual)) {
       if (field === 'tolerance') continue;
       const expectedValue = want[field];
+      const fieldTolerance = field === 'mainWidth' ? widthTolerance : tolerance;
       if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
-        if (Math.abs(actualValue - expectedValue) > tolerance) {
-          failures.push(`${key}.${field}: ${actualValue} (baseline ${expectedValue}, ±${tolerance})`);
+        if (Math.abs(actualValue - expectedValue) > fieldTolerance) {
+          failures.push(
+            `${key}.${field}: ${actualValue} (baseline ${expectedValue}, ±${fieldTolerance})`
+          );
         }
       } else if (actualValue !== expectedValue) {
         failures.push(`${key}.${field}: ${JSON.stringify(actualValue)} (baseline ${JSON.stringify(expectedValue)})`);
