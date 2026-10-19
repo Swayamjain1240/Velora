@@ -33,6 +33,24 @@ function withWebgl() {
   };
 }
 
+// The tier is deliberately lowered on a low-power device (≤4 cores or ≤4 GB), so
+// the capability inputs must be pinned or the assertion would describe the
+// machine rather than the code: GitHub's ubuntu runners report 2-4 cores and
+// would downshift a 1440 px viewport to the tablet tier (that is exactly how
+// this test failed in CI while passing on a developer laptop).
+function capability({ cores = 8, memory = 8 } = {}) {
+  const originalCores = Object.getOwnPropertyDescriptor(navigator, 'hardwareConcurrency');
+  const originalMemory = Object.getOwnPropertyDescriptor(navigator, 'deviceMemory');
+  Object.defineProperty(navigator, 'hardwareConcurrency', { value: cores, configurable: true });
+  Object.defineProperty(navigator, 'deviceMemory', { value: memory, configurable: true });
+  return () => {
+    if (originalCores) Object.defineProperty(navigator, 'hardwareConcurrency', originalCores);
+    else delete navigator.hardwareConcurrency;
+    if (originalMemory) Object.defineProperty(navigator, 'deviceMemory', originalMemory);
+    else delete navigator.deviceMemory;
+  };
+}
+
 function media({ reduce = false, compact = false } = {}) {
   const original = window.matchMedia;
   window.matchMedia = (query) => ({
@@ -75,11 +93,24 @@ describe('Recovery Network hero', () => {
 
   it('lazy-loads the scene only when a WebGL context can be created', async () => {
     const restore = withWebgl();
+    const restoreCaps = capability({ cores: 8, memory: 8 });
     render(<HeroVisual />);
     const scene = await screen.findByTestId('scene');
     expect(scene).toHaveAttribute('data-tier', 'desktop');
     // Motion allowed and the hero on screen: the loop runs continuously.
     expect(scene).toHaveAttribute('data-frameloop', 'always');
+    restoreCaps();
+    restore();
+  });
+
+  it('lowers the tier on a low-power device rather than trusting the width alone', async () => {
+    const restore = withWebgl();
+    const restoreCaps = capability({ cores: 2, memory: 8 });
+    render(<HeroVisual />);
+    const scene = await screen.findByTestId('scene');
+    // A 1440 px viewport would be "desktop"; ≤4 cores must still drop one tier.
+    expect(scene).toHaveAttribute('data-tier', 'tablet');
+    restoreCaps();
     restore();
   });
 
