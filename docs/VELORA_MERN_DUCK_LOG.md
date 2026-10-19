@@ -268,3 +268,114 @@ and the one-invocation caveat), `UI_KNOWN_LIMITATIONS.md` (L2, L6, L14, D-9),
 
 **Next authorized action:** owner review of this pass, then the stage-3 structural
 pass or a real-Safari/AT sweep, whichever the owner prioritises.
+
+---
+
+## DUCK REVIEW — 19 October 2026, Asia/Kolkata
+
+**Repository / branch / commit / dirty state:** `Swayamjain1240/Velora` ·
+`feat/ui-redesign-dark-purple` · `287f78d` · clean, pushed (`origin` = same SHA).
+**Current part and VEL IDs:** post-Part-10 · UI stage 2 + cross-browser closure ·
+VEL-001–VEL-021 · Security-25 1–25.
+**Verdict: ACTION REQUIRED** — one repository gate has never been met.
+
+### Evidence inspected
+
+The three authority documents (Master v2.0, Architecture v2.0, Duck Log v2.0 text
+extracts), README, `.gitignore`, `server/src/app.js` middleware order,
+`server/src/config/env.js`, provider defaults, the client component/test tree,
+`.github/workflows/ci.yml`, the GitHub Actions API (runs, jobs, annotations — logs
+need auth), `FINAL_REQUIREMENT_TRACEABILITY.md`, `FINAL_SECURITY_AUDIT.md`, and this
+pass's own test output on this revision.
+
+### Requirement findings
+
+All **21 VEL areas remain VERIFIED**, carried from the traceability matrix and
+re-exercised on this revision by the full suites (server 424/424, client 99/99,
+browser 78 per engine). No VEL was downgraded. Nothing contradicted a requirement:
+no clinical-invariant change, no approval-path change, no tenant-boundary change.
+
+### Security-25 findings
+
+**23 PASSED · 2 PARTIAL · 0 FAILED · 0 BLANK**, re-checked from code on this
+revision: no `.env`/key file is tracked; `.gitignore` covers `.env*`, uploads,
+backups, logs, coverage, `dist` and `e2e/.auth`; cookie sessions with no token in
+`localStorage`; `loadSession → originProtection → csrfProtection` before every
+`/api` router; the coarse limiter is skipped only under `NODE_ENV=test` and was
+measured at 300 req/min; provider defaults stay fail-closed (`none` / `in_app`).
+- **#11 PARTIAL** — API carries CSP/`nosniff`; the static client shell has no CSP
+  at a hosting layer (no host exists yet).
+- **#16 PARTIAL** — production Mongo credentials/TLS/network boundary remain
+  deployment decisions; the test URI is loopback without credentials.
+
+### Corrections made
+
+The Duck review found CI **red, and never green** (see below). The failing client
+job was a machine-dependent assertion, not a product defect: the hero lowers its
+quality tier when `navigator.hardwareConcurrency <= 4`, and GitHub's runners report
+2–4 cores, so a 1440 px viewport produced `data-tier="tablet"` while the test
+expected `desktop`. **Fixed in `287f78d`** by pinning both capability inputs and
+adding a second test for the documented low-power downshift (previously untested).
+The assertion was strengthened, not relaxed.
+
+### Verification (this revision)
+
+`npm test -w server` → **424/424** · `npm test -w client` → **99/99** (was 98; +1
+new) · `npm run lint -w client` → clean · `npm run build -w client` → clean ·
+browser journeys per engine → Chromium **76+2**, Firefox **76+2**, WebKit **75+3**,
+0 failures · axe 0 violations on all three · `qa/layout-snapshot.js` 36/36 ·
+`qa/viewport-audit.js` 144/0 · `qa/hero-browser-test.js` 18/18 · provider
+fail-closed journey pass · `npm audit` 0 · docs 99 local + 6 external links, 0 broken.
+
+### Failed, blocked or not-run checks — the ACTION REQUIRED item
+
+- **CI has never passed.** The GitHub Actions API shows **13 runs, all on `main`,
+  all `failure`** (oldest 11 Oct failed in *Server tests*; newest, on `1098815`,
+  failed in *Client tests → Unit tests* at `hero-visual.test.jsx:80`). The workflow
+  triggers only on `push: main` and `pull_request`, so **pushing this branch
+  produced no run at all** — the fix in `287f78d` has no CI evidence yet.
+- The oldest server-test failure predates several fixes and was not re-triaged
+  here; the current server suite passes locally (424/424). It needs a CI run to be
+  settled.
+- Not run: real Safari, NVDA/VoiceOver, physical devices, Lighthouse, production
+  Mongo TLS drill, GitHub Actions logs (annotation-level access only).
+
+### External API disclosures
+
+None. No provider was selected or contacted; the fake extraction provider is local
+and performs no network I/O.
+
+### Documentation updated
+
+This entry. The pass's earlier documentation updates (README, register, living UI
+docs, accessibility/stage-1 addenda) are recorded in the entry above.
+
+### Unresolved decisions/risks
+
+CI green on this revision (blocking the merge gate); UI stages 3–5; deployment and
+hosting-layer CSP; provider selection; scheduled backups/RPO; clinical validation
+and privacy sign-off; real-Safari/AT/device verification.
+
+**Next authorized action:** open a pull request from `feat/ui-redesign-dark-purple`
+to `main` so CI runs on this revision (owner authorization required), then merge
+only on green.
+
+### Session entry — 19 October 2026
+
+Date/time and timezone: 19 October 2026, Asia/Kolkata.
+User request and authorization: "first duck" — run the Duck review before further
+work; a prior instruction authorized pushing to GitHub.
+Repository/branch/commit/working tree: `Swayamjain1240/Velora`,
+`feat/ui-redesign-dark-purple`, `287f78d` pushed, clean.
+Part, milestone and VEL IDs: post-Part-10 · UI stage 2 · VEL-001–021 · Security-25.
+Files/evidence inspected: listed under *Evidence inspected* above.
+Changes and commits: `287f78d` (hero test determinism + low-power coverage).
+Tests and exact outcomes: server 424/424 (exit 0); client 99/99 (exit 0); lint
+clean (exit 0); build clean (exit 0); journeys 78/engine, 0 failures; layout 36/36;
+viewport 144/0; hero 18/18; audit 0; links 0 broken.
+Security/dependency/secret findings: no tracked secrets; 23 PASSED, 2 PARTIAL
+(#11 hosting CSP, #16 production TLS); no dependency finding.
+Duck verdict: **ACTION REQUIRED**.
+Open decisions/blockers: CI has never been green; no run can occur on this branch
+without a PR; deployment, providers, backups and clinical/privacy approvals open.
+Next concrete action: open the PR (owner authorization) and merge only on green.
