@@ -1708,3 +1708,10 @@ key refused before writing, app-database and non-empty targets refused, restored
 
 Still owner decisions: backup cadence, off-host/off-region storage, immutability, access audit and
 key custody. Still blocked: a real deployment, provider selection and clinical/privacy sign-off.
+
+### The run after both fixes is green
+
+Run **39237665971** on `b51422d`, 19 October 2026: **all four jobs success** - Server tests (now 437,
+including the 13 new backup checks), Client tests/lint/build, Browser journeys (76 journeys plus the
+portable layout gate, the restore drill and the reconciliation report), and Dependency audit/secret
+scan. This is the first green CI run in the repository's history.
