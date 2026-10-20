@@ -164,16 +164,19 @@ Two layout defects were found by that audit and fixed in this change:
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Client unit/component | `npm test -w client` | **77/77 passed**, 15 files |
-| Lint | `npm run lint -w client` | **clean** |
-| Production build | `npm run build -w client` | **built** |
-| Browser journeys | `npx playwright test` | **76 passed + 1 opt-in skip** |
-| Accessibility (axe WCAG 2.1 A/AA) | `npx playwright test e2e/axe.spec.js` | **0 violations on 15 screens** |
+| Client unit/component | `npm test -w client` | **105/105 passed**, 18 files |
+| Lint | `npm run lint -w client` | **clean**, exit 0 |
+| Production build | `npm run build -w client` | **built**, exit 0 |
+| Browser journeys — fake topology | `npm run test:e2e:fake` | **116 passed + 1 opt-in skip, 0 failed** |
+| Browser journeys — provider disabled | `npm run test:e2e:none` | **1 passed** |
+| Combined E2E gate | `npm run test:e2e:all` | **PASSED, exit 0** (Chromium) |
+| L16 width contract | `npx playwright test e2e/layout-width.spec.js` | **31/31 passed** (24 session×viewport + tablet + dialog + detail) |
+| Accessibility (axe WCAG 2.1 A/AA) | `npx playwright test e2e/axe.spec.js` | **0 violations on 34 screen states** |
 | Zoom reflow | `npx playwright test e2e/zoom.spec.js` | **200 % and 400 % pass** |
 | Phone tables | `npx playwright test e2e/tables.spec.js` | **3/3 passed** |
 | Forced colours | `npx playwright test e2e/forced-colors.spec.js` | **3/3 passed** |
 | Six-size audit (all five sessions) | `node qa/viewport-audit.js` | **144 checks, 0 failures** |
-| Layout regression gate | `node qa/layout-snapshot.js` | **36/36 surfaces match** |
+| Layout regression gate | `node qa/layout-snapshot.js` | **36/36 surfaces match** (baseline re-recorded after L16) |
 | 3D hero suite | `node qa/hero-browser-test.js` | **18 checks, 0 failures** |
 | Reduced motion | Playwright `reducedMotion: 'reduce'` probe | **0.00 % pixel change**, opacity 1 |
 | Visual capture | `node qa/ui-visual-capture.js` | 14 images + measurements |

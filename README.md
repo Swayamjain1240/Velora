@@ -31,11 +31,16 @@ never activate patient instructions, tasks or reminders.
 > and a secret scan over the tree and all reachable history. The UI redesign is at **stage 2**: stage 1's tokens, shell,
 > auth, landing, 3D hero, phone layout and accessibility audit, plus the
 > stage-2 overlay primitives (`Dialog`, `Toast`, `Tooltip` and a keyboard-
-> reachable `ScrollRegion`). The browser journeys now run on **Chromium, Firefox
-> and WebKit**, not Chromium alone. Still open by design: no deployment, no
-> external provider, no scheduled backup, no real destructive deletion, no real
-> patient data and no clinical validation — the owner, clinical, privacy and
-> provider decisions are listed in the
+> reachable `ScrollRegion`). The browser gate runs **two API topologies** under
+> one exit code (`npm run test:e2e:all`): the deterministic fake provider, then
+> the shipped provider-disabled default — a separately passing retry is no longer
+> accepted as green. **L16 is resolved**: the authenticated shell had a hidden
+> min-content column that clipped phone content while page overflow read 0; the
+> column is now explicit, the tab strip wraps, and a 31-test width regression
+> gate covers every session at six viewport sizes. Still open by design: no
+> deployment, no external provider, no scheduled backup, no real destructive
+> deletion, no real patient data and no clinical validation — the owner,
+> clinical, privacy and provider decisions are listed in the
 > [readiness report](docs/VELORA_READINESS_REPORT.md).
 
 ## Quick start
@@ -171,13 +176,15 @@ the authorization boundary.
 npm run dev                              # API :4000 + client :5173, one command
 npm run mongo:test-rs -w server          # start the replica-set dev database once
 npm run seed -w server                   # synthetic clinic + one user per role
-npm test                                 # server (424) + client (98) tests
-npm test -w server                       # 424 unit + integration tests
-npm test -w client                       # 98 client unit tests (Vitest)
+npm test                                 # server (440) + client (105) tests
+npm test -w server                       # 440 unit + integration tests
+npm test -w client                       # 105 client unit tests (Vitest)
 npm run lint -w client                    # ESLint
 npm run build -w client                   # production build
-npx playwright test                       # 78 journeys (76 pass + 2 by-design skips): axe/zoom/forced-colours
-E2E_PROJECTS=firefox,webkit npx playwright test   # the same suite on Firefox and WebKit
+npm run test:e2e:all                     # merge gate: fake-provider suite, then provider-disabled suite
+npm run test:e2e:fake                    # fake-provider journeys only (116 passed + 1 opt-in skip)
+npm run test:e2e:none                    # provider-disabled journey only (1 passed)
+E2E_PROJECTS=firefox npm run test:e2e:all # the same gate on another Playwright engine
 node qa/layout-snapshot.js               # blocking layout regression gate (36 snapshots)
 node qa/viewport-audit.js                # 144-route six-size viewport audit
 npm run restore:drill -w server          # logical restore drill (rows+indexes+objects+decryption)
@@ -190,44 +197,74 @@ npm audit --omit=dev                     # production dependency audit
 
 ### Verified evidence
 
-- Server **424/424** tests pass against replica-set MongoDB.
-- Client **98/98** tests, ESLint clean, production build clean
-  (initial 466.52 kB / 133.30 kB gzip; 3D scene chunk 4.99 kB gzip).
-- Browser journeys **78 per engine, 0 failures** against the documented topology:
-  Chromium **76 passed + 2 by-design skips**, Firefox **76 + 2**, WebKit
-  **75 + 3** (the third skip is the keyboard journey, which Playwright's WebKit
-  build cannot run — proved and recorded as [L6](docs/UI_KNOWN_LIMITATIONS.md)),
-  plus the provider-disabled journey run separately under
-  `EXTRACTION_PROVIDER=none`.
-- axe (WCAG 2.1 A/AA): **0 violations across 15 screens** on all three engines;
-  200 %/400 % reflow, phone table stacking and forced-colours checks pass.
-- `qa/viewport-audit.js` 144 checks, 0 failures; `qa/hero-browser-test.js`
-  18/18; `qa/layout-snapshot.js` 36/36 against the committed baseline.
-- `npm audit`: 0 (dev and production). Documentation links re-checked after this
-  pass: 99 local targets 0 broken, 6 external URLs all 200.
+- Server **440/440** tests pass against replica-set MongoDB (exit 0).
+- Client **105/105** tests, ESLint clean, production build clean
+  (main 467.74 kB / 133.67 kB gzip, CSS 47.09 kB / 9.39 kB gzip; 3D scene chunk
+  13.11 kB / 4.99 kB gzip).
+- Browser gate, **two topologies in one command**: fake provider **116 passed +
+  1 opt-in skip, 0 failed** (5.9 min), provider-disabled **1 passed** (14 s),
+  **combined exit code 0**. The skip is the opt-in quarantine journey (needs
+  `DOCUMENT_PARSER_TIMEOUT_MS=50` and `E2E_QUARANTINE=1`); it is reported
+  separately, not folded into the pass count.
+- **Browser engines, precisely:** that gate ran on Playwright's **Chromium**
+  engine. Playwright's **Firefox** and **WebKit** engines ran the whole suite in
+  the 19 October pass (Firefox 77/77; WebKit 76 passed + 0 failures with 3 skips,
+  including a WebKit-only keyboard limitation, [L6](docs/UI_KNOWN_LIMITATIONS.md))
+  and were **not** re-run in this final pass. None of this is real Safari, real
+  Firefox or a physical device — those remain **NOT RUN**.
+- axe (WCAG 2.1 A/AA): **0 violations across 34 screen states** (9 groups);
+  200 %/400 % reflow, phone table stacking, keyboard, reduced-motion and
+  forced-colours checks pass.
+- **L16 width regression gate** (`e2e/layout-width.spec.js`): **31 tests**, all
+  pass; the underlying measurement moved from **21/60** route×viewport
+  combinations wider than the viewport to **0/60**.
+- `qa/layout-snapshot.js` **36/36** against the re-recorded baseline;
+  `qa/viewport-audit.js` 144 checks and `qa/hero-browser-test.js` 18/18 were
+  previously green and are not part of the final commit's gate.
+- `npm audit`: **0** (dev and production). Secret scan: **clean** — 409 tracked
+  files and 851 historical revisions, with exactly two reviewed synthetic
+  fixtures allowlisted by value fingerprint.
+- Restore drill and document reconciliation: **passed**; reconciliation reports
+  0 missing, 0 unreadable, 0 mismatches and 0 orphans after the documented
+  repair of E2E residue.
 
 ### Running the browser journeys
 
-The Playwright suite needs the stack running and reseeds the synthetic clinic
-itself. Start the API the way CI starts it (the provider-disabled spec guards
-itself with the same variable, so export it to Playwright too):
+`npm run test:e2e:all` is the gate, and it owns the stack. It checks the local
+MongoDB replica set (starting it on `:27019` when absent), seeds the synthetic
+clinic, starts the API, starts Vite, waits for both to answer, runs the
+fake-provider suite, stops the API, restarts it with `EXTRACTION_PROVIDER=none`,
+runs the provider-disabled journey, stops everything and exits **0 only if both
+phases passed**. Ports `:4100` and `:5173` must be free: it refuses to reuse or
+kill a process it did not start. `npm run test:e2e:fake` and
+`npm run test:e2e:none` run one phase each. The gate uses its own temporary
+document-store root, so it cannot leave orphans in the development store.
+
+Two topologies exist because they assert opposite things: every AI journey needs
+the deterministic local provider, and the fail-closed journey needs the shipped
+default with **no** provider. Running them in one API process can only make one
+of them skip or fail, which is why the gate restarts the API between phases.
+
+To drive Playwright yourself, start a stack and invoke the CLI — that is a single
+topology and therefore **not** the merge gate:
 
 ```bash
 EXTRACTION_PROVIDER=fake NODE_ENV=test PORT=4100 node server/src/index.js   # terminal 1
-EXTRACTION_PROVIDER=fake PORT=4100 npx playwright test                      # terminal 2
+VITE_API_PROXY=http://127.0.0.1:4100 npm run dev -w client                  # terminal 2
+EXTRACTION_PROVIDER=fake npx playwright test                                # terminal 3
 ```
 
 `NODE_ENV=test` switches off only the in-process blanket rate limiter; the
 durable Mongo-backed per-route limits stay active. This matters: a full suite
 against a `development` API trips the 300 req/min limiter and the status check
 lands in the designed retry state (measured — see L14). To repeat the suite on
-the other engines, append `E2E_PROJECTS=firefox`, `E2E_PROJECTS=webkit` or both,
-comma-separated — but run them as **separate invocations**: the global setup
-re-seeds the synthetic clinic once per process, so several engines inside one
-invocation leave the later engines against a fixture the first one already
-consumed (the symptom is an already-enrolled MFA account and a plan version that
-already exists). One journey is opt-in: start
-the API with `DOCUMENT_PARSER_TIMEOUT_MS=50` and run
+the other engines, set `E2E_PROJECTS=firefox` or `E2E_PROJECTS=webkit` on a
+gate run — but run them as **separate invocations**: the global setup re-seeds
+the synthetic clinic once per process, so several engines inside one invocation
+leave the later engines against a fixture the first one already consumed (the
+symptom is an already-enrolled MFA account and a plan version that already
+exists). One journey is opt-in: start the API with
+`DOCUMENT_PARSER_TIMEOUT_MS=50` and run
 `E2E_QUARANTINE=1 npx playwright test e2e/documents-quarantine.spec.js` to watch
 a valid file be quarantined end to end; it reports as skipped in a normal run.
 

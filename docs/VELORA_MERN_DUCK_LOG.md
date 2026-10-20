@@ -436,3 +436,65 @@ Next concrete action: open the PR (owner authorization) and merge only on green.
 **Documentation updated:** this entry, `FINAL_LOCAL_CLOSURE_REPORT.md` (new), `README.md` (scope warning, provider matrix, badges), `.env.example` (name mapping), `VELORA_PROVIDER_DECISIONS.md` (§9 local-only selection), `UI_KNOWN_LIMITATIONS.md` (L4/L5 and defect D-13), `VELORA_READINESS_REPORT.md` (re-measured claims), `VELORA_SESSION_LOG.md`.
 
 **Next authorized action:** merge the verified branch into `main` and push; no deployment.
+
+---
+
+## Entry — 20 October 2026, the final two blockers closed
+
+**DUCK REVIEW — 20 October 2026, Asia/Kolkata**
+**Repository / branch / commit:** `Swayamjain1240/Velora` · `fix/final-local-closure-blockers` (from
+`db2fe1f`; the entry's own commit carries the verified code).
+**Scope:** the two items that still stood between the project and closure — **L16** (mobile admin
+width, absorbed by `overflow: hidden`) and the **non-zero combined E2E result** (`85 passed, 1 failed,
+1 skipped, E2E_EXIT=1`).
+**Verdict: `LOCAL PROJECT COMPLETE WITH DOCUMENTED MANUAL-TEST LIMITATIONS`.**
+
+**Reproduced before editing.** A throwaway probe measured `main` across 10 admin/reviewer routes × the
+six required viewports: **21 of 60** combinations were wider than the viewport (`/app/clinic`
+**384 px in 320**, `/app/privacy` **409 px in 390**) while `documentElement.scrollWidth` equalled the
+viewport in every one — clipped, not scrolled, which is why the existing assertions were blind to it.
+The E2E gate was reproduced too: one invocation cannot serve both provider topologies.
+
+**L16 root cause and fix.** `.shell__body` is a grid that declared only `grid-template-rows`, so its
+column was an implicit `auto` track sized from the **min-content** width of its content. A five-tab
+strip, and a stacked table cell whose `<select>` + button could not shrink, pushed that track past the
+shell; the shell's `overflow: hidden` then swallowed the excess. Fixed structurally:
+`grid-template-columns: minmax(0, 1fr)`, a **wrapping** tab strip (it used to scroll under a hidden
+scrollbar, hiding destinations with no affordance), and stacked cells that wrap with a shrinkable
+label and `min-width: 0` controls. Nothing is hidden, cut, removed or clamped. After: **0/60**
+combinations exceed the viewport, every `main` right edge equals the viewport, and clinic went
+**384→320**, privacy **409→390**, audit **365→320**, retention **364→320**, profile **341→320**. New
+gate `e2e/layout-width.spec.js` (**31 tests**: 24 session×viewport measurements, the tablet
+bounded-panel contract, the confirmation dialog at three phone sizes, and click-reached detail screens
+at three sizes). The layout baseline was re-recorded and the 32 px phone-width allowance removed,
+because the number can no longer follow the font.
+
+**E2E root causes and fix.** Two independent defects. (1) *Topology*: the provider-disabled journey
+asserts the shipped no-provider default while every AI journey needs `EXTRACTION_PROVIDER=fake`; one
+API process satisfies only one, so the old invocation skipped or failed that assertion. (2) *Fixture*:
+with the topology corrected, the AI journey still failed with `TEXT_LAYER_ERROR` — the seed is
+idempotent by checksum, so a `ready` `EpisodeDocument` row outlived its encrypted object after a
+storage-root change and the job read a document with no bytes. `server/scripts/seed.js` now verifies
+the stored bytes and replaces an unreadable row. `scripts/e2e-topologies.js` (Node, no shell, Windows-
+safe) owns the whole lifecycle — Mongo check, seed, fake-provider API, journeys, stop, reseed,
+provider-disabled API, journey, cleanup — and exits `0` only when both phases pass. Commands:
+`npm run test:e2e:fake|none|all`; CI's browser job now calls `test:e2e:all` instead of restarting the
+API by hand.
+
+**Measured on the final commit.** server **440/440** (exit 0); client **105/105**; lint exit 0; build
+exit 0 (133.67 kB gzip main, 4.99 kB gzip scene); fake topology **116 passed + 1 opt-in skip, 0
+failed**; provider-disabled **1 passed**; **combined exit 0**; axe 0 violations over 34 screen states;
+layout gate **36/36**; `npm audit` **0** and `--omit=dev` **0**; secret scans clean (**409** tracked
+files, **851** revisions, 2 reviewed synthetic fingerprints); restore drill passed (49 collections,
+8,587 rows, 283 objects, 12,147 ms restore); reconciliation 0/0/0/0 after the documented operator
+repair of 20 E2E-residue orphans.
+
+**Honesty boundary.** The final gate executed Playwright's **Chromium** engine. Firefox/WebKit engine
+runs belong to the 19 October pass and were not re-run; real Safari, real Firefox, NVDA, VoiceOver,
+TalkBack and every physical device remain **NOT RUN**, and accessibility stays `PARTIAL`. No
+deployment occurred, no provider was added, no secret was committed, and no test was deleted,
+weakened or retried into green.
+
+**Documentation updated:** `README.md`, `FINAL_LOCAL_CLOSURE_REPORT.md` (§7.1, §7.2, §8, §9),
+`UI_KNOWN_LIMITATIONS.md` (L16 resolved, L6/L11 wording), `PHASE_A_GATES.md`, this log,
+`VELORA_SESSION_LOG.md`, and the CI workflow.

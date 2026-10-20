@@ -29,9 +29,17 @@ green), and exposed two failures that were **configurations, not flakes**:
 
 After both fixes, run `39237665971` on `b51422d` is **green in all four jobs**.
 
-The gate also surfaced a real finding: `/app/clinic` measures `main` at **412 px inside a 390 px
-viewport** while page overflow reports 0 because the document is `overflow-x: hidden`. Recorded as
-**L16** - the stage-3 structural pass must remove the cause, not widen the gate.
+The gate also surfaced a real finding: `/app/clinic` measured `main` at **412 px inside a 390 px
+viewport** while page overflow reported 0 because the document is `overflow-x: hidden`. Recorded as
+**L16**.
+
+**L16 resolved (20 October 2026).** The cause was an implicit `auto` grid column on `.shell__body`
+sized from min-content width, so a tab strip or a stacked table cell widened `main` and the shell's
+`overflow: hidden` clipped it. The column is now `minmax(0, 1fr)`, the tab strip wraps, and stacked
+cells wrap with shrinkable labels. Measured: 21/60 admin/reviewer route×viewport combinations were
+wider than the viewport before, 0/60 after. `e2e/layout-width.spec.js` (31 tests) gates it, the layout
+baseline was re-recorded, and the 32 px phone-width allowance described in point 2 is **gone** — the
+number is now exactly the viewport at every size, so a width regression fails at any size.
 
 ## A2 - Deployment
 

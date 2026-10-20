@@ -1730,3 +1730,39 @@ Scope: close the four remaining areas of the local-only brief. Deployment explic
 - **Regression.** `npm ci` clean; server **440/440**; client **105/105**; lint clean; build clean; browser **85 passed / 1 failed / 1 skipped** in one invocation, with the provider-disabled journey passing 1/1 in its documented `EXTRACTION_PROVIDER=none` topology; layout gate 36/36; restore drill and reconciliation clean; local startup smoke `ready` (database ok, storage ok).
 - **Not run, and not claimed:** NVDA, VoiceOver, TalkBack, real Safari/Firefox, physical devices. Accessibility remains `PARTIAL`.
 - **Report:** `docs/FINAL_LOCAL_CLOSURE_REPORT.md` — verdict `LOCAL PROJECT COMPLETE WITH DOCUMENTED LIMITATIONS`.
+
+---
+
+## 20 October 2026 — the final two blockers
+
+Scope: L16 (mobile admin width) and the non-zero combined E2E gate. Nothing was deployed.
+
+- **Reproduced first.** Probe over 10 admin/reviewer routes × six viewports: `main` was **384 px** in a
+  320 px viewport (`/app/clinic`) and **409 px** in 390 px (`/app/privacy`) in **21 of 60** cases, while
+  `documentElement.scrollWidth` always equalled the viewport. The page was clipping, not scrolling, so
+  the old assertions could not see it.
+- **L16 cause.** `.shell__body` declared only `grid-template-rows`; its single column was an implicit
+  `auto` track sized from content **min-content** width, so a tab strip or an unshrinkable stacked cell
+  widened `main` past the shell, whose `overflow: hidden` then hid the excess.
+- **L16 fix.** `grid-template-columns: minmax(0, 1fr)`; `.tabs` wraps (it used to scroll under
+  `scrollbar-width: none`, hiding destinations); stacked cells wrap with a shrinkable label and
+  `min-width: 0` controls. No clamp, no hidden content, no removed control, no bigger tolerance.
+  After: **0/60** combinations exceed the viewport. New `e2e/layout-width.spec.js` — **31 tests** —
+  asserts document width, `main` width/right/scroll, no child past the edge, no tab hidden in a strip
+  and no stacked row wider than its panel; it also covers dialogs and click-reached detail screens.
+  Baseline re-recorded (7 `mainWidth` values fell to exactly 320) and the 32 px font allowance removed.
+- **E2E cause 1.** One invocation cannot serve both topologies: the fail-closed journey needs
+  `EXTRACTION_PROVIDER=none`, the AI journeys need `fake`.
+- **E2E cause 2 (found while fixing 1).** `TEXT_LAYER_ERROR`: the seed reused a `ready`
+  `EpisodeDocument` row whose encrypted object no longer existed. `server/scripts/seed.js` now verifies
+  the stored bytes and replaces an unreadable row.
+- **E2E solution.** `scripts/e2e-topologies.js` + `npm run test:e2e:fake|none|all`: it owns Mongo check,
+  seed, API, Vite, readiness, per-phase restart, cleanup, and returns 0 only when both phases pass.
+  CI's browser job now calls `test:e2e:all`.
+- **Results on the final commit.** server **440/440**; client **105/105**; lint 0; build 0; fake
+  **116 passed + 1 opt-in skip**; provider-disabled **1 passed**; **combined exit 0**; axe 0 over 34
+  screen states; layout gate **36/36**; audit 0 / `--omit=dev` 0; secret scans clean (409 files, 851
+  revisions); restore drill passed (49 collections, 8,587 rows, 283 objects, 12,147 ms); reconciliation
+  0/0/0/0 after the documented repair of 20 orphan objects left by earlier shared-root E2E runs.
+- **Not run, not claimed:** NVDA, VoiceOver, TalkBack, real Safari/Firefox, physical devices; Playwright
+  Firefox/WebKit engines were not re-run in this pass. Accessibility remains `PARTIAL`.

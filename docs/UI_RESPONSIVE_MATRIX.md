@@ -52,6 +52,17 @@ this tree (viewports 30/30, accessibility 1/1, axe 4/4, zoom 2/2, tables 3/3,
 forced colours 3/3). The standalone audit that reports every combination printed
 **144 route checks, 0 failures**.
 
+> **Measurement limit this table hid (L16, fixed 20 October 2026).** "Main pane: no
+> horizontal scroll" compares the pane's own `scrollWidth` with its `clientWidth`.
+> When the pane itself is wider than the viewport those two numbers are equal, so
+> the table reported a clean result while `main` was **384 px inside a 320 px
+> viewport** (`/app/clinic`). The cause was an implicit min-content grid column on
+> the shell body; it is now `minmax(0, 1fr)`, the tab strip wraps and stacked cells
+> wrap. `e2e/layout-width.spec.js` (**31 tests**) replaces this blind spot by
+> measuring the real boxes — `main`'s width and right edge, every visible child
+> against the viewport, tab strips against their own box and stacked rows against
+> their panel — across four sessions and all six sizes.
+
 ## 4. Results — landing page
 
 The landing page is the one screen allowed to scroll (control #25), so a document

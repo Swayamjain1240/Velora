@@ -1,8 +1,9 @@
 # Velora — Final Local Closure Report
 
-**Date:** 20 October 2026 · **Branch:** `chore/final-local-closure` · **Scope:** local-only closure of the
-four remaining areas (accessibility, dependency advisories, secrets/environment, local/mock providers)
-· **Deployment:** none, and none attempted.
+**Date:** 20 October 2026 · **Branch:** `fix/final-local-closure-blockers` (merged to `main`) ·
+**Scope:** the four closure areas (accessibility, dependency advisories, secrets/environment,
+local/mock providers) **plus the two blockers that still stood**: the L16 mobile admin-width defect
+and the non-zero combined E2E result · **Deployment:** none, and none attempted.
 
 **Verdict: `LOCAL PROJECT COMPLETE WITH DOCUMENTED LIMITATIONS`.**
 
@@ -28,7 +29,7 @@ external API call and no real patient data anywhere in this repository or its hi
 | OS | Windows, Git Bash |
 | Node / npm | 22.23.1 / 11.18.0 |
 | Database | local MongoDB Community 8.3, single-node replica set `rs0` on `127.0.0.1:27019` |
-| API | `NODE_ENV=test PORT=4100` (`EXTRACTION_PROVIDER=fake`, and a second run with `none`) |
+| API | `NODE_ENV=test PORT=4100`, restarted per phase by the gate: `EXTRACTION_PROVIDER=fake`, then `none` |
 | Client | Vite dev server on `127.0.0.1:5173`, proxying `/api` to `:4100` |
 | Data | synthetic seed only (`npm run seed -w server`) |
 | Install | clean `npm ci` — 428 packages, 0 vulnerabilities |
@@ -47,6 +48,7 @@ external API call and no real patient data anywhere in this repository or its hi
 | Dialog: focus trap, Escape, focus restore (new) | `e2e/keyboard.spec.js` | 1/1 |
 | Tab strip: one Tab stop, arrows, Home/End, wrap (new) | `e2e/keyboard.spec.js` | 1/1 |
 | Six viewports × 5 sessions | `e2e/viewports.spec.js` | 36 measurements, all pass |
+| **L16 width contract** (new) | `e2e/layout-width.spec.js` | **31/31** |
 | 200 % / 400 % reflow | `e2e/zoom.spec.js` | 2/2 |
 | Reduced motion, browser-level (new) | `e2e/reduced-motion.spec.js` | 2/2 |
 | Forced colours / high contrast | `e2e/forced-colors.spec.js` | 3/3 |
@@ -68,7 +70,8 @@ mirrored) applied to all ten strips, covered by 6 unit checks and the new browse
 | NVDA (Windows) screen-reader walkthrough | **NOT RUN** | needs an interactive assistive-technology session on the developer's machine; cannot be automated here |
 | VoiceOver (macOS/iOS) | **NOT RUN** | no macOS or iOS device in this environment |
 | TalkBack (Android) | **NOT RUN** | no Android device |
-| Real Safari / Firefox user run | **NOT RUN** | CI installs Chromium only; Firefox/WebKit projects exist (`E2E_PROJECTS=`) but were not re-run in this pass |
+| Real Safari / real Firefox (installed browsers) | **NOT RUN** | only Playwright's engine builds ran; a passing Playwright WebKit run is not Apple Safari |
+| Playwright Firefox and WebKit engines | **NOT RE-RUN in this pass** | they ran the whole suite on 19 October (77/77 and 76 passed + 0 failures with 3 skips) and are recorded as such; the final gate executed **Chromium only** |
 | Physical phone / tablet | **NOT RUN** | no device attached |
 | Windows High Contrast, real OS setting | PARTIAL | emulated via `forced-colors` in the browser, not the real OS setting |
 
@@ -161,30 +164,106 @@ data, so a switch could only imply that one exists.
 | Client unit/component | `npm run test -w client` | **105/105 passed** (18 files) |
 | Client lint | `npm run lint -w client` | clean, exit 0 |
 | Production build | `npm run build -w client` | built; `index.js` 467.74 kB (133.67 kB gzip), CSS 46.83 kB (9.35 kB gzip), scene chunk 13.11 kB (4.99 kB gzip) |
-| Browser journeys (all specs) | `PORT=4100 npx playwright test` | **85 passed, 1 failed, 1 skipped** (5.6 min) |
-| ↳ the one failure | `e2e/extractions.spec.js -g "no provider enabled"` | **PASSED 1/1** when the API is restarted with `EXTRACTION_PROVIDER=none` — its documented topology (the same two-step shape CI uses). The full-suite invocation ran that spec against a `fake`-provider API, so the assertion could not hold. No test was changed or skipped to make this pass |
-| Layout snapshot gate | `node qa/layout-snapshot.js` | 36 surfaces match the baseline |
+| Browser journeys — fake topology | `npm run test:e2e:fake` | **116 passed, 0 failed, 1 skipped** (5.9 min) |
+| Browser journeys — provider-disabled topology | `npm run test:e2e:none` | **1 passed** (14 s) |
+| **Combined E2E gate** | `npm run test:e2e:all` | **PASSED — exit code 0** (both phases, one command) |
+| ↳ the one skip | `e2e/documents-quarantine.spec.js` | **intentional and opt-in**: it needs `DOCUMENT_PARSER_TIMEOUT_MS=50` plus `E2E_QUARANTINE=1`; reported separately, never counted as a pass |
+| L16 width regression | `e2e/layout-width.spec.js` (inside the gate) | **31/31 pass**; measurement moved from 21/60 to 0/60 route×viewport combinations wider than the viewport |
+| Layout snapshot gate | `node qa/layout-snapshot.js` | **36/36** against the deliberately re-recorded baseline |
 | Startup smoke | `curl /api/health`, `/api/ready`, client `:5173` | `ready`, database `ok`, storage `ok` |
-| Restore drill | `npm run restore:drill -w server` | **PASSED** — 49 collections, 8,592 rows, 283 encrypted objects (8,093,652 bytes); dump 382 ms, restore 13,144 ms, object copy 737 ms, verify 832 ms |
-| Document reconciliation | `node server/scripts/reconcile-documents.js` | 0 missing, 0 unreadable, 0 mismatches, 0 orphans (dry run) |
-| Secret scan | `node qa/secret-scan.js` (+ `--history`) | clean (see 5.3) |
+| Restore drill | `npm run restore:drill -w server` | **PASSED** — 49 collections, 8,587 rows, 283 encrypted objects (8,093,652 bytes, byte-identical after restore); dump 496 ms, restore 12,147 ms, object copy 532 ms, verify 655 ms |
+| Document reconciliation | `npm run documents:reconcile -w server` | **0 missing, 0 unreadable, 0 integrity mismatches, 0 orphans** (dry run, after the documented repair described in 7.2) |
+| Secret scan | `node qa/secret-scan.js` (+ `--history`) | **clean** — 409 tracked files, 851 historical revisions, 2 reviewed synthetic fingerprints (see 5.3) |
 
-Totals: **server 440 + client 105 + browser 86 (in their documented topologies) = 631 automated checks**,
-plus the layout gate (36), the drill and the reconciliation report.
+Totals: **server 440 + client 105 + browser 117 (two topologies) = 662 automated checks**,
+plus the layout gate (36), the L16 width gate (31, counted inside the 117), the drill and the
+reconciliation report.
+
+### 7.1 Blocker 1 — L16, the mobile admin width
+
+**Symptom (reproduced first).** A probe over 10 admin/reviewer routes × the six required viewports
+measured `main` at **384 px inside a 320 px viewport** (`/app/clinic`) and **409 px inside 390 px**
+(`/app/privacy`), while `documentElement.scrollWidth` stayed **exactly** the viewport. The page
+therefore reported "no horizontal overflow" and was clipping instead: 21 of the 60 combinations were
+wider than the viewport.
+
+**Root cause.** `.shell__body` is a grid that declared only `grid-template-rows`. Its single column was
+an **implicit `auto` track**, which sizes to the content's *min-content* width: a five-tab strip and a
+stacked table cell whose value (a `<select>` plus a button) could not shrink pushed that track, and the
+shell's own `overflow: hidden` clipped the excess. The width assertions could not see it because they
+only read document overflow.
+
+**Fix (structural, not a clamp).** `grid-template-columns: minmax(0, 1fr)` on `.shell__body`; the tab
+strip now **wraps** instead of scrolling under a hidden scrollbar (`.tabs` had `overflow-x: auto` with
+`scrollbar-width: none`, so destinations disappeared with no affordance); stacked table cells wrap,
+their label can shrink (`flex: 0 1 auto; max-width: 45%`) and their controls get `min-width: 0`. No
+content is hidden, no text is cut, no control is removed, and `overflow-x: hidden` was not used as the
+fix.
+
+**After.** All 60 combinations measure `main` = viewport width with `main`'s right edge at the viewport
+and no visible descendant past it: clinic **384→320**, privacy **409→390**, audit **365→320**,
+retention **364→320**, profile **341→320**. The 320×400 row repeats the same numbers.
+
+**Regression gate.** `e2e/layout-width.spec.js`, 31 tests: 24 session×viewport measurements across
+admin, reviewer, patient and caregiver sessions at 1440×900, 768×1024, 390×844, 320×568, 844×390 and
+320×400; the tablet bounded-panel contract; the confirmation dialog at three phone sizes; and the
+click-reached patient and episode detail screens at three phone sizes. Each measurement asserts
+document width, `main` width, `main` right edge, `main` scroll width, no child past the viewport, no
+tab hidden inside a strip, and no stacked row wider than its panel. The layout baseline was re-recorded
+and the 32 px phone-width allowance removed, because `mainWidth` can no longer depend on the font.
+
+### 7.2 Blocker 2 — the combined E2E gate
+
+**Root cause 1 — two topologies, one process.** The provider-disabled journey asserts that extraction
+*fails closed when no provider is configured*; every AI journey needs the deterministic `fake` provider.
+A single API process can satisfy only one, so the old one-shot invocation either skipped the assertion
+or ran it against the wrong API, and the gate was non-zero.
+
+**Root cause 2 — a fixture that could not be read (found this pass).** Even with the correct topology,
+the AI journey failed with `TEXT_LAYER_ERROR`. The seed is idempotent by checksum, so an
+`EpisodeDocument` row survives a changed `DOCUMENT_STORAGE_ROOT` while its encrypted object does not;
+the job then read a `ready` row whose bytes were gone. That is a fixture defect: `server/scripts/seed.js`
+now verifies the stored bytes (`documentBytesReadable`) and replaces the row when they are missing or
+unreadable, so the fixture is reproducible on any machine rather than only on the one that created it.
+
+**Solution.** `scripts/e2e-topologies.js` (cross-platform Node, no shell): ensure MongoDB → seed →
+start the API with `EXTRACTION_PROVIDER=fake` → wait for `/api/health` → run every journey except the
+provider-disabled one → stop the API and wait for the port → seed → start the API with
+`EXTRACTION_PROVIDER=none` → run that one journey → stop everything. It refuses to reuse or kill a
+process it did not start, gives the run its own document-store root, and exits **0 only when both
+phases pass**. Commands: `npm run test:e2e:fake`, `npm run test:e2e:none`, `npm run test:e2e:all`.
+CI's browser job now calls `npm run test:e2e:all` instead of starting the API itself and restarting it
+by hand.
+
+**Result.**
+
+```text
+Fake-provider E2E suite: PASSED   (116 passed, 1 opt-in skip, 0 failed)
+Provider-disabled E2E suite: PASSED   (1 passed)
+Combined E2E gate: PASSED
+Combined exit code: 0
+Unexpected failures: 0
+```
+
+**Reconciliation residue, stated plainly.** Earlier E2E runs shared the developer's document-store
+root, leaving 20 orphan objects that `documents:reconcile` reported. The gate now uses its own root;
+the residue was removed with the tool's documented repair (`--apply --operator`), which deleted only
+objects with no metadata row and changed no document rows. Reconciliation is now 0/0/0/0.
 
 ---
 
 ## 8. Known limitations (unchanged or newly stated)
 
-1. **Manual accessibility is NOT RUN**: NVDA, VoiceOver, TalkBack, real Safari/Firefox, physical
-   devices. Accessibility is `PARTIAL`; no WCAG conformance is claimed.
-2. **CI runs Chromium only.** Firefox/WebKit projects exist and were exercised in an earlier pass but
-   are not part of this gate.
+1. **Manual accessibility is NOT RUN**: NVDA, VoiceOver, TalkBack, real Safari, real Firefox, iOS
+   Safari, Android Chrome and physical devices. Accessibility is `PARTIAL`; no WCAG conformance is
+   claimed.
+2. **CI runs Chromium only.** Playwright's Firefox and WebKit *engines* were exercised in an earlier
+   pass (they are not installed browsers), and this final gate did not re-run them. Adding CI matrix
+   legs remains an owner decision.
 3. **No scheduled backup and therefore no RPO/RTO commitment**; the drill is logical, same-host and
    synthetic. No provider snapshot, cross-region or point-in-time restore was exercised.
 4. **No deployment** and no production Mongo auth/TLS exercise (D-10).
-5. **Admin screens measure wider than the phone box** (L16) while the page reports no overflow — the
-   content is absorbed, not scrolled; open for the stage-3 structural pass.
+5. ~~Admin screens measure wider than the phone box (L16)~~ — **resolved and gated** (7.1).
 6. **3D scene on real devices** is unmeasured (L8); the fallback path is tested.
 7. **No i18n/RTL/locale pass** (L15).
 8. **Major dependency migrations deferred** (express 5, mongoose 9, zod 4, react 19, eslint 10) —
@@ -197,8 +276,17 @@ plus the layout gate (36), the drill and the reconciliation report.
 
 **`LOCAL PROJECT COMPLETE WITH DOCUMENTED LIMITATIONS`**
 
-Justification: every definition-of-done item that can be executed locally was executed and passed;
-the two items that cannot (assistive-technology and physical-device testing) are marked `NOT RUN` with
-reasons rather than claimed, and one full-suite failure is reported with its topology explanation and
-an independent passing run in the correct topology. Nothing was deployed, no provider was added, no
-secret was committed, and no test was weakened.
+Justification: both blocking items were reproduced first and then closed with evidence. **L16** is
+fixed at its cause (an implicit min-content grid column that clipped phone content behind
+`overflow: hidden`) and is gated by 31 width tests that measure the real boxes, not document overflow.
+**The combined E2E gate** now runs each topology against the API it belongs to, exits **0**, and along
+the way exposed and fixed a seeded-document fixture that could be `ready` with no stored bytes.
+Every definition-of-done item that can be executed locally was executed on the final commit: server
+440/440, client 105/105, lint and build clean, 116 fake-topology journeys plus the provider-disabled
+journey, axe 0 violations, layout gate 36/36, two secret scans clean, both audits 0, restore drill and
+reconciliation clean, working tree clean after the commit.
+
+The items that cannot be executed here — NVDA, VoiceOver, TalkBack, real Safari/Firefox, physical
+devices, a real deployment — are marked `NOT RUN` with reasons rather than claimed. Nothing was
+deployed, no provider was added, no secret was committed, and no test was weakened, deleted or
+retried into green.
