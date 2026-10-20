@@ -411,3 +411,28 @@ Next concrete action: open the PR (owner authorization) and merge only on green.
 **Documentation updated:** runbook §6.1/§7.3 (ordering, manifest trust, measured figures), `PHASE_A_GATES.md`, this log.
 
 **Next authorized action:** push this fix set, confirm CI green on the new revision, then owner review of PR #1.
+
+---
+
+## Entry — 20 October 2026, final local-only closure
+
+**DUCK REVIEW — 20 October 2026, Asia/Kolkata**
+**Repository / branch / commit / dirty state:** `Swayamjain1240/Velora` · `chore/final-local-closure` (branched from `b681b89`; this entry's own commit follows the verification below).
+**Scope:** the four remaining areas — accessibility, dependency advisories, secrets/environment, local/mock providers — under an explicit local-only mandate with deployment excluded.
+**Verdict: LOCAL PROJECT COMPLETE WITH DOCUMENTED LIMITATIONS**
+
+**Duck review before editing.** Re-read the tree rather than trusting the previous report, and two recorded items were stale: `npm audit` is **0** in all three workspaces (the 16 October entry's 6 dev-toolchain advisories are gone), and `e2e/axe.spec.js` already ran a WCAG 2.1 A/AA audit plus 200 %/400 % zoom in CI. Both claims were corrected in the readiness report instead of being carried forward.
+
+**A real defect found while inventorying keyboard coverage.** All ten tab strips declared `role="tablist"` / `role="tab"` but implemented no keyboard contract: every tab was a separate Tab stop and Left/Right/Home/End did nothing — the WAI-ARIA tabs pattern was name-only. Fixed with `client/src/lib/tabs.js` (roving tabindex + arrow navigation with wrapping, focus follows selection, click-path side effects mirrored so arrow movement cannot land on a stale page or cleared thread) and applied to all ten strips. 6 unit checks plus a browser journey now assert one Tab stop, arrows, Home/End and wrapping.
+
+**Accessibility coverage added:** axe now audits **34 screen states** instead of 15 — the deep surfaces that only exist after a click (patient detail and its three tabs, episode detail and all six tabs, patient self-service, caregiver scoped views, an invitation error state) — and a browser-level reduced-motion spec proves the page transition is not animated and the decorative scene stays static and `aria-hidden`.
+
+**What held, measured:** server **440/440** (exit 0, full run 12.6 min); client **105/105** across 18 files; lint clean; production build clean (133.67 kB gzip main, 4.99 kB gzip scene); browser journeys **85 passed / 1 failed / 1 skipped** in one invocation, with the single failure being the provider-disabled journey that asserts against an API running `EXTRACTION_PROVIDER=none` — re-run in that documented topology it passes **1/1**, and no test was edited or skipped to make it pass. Layout gate 36/36; restore drill 49 collections / 8,592 rows / 283 objects / restore 13,144 ms; reconciliation 0 drift.
+
+**Secrets:** new offline scanner (`qa/secret-scan.js`) over 401 tracked files and **823 historical revisions** is clean, with exactly two synthetic fixtures allowlisted **by SHA-256 of the value** (so a real key in the same file still fails). `--strict` fails on those two, proving the baseline is not masking the scan. Only `.env.example` is tracked; `.env` is ignored and present locally.
+
+**Honesty boundary:** NVDA, VoiceOver, TalkBack, real Safari/Firefox and physical devices were **NOT RUN** and accessibility stays `PARTIAL`. No WCAG conformance, clinical validation, production readiness or zero-bug claim is made anywhere.
+
+**Documentation updated:** this entry, `FINAL_LOCAL_CLOSURE_REPORT.md` (new), `README.md` (scope warning, provider matrix, badges), `.env.example` (name mapping), `VELORA_PROVIDER_DECISIONS.md` (§9 local-only selection), `UI_KNOWN_LIMITATIONS.md` (L4/L5 and defect D-13), `VELORA_READINESS_REPORT.md` (re-measured claims), `VELORA_SESSION_LOG.md`.
+
+**Next authorized action:** merge the verified branch into `main` and push; no deployment.

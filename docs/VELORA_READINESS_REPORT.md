@@ -30,7 +30,7 @@ Date: 16 October 2026 · Branch: `main` · Repository: `Velora` · Part 10 lande
 | Key-rotation re-seal | `npm run keys:reseal -w server` (no rotation staged) | report: targets `none (nothing to do)`, 0 scanned, exit 0 - the command is wired into the package scripts and refuses to invent work |
 | Database outage, for real | `tests/integration/health.test.js` closes the actual connection | `/api/ready` → 503 naming `database`, `/api/health` still 200, an authenticated clinical read → 503 `SERVICE_UNAVAILABLE` with **no** data, no stack and no endpoint, and everything recovers when the connection returns |
 | Production dependency audit | `npm audit --omit=dev` | **0 vulnerabilities** |
-| Full dependency audit (incl. dev tooling) | `npm audit` | 6 advisories (3 moderate, 1 high, 2 critical) — **dev/test toolchain only** (vitest → vite → esbuild chain); not shipped, tracked in §7 |
+| Full dependency audit (incl. dev tooling) | `npm audit` | **0 vulnerabilities** in root, `server/` and `client/` (re-measured 20 October 2026, exit 0); the 6 dev-only advisories recorded here on 16 October are no longer present in the tree |
 | Secret scan (tree) | pattern scan for provider keys, private keys and credentialed URIs | clean |
 | Secret scan (reachable history, all commits) | `git grep` over `git rev-list --all` | clean |
 
@@ -54,7 +54,7 @@ evidence for later changes.
 | 6 | Storage integrity, retention dry run, queue/version reconciliation, disaster behaviour | **PASSED (local)** | Reconciliation reports 0 drift on the seeded set, and its **repair path** is now exercised: each drift class (lost object, tampered envelope, valid envelope whose plaintext no longer matches its recorded hash, orphan with no metadata row) is created deliberately, asserted to be untouched in a dry run, and then repaired with an operator attribution. Retention dry run verified repeatable; plan-version reconciliation supersedes future occurrences while leaving history untouched; reminder retries stay bounded with the failure kept visible; per-dependency failure behaviour exercised, including a closed database connection |
 | 7 | Threat model | **PASSED** | [VELORA_THREAT_MODEL.md](VELORA_THREAT_MODEL.md): eleven scenarios (tenant escape, BOLA, credential stuffing, session theft, stored XSS, NoSQL injection, malicious uploads, prompt injection/data leakage, supply chain, insider/admin misuse, availability) each with the implemented mitigation, the residual risk, and the deployment-dependent gaps marked BLOCKED |
 | 8 | CI protections | **PASSED** | Lockfile + `npm ci`, production dependency audit, gitleaks tree/history scan, server/client/browser gates, and on every push against the seeded database: the restore drill, the read-only reconciliation report **and the key-rotation re-seal in its no-rotation default mode** (so the command cannot rot unnoticed). Branch-protection recommendations recorded; no gate was weakened |
-| 9 | Accessibility, keyboard, responsive, empty/error/loading states | **PARTIAL** | Six-size one-viewport assertions cover every authenticated screen; a new keyboard journey proves shell traversability, a visible focus indicator (2px+ outline) and keyboard activation of a navigation control; journeys address controls by role/name, which requires accessible names. State coverage is explicit rather than implied: **loading** and **empty** states are asserted in the browser journeys (`today` — "not recorded yet", `plans`/`extractions` — an empty slot, `part9` — a non-empty trail, `AuditPanel` — "No events match this search"), **error** states in the client suites (a failed load renders a message, not a blank screen) and **denied** states in the client suites plus per-surface integration denials (a scoped caregiver sees the scoped view, never an empty error). **BLOCKED**: no screen-reader run, no automated contrast/axe audit, no Safari/Firefox run (Chromium project only), no physical device, no extreme-zoom test |
+| 9 | Accessibility, keyboard, responsive, empty/error/loading states | **PARTIAL** | Six-size one-viewport assertions cover every authenticated screen; a new keyboard journey proves shell traversability, a visible focus indicator (2px+ outline) and keyboard activation of a navigation control; journeys address controls by role/name, which requires accessible names. State coverage is explicit rather than implied: **loading** and **empty** states are asserted in the browser journeys (`today` — "not recorded yet", `plans`/`extractions` — an empty slot, `part9` — a non-empty trail, `AuditPanel` — "No events match this search"), **error** states in the client suites (a failed load renders a message, not a blank screen) and **denied** states in the client suites plus per-surface integration denials (a scoped caregiver sees the scoped view, never an empty error). Automated coverage now includes an **axe WCAG 2.1 A/AA audit** (`e2e/axe.spec.js`, fails on any impact, across public, reviewer and admin routes) and the 200 %/400 % **zoom reflow** journeys, both run in CI. **BLOCKED**: no screen-reader run, no real Safari/Firefox run (Chromium project only), no physical device |
 | 10 | Readiness report with explicit gates | **PASSED** | This document |
 
 ---
@@ -75,7 +75,7 @@ evidence for later changes.
 | 10 | Exact CORS allowlist | **PASSED** | Single exact origin, credentialed, no wildcard, no ACAO for a foreign origin; `CLIENT_ORIGIN` must now be a bare origin |
 | 11 | CSP/Helmet/HSTS and attachment headers | **PARTIAL** | Helmet CSP/`nosniff`/frame/referrer policies on the API; HSTS now explicit and production-only; downloads are attachment-typed behind authorization. Client-origin headers remain a deployment responsibility |
 | 12 | Production debug off | **PASSED** | Non-production stack/diagnostic messages; `LOG_LEVEL=debug` refused in production; x-powered-by disabled; trust proxy is explicit rather than defaulted |
-| 13 | Dependency advisories checked before upgrades | **PASSED with a documented finding** | `npm audit --omit=dev` = 0; 6 dev-only advisories remain (test toolchain) and are reported as a limitation rather than hidden |
+| 13 | Dependency advisories checked before upgrades | **PASSED** | `npm audit --omit=dev` = 0 and a full `npm audit` is 0 as well (re-measured 20 October 2026), so no dev-toolchain exception has to be carried |
 | 14 | Remove unused packages | **PASSED** | No unused dependency in `server`/`client`; Part 10 added **no** dependency (logger and readiness are hand-written over the standard library) |
 | 15 | Find exposed keys/uploads/exports/backups/source maps | **PASSED (local)** | Tree and full-history scans clean; `.env` never committed; exports/backups/keys ignored; drills and reconciliation operate on synthetic data |
 | 16 | Secure Mongo credentials/TLS/network boundaries | **PARTIAL** | TLS mandatory in production, credentials server-only, pool bounded, private access rules. Region/network boundary and provider DB audit logs are **BLOCKED** on the database selection |
@@ -193,8 +193,12 @@ path refused, not that a fixture was remembered.
 ## 7. Owner / clinical / privacy decisions still required
 
 **Nothing below is a code task.** No pilot, no deployment and no real patient data may follow until
-items 1-8 are decided by their owner and recorded where the operator will find them; items 9-10 are
-acceptance decisions that do not block a technical deployment but must be closed before a clinical one.
+items 1-8 are decided by their owner and recorded where the operator will find them; item 9 is an
+acceptance decision that does not block a technical deployment but must be closed before a clinical
+one (item 10 closed itself on re-measurement).
+
+A phased plan that closes these, with the deployment deliberately last, is
+[VELORA_GO_LIVE_PLAN.md](VELORA_GO_LIVE_PLAN.md).
 
 1. **Provider selection** for hosting, managed MongoDB, private object storage, notification delivery,
    scheduling/jobs, AI/OCR and monitoring — each with its control-#22 disclosure
@@ -212,10 +216,12 @@ acceptance decisions that do not block a technical deployment but must be closed
    infrastructure access.
 8. **Partner clinic and pilot cohort**, plus an explicit authorisation before any real patient data is
    introduced.
-9. **Accessibility acceptance**: screen-reader, contrast and cross-browser testing, and the target
-   conformance level.
-10. **Dev-toolchain advisories**: decide whether to take the vitest/vite major upgrade that clears the
-    6 dev-only advisories.
+9. **Accessibility acceptance**: screen-reader (NVDA/VoiceOver), real Safari/Firefox and one physical
+   device, plus the target conformance level. The mechanical part - structural/contrast rules via axe
+   and 200 %/400 % zoom reflow - already runs in CI and is no longer part of this decision.
+10. ~~**Dev-toolchain advisories**~~ **CLOSED, 20 October 2026**: `npm audit` reports 0
+    vulnerabilities across root, `server/` and `client/`, so the vitest/vite upgrade question is moot.
+    Re-check `npm audit` before every release; a fresh advisory reopens this item.
 
 ## 8. Claims that must not be made
 

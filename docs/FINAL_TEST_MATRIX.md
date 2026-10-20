@@ -1,6 +1,6 @@
 # Velora — Final Test Matrix
 
-**Revision:** branch `test/complete-functional-qa` (base `036c27a`) · **Date:** 16 October 2026
+**Revision:** `chore/final-local-closure` (base `b681b89`) · **Date:** 20 October 2026 — counts below reflect the current suites (server **440**, client **105**, browser **86** in their documented topologies, axe **34 screen states**)
 Legend: **V** = VERIFIED (observed + passing evidence), **U** = IMPLEMENTED/UNVERIFIED, **P** = PARTIAL, **F** = FAILED→FIXED, **N/A** = not applicable.
 
 ## 1. Phase matrix
@@ -8,12 +8,12 @@ Legend: **V** = VERIFIED (observed + passing evidence), **U** = IMPLEMENTED/UNVE
 | Phase | Scope | Status | Evidence |
 |---|---|---|---|
 | 1 Static/config | syntax, lint, build, startup, env fail-closed, lockfile, routes, indexes, deps, middleware | V | report §2 rows 1–13 |
-| 2 Unit/component | server unit suites + 61 React component tests | V | `npm test -w server/client` |
+| 2 Unit/component | server unit suites + 105 React component tests (18 files) | V | `npm test -w server/client` |
 | 3 API/contract | 182-route inventory, anonymous sweep of 169 private routes, envelope, strict schemas | V | `apiContract.test.js` 6/6 |
 | 4 MongoDB | transactions, revisions, uniqueness, append-only, tenant scope, indexes built | V | inside 412-test suite |
 | 5 Functional A–P | per-module integration suites | V | test files per module (§3) |
 | 6 Role/tenant matrix | 7 actors × 9 endpoints, admin writes, revocation | V | `accessMatrix.test.js` 3/3 |
-| 7 E2E journeys | 66 journeys across 14 spec files | V | run 2: 64 pass + 2 resolved standalone |
+| 7 E2E journeys | 86 journeys across 19 spec files | V | one invocation: 85 pass + 1 skipped (opt-in quarantine); the provider-disabled journey passes 1/1 in its documented `EXTRACTION_PROVIDER=none` topology |
 | 8 One-viewport | 6 sizes × 5 sessions = 30 measurements ×3 runs | V | 30/30 ×3 |
 | 9 Exploratory/regression | regression after each fix; exploratory charter | P | regression full green; offline/two-tab themes open (report §5) |
 

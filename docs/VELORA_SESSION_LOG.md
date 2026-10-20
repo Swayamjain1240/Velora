@@ -1715,3 +1715,18 @@ Run **39237665971** on `b51422d`, 19 October 2026: **all four jobs success** - S
 including the 13 new backup checks), Client tests/lint/build, Browser journeys (76 journeys plus the
 portable layout gate, the restore drill and the reconciliation report), and Dependency audit/secret
 scan. This is the first green CI run in the repository's history.
+
+---
+
+## 20 October 2026 — final local-only closure
+
+Scope: close the four remaining areas of the local-only brief. Deployment explicitly excluded.
+
+- **Duck review first.** Two previously recorded items were stale and were corrected rather than repeated: `npm audit` is 0 in root/`server`/`client`, and the axe + zoom gates already existed in CI.
+- **Accessibility.** Found a real defect: ten tab strips used `role="tablist"` with no keyboard contract. Added `client/src/lib/tabs.js` (roving tabindex, Left/Right/Home/End, wrapping) and wired all ten. axe extended from 15 to **34 screen states** (detail tabs, patient self, caregiver, invitation error). New `e2e/keyboard.spec.js` (dialog trap/Escape/restore, tab strip) and `e2e/reduced-motion.spec.js`. 6 new unit checks. **0 axe violations.**
+- **Advisories.** 0 before and after; no upgrade performed because there was nothing to fix. Deferred majors recorded as accepted risk, not as advisories.
+- **Secrets.** New offline `qa/secret-scan.js` + `qa/secret-scan-allowlist.json` (fingerprint-keyed). Tree clean (401 files), history clean (823 revisions), two synthetic fixtures allowlisted; `--strict` fails on them, proving the baseline works. `.gitignore` extended (`.envrc`, `*.jks`, `*.keystore`).
+- **Providers.** Local/mock matrix documented in `README.md`, `VELORA_PROVIDER_DECISIONS.md` §9 and the `.env.example` header (including the mapping from the brief's conventional variable names to the existing validated ones).
+- **Regression.** `npm ci` clean; server **440/440**; client **105/105**; lint clean; build clean; browser **85 passed / 1 failed / 1 skipped** in one invocation, with the provider-disabled journey passing 1/1 in its documented `EXTRACTION_PROVIDER=none` topology; layout gate 36/36; restore drill and reconciliation clean; local startup smoke `ready` (database ok, storage ok).
+- **Not run, and not claimed:** NVDA, VoiceOver, TalkBack, real Safari/Firefox, physical devices. Accessibility remains `PARTIAL`.
+- **Report:** `docs/FINAL_LOCAL_CLOSURE_REPORT.md` — verdict `LOCAL PROJECT COMPLETE WITH DOCUMENTED LIMITATIONS`.

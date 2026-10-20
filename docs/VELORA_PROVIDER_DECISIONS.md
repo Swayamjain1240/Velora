@@ -121,6 +121,36 @@ Before enabling ANY provider, record all of the following in this file and in th
 
 ---
 
+## 9. The local-only selection (the configuration this repository actually ships)
+
+The eight rows above answer "which external provider would we use". For the portfolio/development
+scope the answer is **none**, and that is a recorded selection, not an absence: every capability
+runs locally, with no key and no network dependency.
+
+| Capability | Local selection | What enforces it |
+|---|---|---|
+| Application hosting | Localhost only: API `:4000`, Vite client `:5173` | no deployment manifest exists; the API is a long-lived Node process with a graceful drain |
+| Database | Local MongoDB Community, single-node replica set (`:27019`) | `npm run mongo:test-rs -w server`; production-only TLS rule is not triggered locally |
+| Document storage | Encrypted local filesystem | `DOCUMENT_STORAGE_ROOT` absolute + outside the repo; AES-256-GCM, opaque UUID keys, path-traversal guards |
+| Notification delivery | In-app only (`REMINDER_PROVIDER=in_app`), plus the `fake` transport for tests | the provider registry REFUSES `email`, `sms`, `whatsapp`, `push` with the disclosure fields they would need |
+| Scheduling / jobs | In-process, request-driven materialisation; no daemon, no queue | bounded per-call limits; reminders are computed from stored schedules when a route is called |
+| OCR / AI extraction | `EXTRACTION_PROVIDER=none` (shipped) or `fake` (offline, deterministic) | `fake` refuses to run in production; no provider key is required or present |
+| Monitoring / alerts | Structured JSON logs with deep redaction, `/api/health`, `/api/ready` | correlation ids on every response; production stack traces suppressed |
+| Exports / backups | Encrypted local artifacts under an absolute path outside the repo | separate keys; commands fail closed without their key |
+
+**Control-#22 statement.** Velora is a local-only development and portfolio application. It does
+not use cloud hosting, managed databases, external object storage, production notification
+services, cloud schedulers, external AI/OCR services or cloud monitoring. Application data,
+documents and processing remain on the developer's local machine. Notifications are simulated
+through mock providers. OCR runs locally. Only synthetic data is permitted, and no real patient or
+clinic data may be entered.
+
+Consequence for this register: rows 1-8 stay `NOT SELECTED` **on purpose**. Selecting a provider is a
+deployment decision that the local scope excludes, so the disclosure table above remains the
+checklist for anyone who later chooses one - it is not work left undone.
+
+---
+
 ## What must NOT happen without an explicit owner decision
 
 1. Any credential in a `VITE_*` value or in the client bundle.

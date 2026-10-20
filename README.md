@@ -4,8 +4,8 @@
 
 [![CI](https://github.com/Swayamjain1240/Velora/actions/workflows/ci.yml/badge.svg)](https://github.com/Swayamjain1240/Velora/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)
-![Server tests](https://img.shields.io/badge/server%20tests-424%20passed-blue)
-![Client tests](https://img.shields.io/badge/client%20tests-98%20passed-blue)
+![Server tests](https://img.shields.io/badge/server%20tests-440%20passed-blue)
+![Client tests](https://img.shields.io/badge/client%20tests-105%20passed-blue)
 ![Axe](https://img.shields.io/badge/WCAG%202.1%20A%2FAA-0%20violations-success)
 ![npm audit](https://img.shields.io/badge/npm%20audit-0%20vulnerabilities-success)
 
@@ -19,8 +19,16 @@ recovery or publish AI output automatically. Manual clinical approval always
 comes before AI assistance: uploading a document or receiving an AI result can
 never activate patient instructions, tasks or reminders.
 
-> **Status — 19 October 2026:** Parts 1–10 are implemented and verified locally
-> (not deployed). The UI redesign is at **stage 2**: stage 1's tokens, shell,
+> **Development Scope:** Velora runs locally for development, demonstration and portfolio
+> evaluation. It is not deployed, clinically validated or authorized for real patient data,
+> diagnosis, treatment decisions or production clinic operations. All demonstrations must use
+> synthetic data.
+
+> **Status — 20 October 2026:** Parts 1–10 are implemented and verified locally
+> (not deployed). The final local-closure pass is recorded in the
+> [closure report](docs/FINAL_LOCAL_CLOSURE_REPORT.md): tab keyboard contracts
+> fixed, 34 screen states audited by axe, reduced-motion proven in a browser,
+> and a secret scan over the tree and all reachable history. The UI redesign is at **stage 2**: stage 1's tokens, shell,
 > auth, landing, 3D hero, phone layout and accessibility audit, plus the
 > stage-2 overlay primitives (`Dialog`, `Toast`, `Tooltip` and a keyboard-
 > reachable `ScrollRegion`). The browser journeys now run on **Chromium, Firefox
@@ -290,6 +298,39 @@ Permanent rules, enforced throughout every part:
 The complete 25-point contract is defined in the Master PDF and repeated in
 every implementation prompt. The threat model is in
 [docs/VELORA_THREAT_MODEL.md](docs/VELORA_THREAT_MODEL.md).
+
+## Local and mock providers
+
+Velora is provider-neutral in code and **local-only in configuration**: nothing is
+connected, and no key for an external service exists. The selections below are what
+the repository actually runs - each one is a name the startup schema validates, not an
+intention in a document.
+
+| Capability | Local selection | Evidence |
+|---|---|---|
+| Application hosting | Localhost only (`:4000` API, `:5173` client) | no deployment config in the tree; `TRUST_PROXY=false` by default |
+| Database | Local MongoDB Community, single-node replica set on `:27019` | `npm run mongo:test-rs -w server`; TLS only required for a production `MONGODB_URI` |
+| Document storage | Encrypted local filesystem | `DOCUMENT_STORAGE_ROOT` must be absolute and outside the repo; objects addressed by opaque UUID, AES-256-GCM envelopes |
+| Email | Disabled | no provider is registered; `REMINDER_PROVIDER=email` is refused with the disclosure fields it would need |
+| SMS | Disabled | as above (`sms`) |
+| WhatsApp | Disabled | as above (`whatsapp`, `push`) |
+| Scheduling/jobs | Local, request-driven, no daemon | reminder/occurrence materialisation runs inside the API process with bounded per-call limits; there is no cron, queue or external scheduler |
+| OCR / extraction | Offline adapter (`none` shipped, `fake` for journeys) | `EXTRACTION_PROVIDER=none` needs no key and fails closed; `fake` is deterministic and refuses to run in production |
+| Monitoring | Local structured logs + probes | JSON logger with deep redaction; `/api/health` (liveness) and `/api/ready` (database + storage) |
+| Notifications (in-app) | Simulated, nothing leaves the machine | `REMINDER_PROVIDER=in_app` records availability in the recipient's own queue; a delivery is never an acknowledgement |
+
+**Control-#22 statement.** Velora is a local-only development and portfolio application. It
+does not use cloud hosting, managed databases, external object storage, production
+notification services, cloud schedulers, external AI/OCR services or cloud monitoring.
+Application data, documents and processing remain on the developer's local machine.
+Notifications are simulated through mock providers. OCR runs locally. Only synthetic data is
+permitted, and no real patient or clinic data may be entered.
+
+Mock transports are exercised by the test suite, never by a real send: the `fake` reminder
+provider is the only transport that records an outcome, and it refuses to run in production.
+The equivalent of a console mock is therefore a **refusal plus an in-app record**, not a
+silently "sent" message - a mock that claims delivery would hide exactly the failure this
+project is built to avoid.
 
 ## Project authority
 
