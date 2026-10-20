@@ -3,6 +3,7 @@
 import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 import { useAuth } from '../auth/AuthContext';
 import PlanItemForm from './PlanItemForm';
 import PlanReviewPanel from './PlanReviewPanel';
@@ -30,6 +31,16 @@ const TABS = ['draft', 'extraction', 'language', 'sources', 'review', 'history']
 // Part 6 tabs are shown to the same care team and the server re-checks authority
 // on every request anyway.
 const TEAM_TABS = ['extraction', 'language'];
+
+// The tabs this role may see, in visual order. Hoisted out of the JSX so the
+// rendered strip and the keyboard handler can never disagree about the list.
+function visibleTabs(canReviewHint, canDraftHint) {
+  return TABS.filter(
+    (name) =>
+      (name !== 'review' || canReviewHint) &&
+      (!TEAM_TABS.includes(name) || canDraftHint || canReviewHint)
+  );
+}
 const DOC_PAGE_SIZE = 50;
 // The item fields the editor submits (the wording is handled separately).
 const CLINICAL_KEYS = [
@@ -409,16 +420,26 @@ export default function CarePlanPanel({ episodeId, episodeStatus, onDenied }) {
 
       {!wizard && detail && detail.plan && (
         <>
-          <div className="tabs" role="tablist" aria-label="Care plan sections">
-            {TABS.filter(
-              (name) =>
-                (name !== 'review' || canReviewHint) &&
-                (!TEAM_TABS.includes(name) || canDraftHint || canReviewHint)
-            ).map((name) => (
+          <div
+            className="tabs"
+            role="tablist"
+            aria-label="Care plan sections"
+            onKeyDown={(event) =>
+              onTabListKeyDown(
+                event,
+                visibleTabs(canReviewHint, canDraftHint),
+                tab,
+                setTab
+              )
+            }
+          >
+            {visibleTabs(canReviewHint, canDraftHint).map((name) => (
               <button
                 key={name}
+                type="button"
                 role="tab"
                 aria-selected={tab === name}
+                tabIndex={tabStop(name, tab)}
                 className={tab === name ? 'tab tab--active' : 'tab'}
                 onClick={() => setTab(name)}
               >

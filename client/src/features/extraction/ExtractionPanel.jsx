@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 import {
   AI_AUTHORITY_NOTICE,
   FIELD_PAGE_SIZE,
@@ -403,12 +404,21 @@ export default function ExtractionPanel({
           </div>
 
           <div className="plans__pane">
-            <div className="tabs" role="tablist" aria-label="Suggestion panels">
+            <div
+              className="tabs"
+              role="tablist"
+              aria-label="Suggestion panels"
+              onKeyDown={(event) =>
+                onTabListKeyDown(event, PANELS.map(([name]) => name), panel, setPanel)
+              }
+            >
               {PANELS.map(([name, label]) => (
                 <button
                   key={name}
+                  type="button"
                   role="tab"
                   aria-selected={panel === name}
+                  tabIndex={tabStop(name, panel)}
                   className={panel === name ? 'tab tab--active' : 'tab'}
                   onClick={() => setPanel(name)}
                 >

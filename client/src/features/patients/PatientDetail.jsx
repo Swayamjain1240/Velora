@@ -3,6 +3,7 @@
 import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 
 const PAGE_SIZE = 10;
 const TABS = ['overview', 'consent', 'caregivers', 'team'];
@@ -182,12 +183,19 @@ export default function PatientDetail({ patientId, onBack }) {
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
-      <div className="tabs" role="tablist" aria-label="Patient sections">
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="Patient sections"
+        onKeyDown={(event) => onTabListKeyDown(event, TABS, tab, setTab)}
+      >
         {TABS.map((t) => (
           <button
             key={t}
+            type="button"
             role="tab"
             aria-selected={tab === t}
+            tabIndex={tabStop(t, tab)}
             className={tab === t ? 'tab tab--active' : 'tab'}
             onClick={() => setTab(t)}
           >

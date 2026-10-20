@@ -3,6 +3,7 @@
 import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 
 // Episode closure, history and reopen (Part 9). A three-step wizard keeps the
 // preflight, the clinic-policy checks and the confirmation inside one viewport;
@@ -12,6 +13,9 @@ import { api, ApiError } from '../../lib/api';
 // Closure is presented as an OPERATIONAL archive step. The server owns the
 // wording and refuses a reason that reads as a clinical outcome.
 const STEPS = ['preflight', 'checks', 'confirm'];
+// The two closure sections in visual order: the keyboard contract needs the
+// same list the pointer path renders.
+const CLOSURE_TABS = ['wizard', 'history'];
 
 export default function ClosurePanel({ episodeId, episode, onChanged }) {
   const [step, setStep] = useState(0);
@@ -114,14 +118,21 @@ export default function ClosurePanel({ episodeId, episode, onChanged }) {
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
-      <div className="tabs" role="tablist" aria-label="Closure sections">
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="Closure sections"
+        onKeyDown={(event) => onTabListKeyDown(event, CLOSURE_TABS, tab, setTab)}
+      >
         <button
           type="button" role="tab" aria-selected={tab === 'wizard'}
+          tabIndex={tabStop('wizard', tab)}
           className={tab === 'wizard' ? 'tab tab--active' : 'tab'}
           onClick={() => setTab('wizard')}
         >Preflight</button>
         <button
           type="button" role="tab" aria-selected={tab === 'history'}
+          tabIndex={tabStop('history', tab)}
           className={tab === 'history' ? 'tab tab--active' : 'tab'}
           onClick={() => setTab('history')}
         >History</button>

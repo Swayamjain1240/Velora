@@ -3,6 +3,7 @@
 import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 import ThreadView from './ThreadView';
 
 // The assigned-team dashboard (Part 8).
@@ -217,13 +218,24 @@ export default function AssignedQueues() {
         </p>
       )}
 
-      <div className="tabs" role="tablist" aria-label="Assigned queues">
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="Assigned queues"
+        onKeyDown={(event) =>
+          onTabListKeyDown(event, QUEUES.map((entry) => entry.key), queueKey, (next) => {
+            setQueueKey(next);
+            setPage(1);
+          })
+        }
+      >
         {QUEUES.map((entry) => (
           <button
             key={entry.key}
             type="button"
             role="tab"
             aria-selected={queueKey === entry.key}
+            tabIndex={tabStop(entry.key, queueKey)}
             className={queueKey === entry.key ? 'tab tab--active' : 'tab'}
             onClick={() => {
               setQueueKey(entry.key);

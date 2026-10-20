@@ -7,6 +7,7 @@ import DocumentsPanel from '../documents/DocumentsPanel';
 import CarePlanPanel from '../plans/CarePlanPanel';
 import SchedulePanel from '../schedules/SchedulePanel';
 import ClosurePanel from '../closure/ClosurePanel';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 
 const PAGE_SIZE = 10;
 const TABS = ['overview', 'plan', 'schedule', 'corrections', 'team', 'documents', 'closure'];
@@ -146,12 +147,19 @@ export default function EpisodeDetail({ episodeId, onBack }) {
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
-      <div className="tabs" role="tablist" aria-label="Episode sections">
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="Episode sections"
+        onKeyDown={(event) => onTabListKeyDown(event, TABS, tab, setTab)}
+      >
         {TABS.map((t) => (
           <button
             key={t}
+            type="button"
             role="tab"
             aria-selected={tab === t}
+            tabIndex={tabStop(t, tab)}
             className={tab === t ? 'tab tab--active' : 'tab'}
             onClick={() => setTab(t)}
           >

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 import CheckInForm from '../queues/CheckInForm';
 import ThreadView from '../queues/ThreadView';
 
@@ -188,13 +189,26 @@ export default function MyCare({ mode = 'patient', patientId }) {
         </p>
       )}
 
-      <div className="tabs" role="tablist" aria-label="My care">
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="My care"
+        onKeyDown={(event) =>
+          onTabListKeyDown(event, TABS.map((entry) => entry.key), tab, (next) => {
+            setTab(next);
+            setPage(1);
+            setActiveSlot(null);
+            setThread(null);
+          })
+        }
+      >
         {TABS.map((entry) => (
           <button
             key={entry.key}
             type="button"
             role="tab"
             aria-selected={tab === entry.key}
+            tabIndex={tabStop(entry.key, tab)}
             className={tab === entry.key ? 'tab tab--active' : 'tab'}
             onClick={() => {
               setTab(entry.key);

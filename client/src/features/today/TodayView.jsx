@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 import { useAuth } from '../auth/AuthContext';
 import {
   ENTRY_ACTIONS,
@@ -208,12 +209,24 @@ export default function TodayView() {
         {day && <span className="muted">{describeDay(day.date, day.timezone)}</span>}
       </div>
 
-      <div className="tabs" role="tablist" aria-label="Today categories">
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="Today categories"
+        onKeyDown={(event) =>
+          onTabListKeyDown(event, TABS.map((entry) => entry.key), tab, (next) => {
+            setPage(1);
+            setTab(next);
+          })
+        }
+      >
         {TABS.map((entry) => (
           <button
             key={entry.key}
+            type="button"
             role="tab"
             aria-selected={tab === entry.key}
+            tabIndex={tabStop(entry.key, tab)}
             className={tab === entry.key ? 'tab tab--active' : 'tab'}
             onClick={() => {
               setPage(1);

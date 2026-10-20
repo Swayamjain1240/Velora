@@ -6,6 +6,7 @@ import MiniBars from '../../components/MiniBars';
 import ScrollRegion from '../../components/ScrollRegion';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 
 // Operational metrics (Part 9). One switchable panel at a time so the screen
 // stays inside one viewport, and every panel shows the definition's
@@ -45,13 +46,21 @@ export default function MetricsPanel() {
       {error && <p className="error" role="alert">{error}</p>}
       {data && <p className="muted">{data.note}</p>}
 
-      <div className="tabs" role="tablist" aria-label="Metric panels">
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="Metric panels"
+        onKeyDown={(event) =>
+          onTabListKeyDown(event, PANELS.map((entry) => entry.key), panel, setPanel)
+        }
+      >
         {PANELS.map((entry) => (
           <button
             key={entry.key}
             type="button"
             role="tab"
             aria-selected={panel === entry.key}
+            tabIndex={tabStop(entry.key, panel)}
             className={panel === entry.key ? 'tab tab--active' : 'tab'}
             onClick={() => setPanel(entry.key)}
           >

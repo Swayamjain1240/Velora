@@ -3,6 +3,7 @@
 import ResponsiveTable from '../../components/ResponsiveTable';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/api';
+import { onTabListKeyDown, tabStop } from '../../lib/tabs';
 
 const PAGE_SIZE = 10;
 const ROLES = ['admin', 'care_coordinator', 'clinical_reviewer'];
@@ -86,16 +87,30 @@ export default function ClinicSettings() {
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="notice" role="status">{notice}</p>}
 
-      <div className="tabs" role="tablist" aria-label="Clinic sections">
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="Clinic sections"
+        onKeyDown={(event) =>
+          onTabListKeyDown(event, ['members', 'invites'], tab, (next) => {
+            setTab(next);
+            setPage(1);
+          })
+        }
+      >
         <button
+          type="button"
           role="tab"
           aria-selected={tab === 'members'}
+          tabIndex={tabStop('members', tab)}
           className={tab === 'members' ? 'tab tab--active' : 'tab'}
           onClick={() => { setTab('members'); setPage(1); }}
         >Members</button>
         <button
+          type="button"
           role="tab"
           aria-selected={tab === 'invites'}
+          tabIndex={tabStop('invites', tab)}
           className={tab === 'invites' ? 'tab tab--active' : 'tab'}
           onClick={() => { setTab('invites'); setPage(1); }}
         >Invitations</button>
