@@ -85,6 +85,25 @@ function planPdfBytes() {
   );
 }
 
+// A seeded document is only reusable while its BYTES are still readable.
+//
+// The seed is idempotent by checksum, so the metadata row survives a changed
+// DOCUMENT_STORAGE_ROOT (or a cleaned storage directory) while the encrypted
+// object it points at does not. That leaves a row that claims `ready` but whose
+// bytes are gone, and every extraction job against it fails closed with
+// TEXT_LAYER_ERROR - a fixture bug, not an application defect. Verify the object
+// and replace the row when it cannot be read, so the fixture is reproducible on
+// any machine rather than only on the one that created it.
+async function documentBytesReadable(document, digest) {
+  if (!document) return false;
+  try {
+    const stored = await documentStorage.get(document.storageKey);
+    return crypto.createHash('sha256').update(stored).digest('hex') === digest;
+  } catch {
+    return false;
+  }
+}
+
 // Part 4: one synthetic care team with a DRAFT episode (documents accepted) and
 // a CLOSED episode (documents refused), plus a patient-linked episode so the
 // read-only patient view has something real to render. Fabricated identities
@@ -284,6 +303,12 @@ async function seedPlanJourney(clinic) {
     episode: episode.id,
     sha256: digest,
   });
+  // storageKey is immutable, so a row whose object is gone is replaced rather
+  // than repointed: metadata without bytes can only fail extraction.
+  if (document && !(await documentBytesReadable(document, digest))) {
+    await document.deleteOne();
+    document = null;
+  }
   if (!document) {
     const storageKey = documentStorage.newStorageKey();
     await documentStorage.put(storageKey, bytes);
@@ -433,11 +458,17 @@ async function seedExtractionJourney(clinic) {
     ],
   ]);
   const digest = crypto.createHash('sha256').update(bytes).digest('hex');
-  const existing = await EpisodeDocument.findOne({
+  let existing = await EpisodeDocument.findOne({
     clinic: clinic.id,
     episode: episode.id,
     sha256: digest,
   });
+  // Same fixture guarantee as the Part 5 document: a `ready` row whose
+  // encrypted object is unreadable is not a usable source document.
+  if (existing && !(await documentBytesReadable(existing, digest))) {
+    await existing.deleteOne();
+    existing = null;
+  }
   if (!existing) {
     const storageKey = documentStorage.newStorageKey();
     await documentStorage.put(storageKey, bytes);

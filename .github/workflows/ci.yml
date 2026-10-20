@@ -76,6 +76,8 @@ jobs:
       NODE_ENV: test
       PORT: "4100"
       MONGODB_URI: mongodb://127.0.0.1:27017/velora_e2e?replicaSet=rs0
+      # The topology gate seeds and serves its own stack against this database.
+      E2E_MONGODB_URI: mongodb://127.0.0.1:27017/velora_e2e?replicaSet=rs0
       CLIENT_ORIGIN: http://localhost:5173
       SESSION_PEPPER: ci_test_session_pepper_0123456789
       MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -84,8 +86,9 @@ jobs:
       DOCUMENT_ENCRYPTION_KEY: BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU=
       VITE_API_PROXY: http://localhost:4100
       E2E_BASE_URL: http://localhost:5173
-      # Part 6: the LOCAL deterministic provider (no network, no key). This is a
-      # test-only value; the shipped default is `none` (see the fail-closed step).
+      # Part 6: the LOCAL deterministic provider (no network, no key) used by the
+      # stack this job starts for the layout gate. The topology gate sets its own
+      # provider per phase and never inherits this value (see test:e2e:all).
       EXTRACTION_PROVIDER: fake
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -108,15 +111,20 @@ jobs:
           done
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: Seed synthetic clinic
-        run: npm run seed -w server
-      - name: Start API
-        # Captured PID so the provider-disabled journey can restart it below.
+      - name: Browser journeys, both provider topologies (merge gate)
+        # `scripts/e2e-topologies.js` owns the process lifecycle instead of the
+        # workflow: it seeds, starts the API with EXTRACTION_PROVIDER=fake, runs
+        # every fake-provider journey, stops it, restarts with
+        # EXTRACTION_PROVIDER=none, runs the provider-disabled journey, cleans up
+        # and exits 0 only when BOTH topologies pass. That is why there is no
+        # job-level provider guess for the tests to self-skip against any more.
+        # Includes the axe accessibility audit, the 200 %/400 % zoom reflow
+        # checks, the phone table-stacking checks and forced-colours mode.
+        run: npm run test:e2e:all
+      - name: Start the stack for the layout gate (fake provider)
         run: |
           node server/src/index.js > /tmp/api.log 2>&1 &
-          echo $! > /tmp/api.pid
-      - name: Start client
-        run: npm run dev -w client &
+          npm run dev -w client > /tmp/client.log 2>&1 &
       - name: Wait for stack
         # Readiness is asserted with curl instead of an unpinned `npx wait-on`
         # download: no extra dependency enters the build (control #13, #14).
@@ -131,10 +139,6 @@ jobs:
           done
           echo "stack did not become ready" >&2
           exit 1
-      - name: Browser journeys
-        # Includes the axe accessibility audit, the 200 %/400 % zoom reflow
-        # checks, the phone table-stacking checks and forced-colours mode.
-        run: npx playwright test
       - name: Layout snapshot gate
         # L11: a deterministic gate on the numbers a layout regression moves
         # (page overflow, main box, stacked tables, heading). Pixel baselines
@@ -155,25 +159,6 @@ jobs:
           node server/scripts/restore-drill.js
           node server/scripts/reconcile-documents.js
           node server/scripts/reseal-keys.js
-      - name: Extraction fails closed with no provider enabled
-        # The AI journey above runs with the fake provider; this restart proves the
-        # SHIPPED default (no provider) fails closed and drafting by hand still works.
-        run: |
-          kill "$(cat /tmp/api.pid)" 2>/dev/null || true
-          for i in $(seq 1 30); do
-            curl -fsS http://localhost:4100/api/health >/dev/null 2>&1 && sleep 1 || break
-          done
-          EXTRACTION_PROVIDER=none node server/src/index.js > /tmp/api-none.log 2>&1 &
-          echo $! > /tmp/api.pid
-          for i in $(seq 1 60); do
-            curl -fsS http://localhost:4100/api/health >/dev/null && break
-            sleep 2
-          done
-          # The journey skips itself when the RUNNER sees the fake provider (the
-          # job-level default above), so without this override the step would
-          # report green without ever asserting the shipped fail-closed default.
-          EXTRACTION_PROVIDER=none npx playwright test e2e/extractions.spec.js -g "no provider enabled"
-
   security:
     name: Dependency audit and secret scan
     runs-on: ubuntu-latest
