@@ -130,3 +130,139 @@ test.describe('axe accessibility audit', () => {
     await context.close();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Deep surfaces: the screens that are reached by CLICKING rather than by a
+// top-level URL. They matter more than the list screens because they hold the
+// clinical content (documents, care plan, closure wizard, check-ins), and a
+// structural defect that only appears after a tab switch would otherwise never
+// be audited. Each tab is audited in its own right, not just the landing tab.
+// ---------------------------------------------------------------------------
+
+async function openRow(page, reference, wordBoundary = false) {
+  const pattern = wordBoundary
+    ? new RegExp(`${reference}\\b`)
+    : new RegExp(reference.replace(/\./g, '\\.'));
+  await page.getByRole('row', { name: pattern }).getByRole('button', { name: 'Open' }).click();
+}
+
+async function auditTab(page, tabName, label) {
+  await page.getByRole('tab', { name: tabName, exact: true }).click();
+  // Tab panels render on demand; waiting for the heading settles the layout
+  // before the audit rather than sampling a transition.
+  await page.waitForTimeout(400);
+  await audit(page, `${label} - ${tabName}`);
+}
+
+test.describe('axe accessibility audit - deep surfaces', () => {
+  test('staff patient detail and every tab', async ({ browser }) => {
+    const context = await browser.newContext({
+      storageState: session('docs-coordinator.json'),
+      viewport: { width: 1440, height: 900 },
+    });
+    const page = await context.newPage();
+
+    await page.goto('/app/patients');
+    await expect(page.getByRole('heading', { level: 1, name: 'Patients' })).toBeVisible();
+    await openRow(page, 'PT-DOCS', true);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Synthetic Document Patient' })
+    ).toBeVisible();
+    await audit(page, 'patient detail');
+
+    for (const tab of ['Consent', 'Caregivers', 'Team']) {
+      // eslint-disable-next-line no-await-in-loop
+      await auditTab(page, tab, 'patient detail');
+    }
+
+    await context.close();
+  });
+
+  test('staff episode detail and every tab, including documents', async ({ browser }) => {
+    const context = await browser.newContext({
+      storageState: session('docs-coordinator.json'),
+      viewport: { width: 1440, height: 900 },
+    });
+    const page = await context.newPage();
+
+    await page.goto('/app/episodes');
+    await expect(page.getByRole('heading', { level: 1, name: 'Episodes' })).toBeVisible();
+    await openRow(page, 'EP-DOCSDRAFT');
+    await expect(page.getByRole('heading', { level: 1, name: 'EP-DOCSDRAFT' })).toBeVisible();
+    await audit(page, 'episode detail');
+
+    for (const tab of ['Plan', 'Schedule', 'Corrections', 'Team', 'Documents', 'Closure']) {
+      // eslint-disable-next-line no-await-in-loop
+      await auditTab(page, tab, 'episode detail');
+    }
+
+    await context.close();
+  });
+
+  test('patient self-service surfaces', async ({ browser }) => {
+    const context = await browser.newContext({
+      storageState: session('docs-patient.json'),
+      viewport: { width: 1440, height: 900 },
+    });
+    const page = await context.newPage();
+    for (const route of [
+      { name: 'my day', url: '/app' },
+      { name: 'my episodes', url: '/app/me/episodes' },
+      { name: 'my care', url: '/app/me/care' },
+    ]) {
+      // eslint-disable-next-line no-await-in-loop
+      await visit(page, route);
+      // eslint-disable-next-line no-await-in-loop
+      await audit(page, route.name);
+    }
+    await context.close();
+  });
+
+  test('caregiver scoped surfaces', async ({ browser }) => {
+    const context = await browser.newContext({
+      storageState: session('docs-caregiver.json'),
+      viewport: { width: 1440, height: 900 },
+    });
+    const page = await context.newPage();
+
+    await page.goto('/app/caregiver');
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'People who shared their care with me' })
+    ).toBeVisible();
+    await page.waitForTimeout(350);
+    await audit(page, 'caregiver home');
+
+    await openRow(page, 'PT-DOCSPAT');
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Synthetic Linked Document Patient' })
+    ).toBeVisible();
+    await page.waitForTimeout(350);
+    await audit(page, 'caregiver patient view');
+
+    await page.getByRole('link', { name: 'Check-ins, questions and follow-ups' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Care you help with' })).toBeVisible();
+    await page.waitForTimeout(400);
+    await audit(page, 'caregiver care panel');
+
+    await context.close();
+  });
+
+  test('auth screens and an invitation error state', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+
+    for (const route of [
+      { name: 'forgot password', url: '/forgot-password' },
+      // A syntactically valid but unknown token drives the ERROR state of the
+      // acceptance screen, which is the surface a real visitor can hit.
+      { name: 'invalid invitation', url: '/accept-invite/not-a-real-token' },
+    ]) {
+      // eslint-disable-next-line no-await-in-loop
+      await visit(page, route);
+      // eslint-disable-next-line no-await-in-loop
+      await audit(page, route.name);
+    }
+
+    await context.close();
+  });
+});
