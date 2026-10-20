@@ -112,7 +112,7 @@
   "dashboard@short-phone": {
     "overflowX": 0,
     "overflowY": 0,
-    "mainWidth": 361,
+    "mainWidth": 320,
     "heading": "Welcome, Synthetic Reviewer",
     "tables": 0,
     "cards": 0,
@@ -152,7 +152,7 @@
   "patients@short-phone": {
     "overflowX": 0,
     "overflowY": 0,
-    "mainWidth": 351,
+    "mainWidth": 320,
     "heading": "Patients",
     "tables": 0,
     "cards": 0,
@@ -192,7 +192,7 @@
   "episodes@short-phone": {
     "overflowX": 0,
     "overflowY": 0,
-    "mainWidth": 357,
+    "mainWidth": 320,
     "heading": "Recovery episodes",
     "tables": 0,
     "cards": 0,
@@ -232,7 +232,7 @@
   "metrics@short-phone": {
     "overflowX": 0,
     "overflowY": 0,
-    "mainWidth": 347,
+    "mainWidth": 320,
     "heading": "Workflow metrics",
     "tables": 1,
     "cards": 0,
@@ -272,7 +272,7 @@
   "clinic@short-phone": {
     "overflowX": 0,
     "overflowY": 0,
-    "mainWidth": 384,
+    "mainWidth": 320,
     "heading": "Clinic & staff",
     "tables": 1,
     "cards": 0,
@@ -312,7 +312,7 @@
   "audit@short-phone": {
     "overflowX": 0,
     "overflowY": 0,
-    "mainWidth": 365,
+    "mainWidth": 320,
     "heading": "Audit trail",
     "tables": 1,
     "cards": 0,
@@ -352,7 +352,7 @@
   "retention@short-phone": {
     "overflowX": 0,
     "overflowY": 0,
-    "mainWidth": 364,
+    "mainWidth": 320,
     "heading": "Retention",
     "tables": 1,
     "cards": 0,
