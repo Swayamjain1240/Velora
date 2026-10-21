@@ -372,4 +372,5 @@ or activate anything.
 This repository is **private and unlicensed** (`"private": true`, `UNLICENSED`): no permission to
 copy, modify, or redistribute is granted by its publication.
 
-Maintained by **Swayam Jain** — [github.com/Swayamjain1240](https://github.com/Swayamjain1240).
+**Author** — **Swayam Jain**, Full Stack and AI Engineer ·
+[github.com/Swayamjain1240](https://github.com/Swayamjain1240).
