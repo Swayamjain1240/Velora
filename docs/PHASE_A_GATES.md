@@ -2,11 +2,11 @@
 
 Phase A is the five gates that stop the project being called complete. This page states, for each
 gate, **what is true today**, the evidence, and the one action that closes it. Nothing here is a
-new claim: every number was measured on 19 October 2026 and is reproducible with the command shown.
+new claim: every number was measured on 19-21 October 2026 and is reproducible with the command shown.
 
 | # | Gate | Status | Evidence | Closes when |
 |---|---|---|---|---|
-| A1 | CI green on a branch revision | **GREEN** | PR [#1](https://github.com/Swayamjain1240/Velora/pull/1), run `39237665971` on `b51422d`: Server tests, Client tests/lint/build, Browser journeys and Dependency audit/secret scan all **success** | Merging the PR (owner action) |
+| A1 | CI green on the final revision | **CLOSED** | Run [`39439834389`](https://github.com/Swayamjain1240/Velora/actions/runs/39439834389) on `66a5356` (the final code commit): Server tests, Client tests/lint/build, Browser journeys and Dependency audit/secret scan all **success**, including the two-topology merge gate | Closed - no action |
 | A2 | A real deployment | **Blocked - owner decision** | No host, no production database, no domain. Provider register §2 | A staging deployment answers `/api/ready` over HTTPS with the CSP at the edge |
 | A3 | Provider decisions | **Documented, NOT SELECTED** | [Provider decision register](VELORA_PROVIDER_DECISIONS.md); extraction evaluation 1.00 on synthetic data | The owner selects providers (control #22) or explicitly ships without them |
 | A4 | Scheduled backups + RPO/RTO | **Mechanism complete; schedule is operations** | §6.1 of the [runbook](VELORA_OPERATIONS_RUNBOOK.md): 13 tests, create+verify 1,495 ms, restore 11,399 ms | A cron/Task Scheduler job runs it against the deployed database and a restore is timed |
@@ -40,6 +40,14 @@ cells wrap with shrinkable labels. Measured: 21/60 admin/reviewer route×viewpor
 wider than the viewport before, 0/60 after. `e2e/layout-width.spec.js` (31 tests) gates it, the layout
 baseline was re-recorded, and the 32 px phone-width allowance described in point 2 is **gone** — the
 number is now exactly the viewport at every size, so a width regression fails at any size.
+
+**CI green on the final code (21 October 2026).** Run `39439834389` executed on `66a5356` on a clean
+Ubuntu runner and finished **success in all four jobs**. It is the first run that executed the new
+merge gate rather than a hand-started stack: the `Browser journeys` job ran the step "Browser
+journeys, both provider topologies (merge gate)" (6 min 37 s), then the layout snapshot gate and the
+operational drills, with no skipped or failed step. The earlier evidence on `b51422d` (run
+`39237665971`) remains the record of the L16 finding and the baseline/font fixes; this run supersedes
+it as the completion evidence because it exercises the exact code that was reviewed.
 
 ## A2 - Deployment
 

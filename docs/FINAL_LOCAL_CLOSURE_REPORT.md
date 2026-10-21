@@ -245,6 +245,13 @@ Combined exit code: 0
 Unexpected failures: 0
 ```
 
+**CI executed the same gate.** Run [`39439834389`](https://github.com/Swayamjain1240/Velora/actions/runs/39439834389)
+on the final code commit `66a5356` completed **success** in all four jobs on a clean Ubuntu runner. The
+`Browser journeys` job ran "Browser journeys, both provider topologies (merge gate)" (6 min 37 s log
+window), then the layout snapshot gate and the operational drills, with no skipped or failed step; the
+other jobs ran the server suite, the client tests/lint/build and the dependency audit plus secret scan.
+This is remote evidence of the same two-topology contract, not a substitute for the local run.
+
 **Reconciliation residue, stated plainly.** Earlier E2E runs shared the developer's document-store
 root, leaving 20 orphan objects that `documents:reconcile` reported. The gate now uses its own root;
 the residue was removed with the tool's documented repair (`--apply --operator`), which deleted only

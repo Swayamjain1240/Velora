@@ -53,7 +53,7 @@ approve a specific plan version first.
 | **Data** | Synthetic only; `.invalid` identities |
 | **Providers** | No external service selected, connected, or called |
 | **Accessibility** | Automated WCAG 2.1 A/AA audit clean; manual AT testing `NOT RUN` — see [limitations](#known-limitations) |
-| **Last full local gate** | 20 October 2026 (`npm run test:e2e:all` exit `0`) |
+| **Last full local gate** | 20 October 2026 (`npm run test:e2e:all` exit `0`); CI green on the same code commit |
 
 Open owner decisions — deployment host, provider selection, scheduled backups, clinical and
 privacy sign-off — are tracked in the [readiness report](docs/VELORA_READINESS_REPORT.md) and the
@@ -290,6 +290,7 @@ All figures below were measured locally on the final code tree; nothing here is 
 
 | Gate | Result |
 |---|---|
+| CI | GitHub Actions **green** on the final code commit `66a5356` ([run `39439834389`](https://github.com/Swayamjain1240/Velora/actions/runs/39439834389)): all four jobs, including the two-topology browser gate |
 | Server tests | **440 / 440** (exit `0`), against replica-set MongoDB |
 | Client tests | **105 / 105** (18 files) |
 | Lint / build | ESLint exit `0`; build exit `0` (main 467.74 kB / 133.67 kB gzip; 3D scene 4.99 kB gzip) |
