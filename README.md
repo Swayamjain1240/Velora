@@ -221,8 +221,8 @@ npm audit --omit=dev                     # production dependency audit
 - `qa/layout-snapshot.js` **36/36** against the re-recorded baseline;
   `qa/viewport-audit.js` 144 checks and `qa/hero-browser-test.js` 18/18 were
   previously green and are not part of the final commit's gate.
-- `npm audit`: **0** (dev and production). Secret scan: **clean** — 409 tracked
-  files and 851 historical revisions, with exactly two reviewed synthetic
+- `npm audit`: **0** (dev and production). Secret scan: **clean** — 411 tracked
+  files and 867 historical revisions at the gate revision, with exactly two reviewed synthetic
   fixtures allowlisted by value fingerprint.
 - Restore drill and document reconciliation: **passed**; reconciliation reports
   0 missing, 0 unreadable, 0 mismatches and 0 orphans after the documented

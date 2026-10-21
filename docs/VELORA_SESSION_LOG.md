@@ -1761,8 +1761,8 @@ Scope: L16 (mobile admin width) and the non-zero combined E2E gate. Nothing was 
   CI's browser job now calls `test:e2e:all`.
 - **Results on the final commit.** server **440/440**; client **105/105**; lint 0; build 0; fake
   **116 passed + 1 opt-in skip**; provider-disabled **1 passed**; **combined exit 0**; axe 0 over 34
-  screen states; layout gate **36/36**; audit 0 / `--omit=dev` 0; secret scans clean (409 files, 851
-  revisions); restore drill passed (49 collections, 8,587 rows, 283 objects, 12,147 ms); reconciliation
+  screen states; layout gate **36/36**; audit 0 / `--omit=dev` 0; secret scans clean (411 files, 867
+  revisions at the gate revision); restore drill passed (49 collections, 8,587 rows, 283 objects, 12,147 ms); reconciliation
   0/0/0/0 after the documented repair of 20 orphan objects left by earlier shared-root E2E runs.
 - **Not run, not claimed:** NVDA, VoiceOver, TalkBack, real Safari/Firefox, physical devices; Playwright
   Firefox/WebKit engines were not re-run in this pass. Accessibility remains `PARTIAL`.

@@ -173,7 +173,7 @@ data, so a switch could only imply that one exists.
 | Startup smoke | `curl /api/health`, `/api/ready`, client `:5173` | `ready`, database `ok`, storage `ok` |
 | Restore drill | `npm run restore:drill -w server` | **PASSED** — 49 collections, 8,587 rows, 283 encrypted objects (8,093,652 bytes, byte-identical after restore); dump 496 ms, restore 12,147 ms, object copy 532 ms, verify 655 ms |
 | Document reconciliation | `npm run documents:reconcile -w server` | **0 missing, 0 unreadable, 0 integrity mismatches, 0 orphans** (dry run, after the documented repair described in 7.2) |
-| Secret scan | `node qa/secret-scan.js` (+ `--history`) | **clean** — 409 tracked files, 851 historical revisions, 2 reviewed synthetic fingerprints (see 5.3) |
+| Secret scan | `node qa/secret-scan.js` (+ `--history`) | **clean** — 411 tracked files, 867 historical revisions at the gate revision, 2 reviewed synthetic fingerprints (see 5.3) |
 
 Totals: **server 440 + client 105 + browser 117 (two topologies) = 662 automated checks**,
 plus the layout gate (36), the L16 width gate (31, counted inside the 117), the drill and the

@@ -484,8 +484,8 @@ API by hand.
 **Measured on the final commit.** server **440/440** (exit 0); client **105/105**; lint exit 0; build
 exit 0 (133.67 kB gzip main, 4.99 kB gzip scene); fake topology **116 passed + 1 opt-in skip, 0
 failed**; provider-disabled **1 passed**; **combined exit 0**; axe 0 violations over 34 screen states;
-layout gate **36/36**; `npm audit` **0** and `--omit=dev` **0**; secret scans clean (**409** tracked
-files, **851** revisions, 2 reviewed synthetic fingerprints); restore drill passed (49 collections,
+layout gate **36/36**; `npm audit` **0** and `--omit=dev` **0**; secret scans clean (**411** tracked
+files, **867** revisions at the gate revision, 2 reviewed synthetic fingerprints); restore drill passed (49 collections,
 8,587 rows, 283 objects, 12,147 ms restore); reconciliation 0/0/0/0 after the documented operator
 repair of 20 E2E-residue orphans.
 
